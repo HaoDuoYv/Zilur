@@ -60,6 +60,7 @@ class NoteViewModel @Inject constructor(
     private val saveMutex = Mutex()
     private var saveJob: Job? = null
     private var saveVersion: Long = 0L
+    private var _isDragging = false
     private val pendingRemovals = mutableMapOf<Long, PendingBlockRemoval>()
     private val removalConfirmJobs = mutableMapOf<Long, Job>()
     private var nextRemovalToken: Long = 1L
@@ -148,6 +149,10 @@ class NoteViewModel @Inject constructor(
         _blocks[index] = block.copy(language = language)
         syncBlocksToState()
         scheduleSave()
+    }
+
+    fun setDragging(dragging: Boolean) {
+        _isDragging = dragging
     }
 
     fun moveBlock(fromIndex: Int, toIndex: Int) {
@@ -516,6 +521,7 @@ class NoteViewModel @Inject constructor(
     }
 
     private fun scheduleSave() {
+        if (_isDragging) return
         val version = nextSaveVersion()
         saveJob?.cancel()
         saveJob = viewModelScope.launch {

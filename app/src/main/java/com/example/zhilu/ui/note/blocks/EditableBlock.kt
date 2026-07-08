@@ -20,7 +20,11 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.TodoItem
@@ -36,6 +40,10 @@ fun EditableBlock(
     onRemove: () -> Unit,
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
+    onDrag: ((offsetY: Float) -> Unit)? = null,
+    onDragStart: (() -> Unit)? = null,
+    onDragEnd: (() -> Unit)? = null,
+    isDragging: Boolean = false,
     modifier: Modifier = Modifier,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
@@ -65,9 +73,30 @@ fun EditableBlock(
         }
     }
 
+    val dragModifier = if (onDrag != null) {
+        Modifier
+            .pointerInput(Unit) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { onDragStart?.invoke() },
+                    onDragEnd = { onDragEnd?.invoke() },
+                    onDragCancel = { onDragEnd?.invoke() },
+                    onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
+                        change.consume()
+                        onDrag(dragAmount.y)
+                    }
+                )
+            }
+            .zIndex(if (isDragging) 1f else 0f)
+            .shadow(if (isDragging) 8.dp else 0.dp)
+    } else {
+        Modifier
+            .zIndex(if (isDragging) 1f else 0f)
+            .shadow(if (isDragging) 8.dp else 0.dp)
+    }
+
     SwipeToDismissBox(
         state = dismissState,
-        modifier = modifier,
+        modifier = modifier.then(dragModifier),
         enableDismissFromStartToEnd = false,
         enableDismissFromEndToStart = true,
         backgroundContent = { DeleteBackground() }

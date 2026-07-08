@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.example.zhilu.ui.note.blocks.EditableBlock
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
@@ -58,7 +60,7 @@ import com.example.zhilu.ui.component.TagChip
 import com.example.zhilu.ui.settings.NotificationPermissionState
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun NoteEditScreen(
     navController: NavHostController,
@@ -68,6 +70,9 @@ fun NoteEditScreen(
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val listState = rememberLazyListState()
+    var isDragging by remember { mutableStateOf(false) }
+    var cumulativeDragOffset by remember { mutableStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -155,6 +160,7 @@ fun NoteEditScreen(
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             LazyColumn(
+                state = listState,
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)
@@ -178,52 +184,58 @@ fun NoteEditScreen(
                         )
                     }
                     itemsIndexed(state.blocks) { index, block ->
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = block.type.displayName(),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(onClick = { viewModel.removeBlock(index) }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "删除内容块")
+                        EditableBlock(
+                            index = index,
+                            block = block,
+                            total = state.blocks.size,
+                            onValueChange = { viewModel.onBlockContentChange(index, it) },
+                            onLanguageClick = { },
+                            onRemove = { viewModel.removeBlock(index) },
+                            onMoveUp = { viewModel.moveBlock(index, index - 1) },
+                            onMoveDown = { viewModel.moveBlock(index, index + 1) },
+                            onDragStart = {
+                                if (!isDragging) {
+                                    isDragging = true
+                                    cumulativeDragOffset = 0f
+                                    viewModel.setDragging(true)
                                 }
-                            }
-                            when (block.type) {
-                                BlockType.TEXT -> TextBlock(
-                                    value = block.content,
-                                    onValueChange = { viewModel.onBlockContentChange(index, it) }
-                                )
-                                BlockType.IMAGE -> ImageBlock(value = block.content)
-                                BlockType.LINK -> LinkBlock(
-                                    value = block.content,
-                                    onValueChange = { viewModel.onBlockContentChange(index, it) }
-                                )
-                                BlockType.LATEX -> LatexBlock(
-                                    value = block.content,
-                                    onValueChange = { viewModel.onBlockContentChange(index, it) }
-                                )
-                                BlockType.CODE -> CodeBlock(
-                                    value = block.content,
-                                    onValueChange = { viewModel.onBlockContentChange(index, it) }
-                                )
-                                BlockType.DIVIDER -> DividerBlock()
-                                BlockType.TODO -> TodoBlock(
-                                    todoItems = state.todoItems,
-                                    showCompletedTodos = state.showCompletedTodos,
-                                    onCreateTodo = { content, remindAt ->
-                                        val created = viewModel.createTodo(content, remindAt)
-                                        if (created && remindAt != null) {
-                                            requestNotificationPermissionIfNeeded()
-                                        }
-                                        created
-                                    },
-                                    onUpdateTodo = viewModel::updateTodo,
-                                    onCompleteTodo = viewModel::completeTodo,
-                                    onToggleCompletedTodos = viewModel::toggleCompletedTodos
-                                )
-                            }
-                        }
+                            },
+                            onDragEnd = {
+                                isDragging = false
+                                cumulativeDragOffset = 0f
+                                viewModel.setDragging(false)
+                            },
+                            onDrag = { offsetY ->
+                                val dragIndex = state.blocks.indexOf(block)
+                                val itemHeight = listState.layoutInfo.visibleItemsInfo
+                                    .firstOrNull()?.size?.toFloat() ?: 100f
+                                val newOffset = cumulativeDragOffset + offsetY
+                                if (kotlin.math.abs(newOffset) >= itemHeight * 0.5f) {
+                                    val direction = if (newOffset > 0) 1 else -1
+                                    val targetIndex = (dragIndex + direction).coerceIn(0, state.blocks.lastIndex)
+                                    if (targetIndex != dragIndex) {
+                                        viewModel.moveBlock(dragIndex, targetIndex)
+                                    }
+                                    cumulativeDragOffset = 0f
+                                } else {
+                                    cumulativeDragOffset = newOffset
+                                }
+                            },
+                            isDragging = isDragging,
+                            modifier = Modifier.animateItem(),
+                            todoItems = state.todoItems,
+                            showCompletedTodos = state.showCompletedTodos,
+                            onCreateTodo = { content, remindAt ->
+                                val created = viewModel.createTodo(content, remindAt)
+                                if (created && remindAt != null) {
+                                    requestNotificationPermissionIfNeeded()
+                                }
+                                created
+                            },
+                            onUpdateTodo = { viewModel.updateTodo(it) },
+                            onCompleteTodo = { viewModel.completeTodo(it) },
+                            onToggleCompletedTodos = { viewModel.toggleCompletedTodos() }
+                        )
                     }
                 } else {
                     item {
@@ -276,7 +288,7 @@ fun NoteEditScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ReadOnlyHeader(state: NoteUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -336,7 +348,7 @@ private fun ReadOnlyBlock(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun TagSelector(
     state: NoteUiState,
@@ -396,7 +408,7 @@ private fun TagSelector(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun BlockToolbar(
     onAddText: () -> Unit,
