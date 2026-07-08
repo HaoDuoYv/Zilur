@@ -271,6 +271,31 @@ class NoteViewModelAdvancedBlockTest {
     }
 
     @Test
+    fun overlappingAutosavesForNewNoteInsertOnceThenUpdateAssignedNote() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(id = 7L, title = "", blocks = emptyList()),
+            insertDelayMillis = 1_000
+        )
+        val viewModel = createNewNoteViewModel(noteRepository)
+
+        viewModel.onBlockContentChange(0, "First")
+        advanceTimeBy(500)
+        runCurrent()
+        viewModel.onBlockContentChange(0, "Second")
+        advanceTimeBy(500)
+        runCurrent()
+        advanceTimeBy(1_000)
+        runCurrent()
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertEquals(listOf("First"), noteRepository.insertedNotes.map { it.blocks.single().content })
+        assertEquals(listOf("Second"), noteRepository.updatedNotes.map { it.blocks.single().content })
+        assertEquals(1L, viewModel.uiState.value.noteId)
+        assertEquals(SaveStatus.SAVED, viewModel.uiState.value.saveStatus)
+    }
+
+    @Test
     fun successfulDebouncedSaveTransitionsToSavedStatus() = runTest(dispatcher) {
         val noteRepository = RecordingNoteRepository(
             note = Note(
@@ -304,6 +329,16 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
+
+    private fun createNewNoteViewModel(noteRepository: RecordingNoteRepository): NoteViewModel =
+        NoteViewModel(
+            noteRepository = noteRepository,
+            tagRepository = EmptyTagRepository(),
+            reviewRepository = AdvancedBlockReviewRepository(),
+            todoRepository = AdvancedBlockTodoRepository(),
+            reminderRepository = AdvancedBlockReminderRepository(),
+            savedStateHandle = SavedStateHandle()
+        )
 }
 
 private class EmptyTagRepository : TagRepository {
@@ -334,8 +369,10 @@ private class EmptyTagRepository : TagRepository {
 
 private class RecordingNoteRepository(
     private val note: Note,
-    private val updateDelayMillis: Long = 0L
+    private val updateDelayMillis: Long = 0L,
+    private val insertDelayMillis: Long = 0L
 ) : NoteRepository {
+    val insertedNotes = mutableListOf<Note>()
     val updatedNotes = mutableListOf<Note>()
 
     override fun getAllNotes(): Flow<RepositoryResult<List<Note>>> =
@@ -356,8 +393,13 @@ private class RecordingNoteRepository(
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
-    override suspend fun insertNote(note: Note): RepositoryResult<Long> =
-        RepositoryResult.Success(1L)
+    override suspend fun insertNote(note: Note): RepositoryResult<Long> {
+        insertedNotes += note
+        if (insertDelayMillis > 0L) {
+            delay(insertDelayMillis)
+        }
+        return RepositoryResult.Success(1L)
+    }
 
     override suspend fun updateNote(note: Note): RepositoryResult<Unit> {
         if (updateDelayMillis > 0L) {

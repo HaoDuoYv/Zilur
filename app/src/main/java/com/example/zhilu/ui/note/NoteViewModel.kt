@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 sealed interface UiEvent {
     data class ShowUndoSnackbar(val block: Block, val index: Int, val token: Long) : UiEvent
@@ -55,6 +57,7 @@ class NoteViewModel @Inject constructor(
     private val _uiEvents = Channel<UiEvent>(Channel.BUFFERED)
     val uiEvents = _uiEvents.receiveAsFlow()
 
+    private val saveMutex = Mutex()
     private var saveJob: Job? = null
     private var saveVersion: Long = 0L
     private val pendingRemovals = mutableMapOf<Long, PendingBlockRemoval>()
@@ -524,44 +527,46 @@ class NoteViewModel @Inject constructor(
     }
 
     private suspend fun saveInternal(version: Long, exitEditMode: Boolean) {
-        val state = _uiState.value
-        if (state.noteId == 0L && state.title.isBlank() && state.blocks.all { it.content.isBlank() }) {
-            if (version == saveVersion) {
-                _uiState.update { it.copy(isSaving = false, saveStatus = SaveStatus.IDLE) }
-            }
-            return
-        }
-        _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
-        val note = state.toNote()
-        val result = if (state.noteId == 0L) {
-            noteRepository.insertNote(note)
-        } else {
-            noteRepository.updateNote(note)
-        }
-        when (result) {
-            is RepositoryResult.Success -> {
-                val newId = if (state.noteId == 0L && result.data is Long) result.data else state.noteId
+        saveMutex.withLock {
+            val state = _uiState.value
+            if (state.noteId == 0L && state.title.isBlank() && state.blocks.all { it.content.isBlank() }) {
                 if (version == saveVersion) {
-                    _uiState.update {
-                        it.copy(
-                            noteId = newId,
-                            isEditing = if (exitEditMode) false else it.isEditing,
-                            isSaving = false,
-                            saveStatus = SaveStatus.SAVED,
-                            lastSavedAt = System.currentTimeMillis()
-                        )
+                    _uiState.update { it.copy(isSaving = false, saveStatus = SaveStatus.IDLE) }
+                }
+                return
+            }
+            _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
+            val note = state.toNote()
+            val result = if (state.noteId == 0L) {
+                noteRepository.insertNote(note)
+            } else {
+                noteRepository.updateNote(note)
+            }
+            when (result) {
+                is RepositoryResult.Success -> {
+                    val newId = if (state.noteId == 0L && result.data is Long) result.data else state.noteId
+                    if (version == saveVersion) {
+                        _uiState.update {
+                            it.copy(
+                                noteId = newId,
+                                isEditing = if (exitEditMode) false else it.isEditing,
+                                isSaving = false,
+                                saveStatus = SaveStatus.SAVED,
+                                lastSavedAt = System.currentTimeMillis()
+                            )
+                        }
+                    } else if (state.noteId == 0L && newId > 0L) {
+                        _uiState.update { it.copy(noteId = newId) }
                     }
-                } else if (state.noteId == 0L && newId > 0L) {
-                    _uiState.update { it.copy(noteId = newId) }
+                    if (state.noteId == 0L && newId > 0L) {
+                        observeTodos(newId)
+                    }
                 }
-                if (state.noteId == 0L && newId > 0L) {
-                    observeTodos(newId)
-                }
-            }
-            is RepositoryResult.Error -> {
-                if (version == saveVersion) {
-                    _uiState.update {
-                        it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
+                is RepositoryResult.Error -> {
+                    if (version == saveVersion) {
+                        _uiState.update {
+                            it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
+                        }
                     }
                 }
             }
