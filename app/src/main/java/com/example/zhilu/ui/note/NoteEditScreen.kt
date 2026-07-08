@@ -32,6 +32,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -101,6 +102,23 @@ fun NoteEditScreen(
         state.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.clearError()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.uiEvents.collect { event ->
+            when (event) {
+                is UiEvent.ShowUndoSnackbar -> {
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Block deleted",
+                        actionLabel = "Undo"
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.undoRemoveBlock()
+                    } else {
+                        viewModel.confirmRemoveBlock()
+                    }
+                }
+            }
         }
     }
 

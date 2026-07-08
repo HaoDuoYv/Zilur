@@ -3,6 +3,7 @@ package com.example.zhilu.ui.note
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.compose.runtime.mutableStateListOf
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
@@ -19,13 +20,24 @@ import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+sealed interface UiEvent {
+    data class ShowUndoSnackbar(val block: Block, val index: Int) : UiEvent
+}
+
+private data class PendingBlockRemoval(
+    val block: Block,
+    val index: Int
+)
 
 @HiltViewModel
 class NoteViewModel @Inject constructor(
@@ -39,10 +51,16 @@ class NoteViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(NoteUiState())
     val uiState: StateFlow<NoteUiState> = _uiState.asStateFlow()
 
+    private val _blocks = mutableStateListOf<Block>().apply { addAll(defaultBlocks()) }
+    private val _uiEvents = Channel<UiEvent>(Channel.BUFFERED)
+    val uiEvents = _uiEvents.receiveAsFlow()
+
     private var saveJob: Job? = null
+    private var removalConfirmJob: Job? = null
     private var todoObservationJob: Job? = null
     private var observedTodoNoteId: Long = 0L
     private var recordingReviewPlanId: Long? = null
+    private var pendingRemoval: PendingBlockRemoval? = null
 
     init {
         load(NoteRouteArgs.noteId(savedStateHandle))
@@ -56,16 +74,17 @@ class NoteViewModel @Inject constructor(
             when (val result = noteRepository.getNoteById(noteId)) {
                 is RepositoryResult.Success -> {
                     val note = result.data
+                    replaceBlocks(note?.blocks?.ifEmpty { defaultBlocks() } ?: defaultBlocks())
                     _uiState.update {
                         it.copy(
                             noteId = note?.id ?: 0L,
                             title = note?.title.orEmpty(),
-                            blocks = note?.blocks?.ifEmpty { defaultBlocks() } ?: defaultBlocks(),
+                            blocks = blocksForState(),
                             selectedTags = note?.tags.orEmpty(),
                             todoItems = emptyList(),
                             reviewPlan = null,
                             isReviewDue = false,
-                            isEditing = false,
+                            isEditing = note == null,
                             isLoading = false,
                             error = null
                         )
@@ -90,56 +109,95 @@ class NoteViewModel @Inject constructor(
     }
 
     fun onBlockContentChange(blockIndex: Int, value: String) {
-        _uiState.update { state ->
-            state.copy(
-                blocks = state.blocks.mapIndexed { index, block ->
-                    if (index == blockIndex) block.copy(content = value) else block
-                }
-            )
-        }
+        val block = _blocks.getOrNull(blockIndex) ?: return
+        _blocks[blockIndex] = block.copy(content = value)
+        syncBlocksToState()
         scheduleSave()
     }
 
     fun addBlock(type: BlockType) {
         val content = defaultContentFor(type)
-        _uiState.update { state ->
-            state.copy(
-                blocks = state.blocks + Block(
-                    type = type,
-                    content = content,
-                    sortOrder = state.blocks.size
-                )
-            )
-        }
+        _blocks += Block(
+            type = type,
+            content = content,
+            sortOrder = _blocks.size
+        )
+        syncBlocksToState()
         if (content.isNotBlank() || type == BlockType.DIVIDER || type == BlockType.TODO) {
             scheduleSave()
         }
     }
 
     fun addImageBlock(uri: String) {
-        _uiState.update { state ->
-            state.copy(
-                blocks = state.blocks + Block(
-                    type = BlockType.IMAGE,
-                    content = uri,
-                    sortOrder = state.blocks.size
-                )
-            )
-        }
+        _blocks += Block(
+            type = BlockType.IMAGE,
+            content = uri,
+            sortOrder = _blocks.size
+        )
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    fun setBlockLanguage(index: Int, language: String) {
+        val block = _blocks.getOrNull(index) ?: return
+        _blocks[index] = block.copy(language = language)
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    fun moveBlock(fromIndex: Int, toIndex: Int) {
+        if (fromIndex == toIndex) return
+        if (fromIndex !in _blocks.indices || toIndex !in _blocks.indices) return
+        val block = _blocks.removeAt(fromIndex)
+        _blocks.add(toIndex, block)
+        syncBlocksToState()
         scheduleSave()
     }
 
     fun removeBlock(index: Int) {
-        val block = _uiState.value.blocks.getOrNull(index) ?: return
+        val block = _blocks.getOrNull(index) ?: return
         if (block.type == BlockType.TODO && _uiState.value.todoItems.isNotEmpty()) {
             _uiState.update { it.copy(error = "TODO block still has linked items.") }
             return
         }
-        _uiState.update { state ->
-            val remaining = state.blocks.filterIndexed { blockIndex, _ -> blockIndex != index }
-            state.copy(blocks = remaining.ifEmpty { defaultBlocks() })
+        val removed = _blocks.removeAt(index)
+        if (_blocks.isEmpty()) {
+            _blocks.addAll(defaultBlocks())
+        }
+        pendingRemoval = PendingBlockRemoval(
+            block = removed,
+            index = index.coerceAtMost(_blocks.size)
+        )
+        syncBlocksToState()
+        _uiEvents.trySend(UiEvent.ShowUndoSnackbar(removed, index))
+        removalConfirmJob?.cancel()
+        removalConfirmJob = viewModelScope.launch {
+            delay(5_000)
+            confirmRemoveBlock()
         }
         scheduleSave()
+    }
+
+    fun undoRemoveBlock() {
+        val removal = pendingRemoval ?: return
+        val isOnlyDefaultBlankBlock = _blocks.size == 1 &&
+            _blocks.single().type == BlockType.TEXT &&
+            _blocks.single().content.isBlank()
+        if (isOnlyDefaultBlankBlock) {
+            _blocks.clear()
+        }
+        _blocks.add(removal.index.coerceIn(0, _blocks.size), removal.block)
+        pendingRemoval = null
+        removalConfirmJob?.cancel()
+        removalConfirmJob = null
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    fun confirmRemoveBlock() {
+        pendingRemoval = null
+        removalConfirmJob?.cancel()
+        removalConfirmJob = null
     }
 
     fun toggleTag(tag: Tag) {
@@ -298,6 +356,18 @@ class NoteViewModel @Inject constructor(
         _uiState.update { it.copy(error = null) }
     }
 
+    private fun replaceBlocks(blocks: List<Block>) {
+        _blocks.clear()
+        _blocks.addAll(blocks.ifEmpty { defaultBlocks() })
+    }
+
+    private fun syncBlocksToState() {
+        _uiState.update { it.copy(blocks = blocksForState()) }
+    }
+
+    private fun blocksForState(): List<Block> =
+        _blocks.mapIndexed { index, block -> block.copy(sortOrder = index) }
+
     private suspend fun loadAndApplyReviewPlan(noteId: Long) {
         when (val result = reviewRepository.getPlanByNoteId(noteId)) {
             is RepositoryResult.Success -> {
@@ -394,7 +464,7 @@ class NoteViewModel @Inject constructor(
         val currentNoteId = _uiState.value.noteId
         if (currentNoteId > 0L) return currentNoteId
 
-        _uiState.update { it.copy(isSaving = true) }
+        _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
         return when (val result = noteRepository.insertNote(_uiState.value.toNote())) {
             is RepositoryResult.Success -> {
                 val newId = result.data
@@ -402,6 +472,7 @@ class NoteViewModel @Inject constructor(
                     it.copy(
                         noteId = newId,
                         isSaving = false,
+                        saveStatus = SaveStatus.SAVED,
                         lastSavedAt = System.currentTimeMillis()
                     )
                 }
@@ -409,7 +480,9 @@ class NoteViewModel @Inject constructor(
                 newId
             }
             is RepositoryResult.Error -> {
-                _uiState.update { it.copy(isSaving = false, error = result.message) }
+                _uiState.update {
+                    it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
+                }
                 0L
             }
         }
@@ -437,7 +510,7 @@ class NoteViewModel @Inject constructor(
     private suspend fun saveInternal(exitEditMode: Boolean) {
         val state = _uiState.value
         if (state.title.isBlank() && state.blocks.all { it.content.isBlank() }) return
-        _uiState.update { it.copy(isSaving = true) }
+        _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
         val note = state.toNote()
         val result = if (state.noteId == 0L) {
             noteRepository.insertNote(note)
@@ -452,6 +525,7 @@ class NoteViewModel @Inject constructor(
                         noteId = newId,
                         isEditing = if (exitEditMode) false else it.isEditing,
                         isSaving = false,
+                        saveStatus = SaveStatus.SAVED,
                         lastSavedAt = System.currentTimeMillis()
                     )
                 }
@@ -460,7 +534,7 @@ class NoteViewModel @Inject constructor(
                 }
             }
             is RepositoryResult.Error -> _uiState.update {
-                it.copy(isSaving = false, error = result.message)
+                it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
             }
         }
     }

@@ -7,6 +7,13 @@ import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.model.TodoItem
 
+enum class SaveStatus {
+    IDLE,
+    SAVING,
+    SAVED,
+    ERROR
+}
+
 data class NoteUiState(
     val noteId: Long = 0L,
     val title: String = "",
@@ -23,6 +30,7 @@ data class NoteUiState(
     val isEditing: Boolean = true,
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
+    val saveStatus: SaveStatus = SaveStatus.IDLE,
     val lastSavedAt: Long? = null,
     val error: String? = null
 ) {

@@ -16,6 +16,7 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -80,6 +82,113 @@ class NoteViewModelAdvancedBlockTest {
         assertEquals(1, noteRepository.updatedNotes.size)
         assertTrue(noteRepository.updatedNotes.single().blocks.any { it.type == BlockType.LATEX && it.content == "\\alpha^2" })
     }
+
+    @Test
+    fun setBlockLanguageUpdatesTargetBlockAndPersistsLanguage() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Code note",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "Intro", sortOrder = 0),
+                    Block(type = BlockType.CODE, content = "println(\"hi\")", language = "kotlin", sortOrder = 1)
+                )
+            )
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+
+        viewModel.setBlockLanguage(1, "java")
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals("java", viewModel.uiState.value.blocks[1].language)
+        assertEquals("java", noteRepository.updatedNotes.single().blocks[1].language)
+    }
+
+    @Test
+    fun moveBlockChangesOrderAndSavedSortOrder() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Ordered note",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "A", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "B", sortOrder = 1),
+                    Block(type = BlockType.TEXT, content = "C", sortOrder = 2)
+                )
+            )
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+
+        viewModel.moveBlock(2, 0)
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals(listOf("C", "A", "B"), viewModel.uiState.value.blocks.map { it.content })
+        assertEquals(
+            listOf("C" to 0, "A" to 1, "B" to 2),
+            noteRepository.updatedNotes.single().blocks.map { it.content to it.sortOrder }
+        )
+    }
+
+    @Test
+    fun undoRemoveBlockRestoresDeletedBlockAtOriginalIndex() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Undo note",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "A", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "B", sortOrder = 1),
+                    Block(type = BlockType.TEXT, content = "C", sortOrder = 2)
+                )
+            )
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+
+        viewModel.removeBlock(1)
+        viewModel.undoRemoveBlock()
+
+        assertEquals(listOf("A", "B", "C"), viewModel.uiState.value.blocks.map { it.content })
+    }
+
+    @Test
+    fun successfulDebouncedSaveTransitionsToSavedStatus() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Save note",
+                blocks = listOf(Block(type = BlockType.TEXT, content = "Before", sortOrder = 0))
+            ),
+            updateDelayMillis = 1_000
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+
+        viewModel.onBlockContentChange(0, "After")
+        advanceTimeBy(500)
+        runCurrent()
+        assertEquals(SaveStatus.SAVING, viewModel.uiState.value.saveStatus)
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertEquals(SaveStatus.SAVED, viewModel.uiState.value.saveStatus)
+        assertEquals(false, viewModel.uiState.value.isSaving)
+        assertEquals("After", noteRepository.updatedNotes.single().blocks.single().content)
+    }
+
+    private fun createViewModel(noteRepository: RecordingNoteRepository): NoteViewModel =
+        NoteViewModel(
+            noteRepository = noteRepository,
+            tagRepository = EmptyTagRepository(),
+            reviewRepository = AdvancedBlockReviewRepository(),
+            todoRepository = AdvancedBlockTodoRepository(),
+            reminderRepository = AdvancedBlockReminderRepository(),
+            savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
+        )
 }
 
 private class EmptyTagRepository : TagRepository {
@@ -109,7 +218,8 @@ private class EmptyTagRepository : TagRepository {
 }
 
 private class RecordingNoteRepository(
-    private val note: Note
+    private val note: Note,
+    private val updateDelayMillis: Long = 0L
 ) : NoteRepository {
     val updatedNotes = mutableListOf<Note>()
 
@@ -135,6 +245,9 @@ private class RecordingNoteRepository(
         RepositoryResult.Success(1L)
 
     override suspend fun updateNote(note: Note): RepositoryResult<Unit> {
+        if (updateDelayMillis > 0L) {
+            delay(updateDelayMillis)
+        }
         updatedNotes += note
         return RepositoryResult.Success(Unit)
     }
