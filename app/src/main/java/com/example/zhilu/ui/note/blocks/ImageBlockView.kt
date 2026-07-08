@@ -47,9 +47,9 @@ fun ImageBlockView(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("Image block", style = MaterialTheme.typography.titleSmall)
+                Text("图片块", style = MaterialTheme.typography.titleSmall)
                 Text(
-                    text = "No image selected yet",
+                    text = "尚未选择图片",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

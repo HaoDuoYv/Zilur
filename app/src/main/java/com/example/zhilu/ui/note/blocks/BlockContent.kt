@@ -14,8 +14,8 @@ import com.example.zhilu.ui.note.TodoBlock
 fun BlockContent(
     block: Block,
     isEditing: Boolean,
-    onValueChange: (String) -> Unit,
-    onLanguageClick: () -> Unit,
+    onValueChange: (String) -> Unit = {},
+    onLanguageClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
@@ -113,22 +113,20 @@ private fun TodoBlockContent(
     onCompleteTodo: ((Long) -> Unit)?,
     onToggleCompletedTodos: (() -> Unit)?
 ) {
-    if (
-        todoItems != null &&
-        onCreateTodo != null &&
-        onUpdateTodo != null &&
-        onCompleteTodo != null &&
-        onToggleCompletedTodos != null
-    ) {
+    if (todoItems != null) {
+        val supportsEditing = onCreateTodo != null &&
+            onUpdateTodo != null &&
+            onCompleteTodo != null
+
         TodoBlock(
             todoItems = todoItems,
             showCompletedTodos = showCompletedTodos,
-            onCreateTodo = onCreateTodo,
-            onUpdateTodo = onUpdateTodo,
-            onCompleteTodo = onCompleteTodo,
-            onToggleCompletedTodos = onToggleCompletedTodos,
+            onCreateTodo = onCreateTodo ?: { _, _ -> false },
+            onUpdateTodo = onUpdateTodo ?: {},
+            onCompleteTodo = onCompleteTodo ?: {},
+            onToggleCompletedTodos = onToggleCompletedTodos ?: {},
             modifier = modifier,
-            readOnly = !isEditing
+            readOnly = !isEditing || !supportsEditing
         )
     } else {
         Text(
