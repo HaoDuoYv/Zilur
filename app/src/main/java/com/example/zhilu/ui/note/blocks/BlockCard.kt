@@ -40,7 +40,7 @@ fun BlockCard(
     onValueChange: (String) -> Unit = {},
     onLanguageClick: () -> Unit = {},
     modifier: Modifier = Modifier,
-    onMoreClick: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
     todoItems: List<TodoItem>? = null,
@@ -70,9 +70,16 @@ fun BlockCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TypeBadge(type = block.type)
-                if (isEditing && onMoreClick != null) {
+                if (
+                    shouldShowBlockActionMenu(
+                        isEditing = isEditing,
+                        hasDelete = onDelete != null,
+                        hasMoveUp = onMoveUp != null,
+                        hasMoveDown = onMoveDown != null
+                    )
+                ) {
                     BlockOverflowMenu(
-                        onDelete = onMoreClick,
+                        onDelete = onDelete,
                         onMoveUp = onMoveUp,
                         onMoveDown = onMoveDown
                     )
@@ -105,6 +112,13 @@ fun blockTypeLabel(type: BlockType): String = when (type) {
     BlockType.TODO -> "待办"
 }
 
+fun shouldShowBlockActionMenu(
+    isEditing: Boolean,
+    hasDelete: Boolean,
+    hasMoveUp: Boolean,
+    hasMoveDown: Boolean
+): Boolean = isEditing && (hasDelete || hasMoveUp || hasMoveDown)
+
 @Composable
 private fun TypeBadge(type: BlockType) {
     Surface(
@@ -123,7 +137,7 @@ private fun TypeBadge(type: BlockType) {
 
 @Composable
 private fun BlockOverflowMenu(
-    onDelete: () -> Unit,
+    onDelete: (() -> Unit)?,
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?
 ) {
@@ -169,19 +183,21 @@ private fun BlockOverflowMenu(
                 }
             )
         }
-        DropdownMenuItem(
-            text = { Text("删除") },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = null,
-                    tint = NoteColors.deleteIcon
-                )
-            },
-            onClick = {
-                expanded = false
-                onDelete()
-            }
-        )
+        if (onDelete != null) {
+            DropdownMenuItem(
+                text = { Text("删除") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = NoteColors.deleteIcon
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onDelete()
+                }
+            )
+        }
     }
 }

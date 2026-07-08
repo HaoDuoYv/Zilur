@@ -12,6 +12,7 @@ import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,19 +48,22 @@ fun EditableBlock(
     var removeRequested by remember(block.id, index) { mutableStateOf(false) }
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { direction ->
-            when (direction) {
-                SwipeToDismissBoxValue.EndToStart -> {
-                    if (!removeRequested) {
-                        removeRequested = true
-                        currentOnRemove()
-                    }
-                    true
+            if (shouldRequestSwipeDelete(direction)) {
+                if (!removeRequested) {
+                    removeRequested = true
+                    currentOnRemove()
                 }
-                SwipeToDismissBoxValue.StartToEnd -> false
-                SwipeToDismissBoxValue.Settled -> true
             }
+            shouldConfirmSwipeValueChange(direction)
         }
     )
+
+    LaunchedEffect(removeRequested, block.id, index) {
+        if (removeRequested) {
+            dismissState.reset()
+            removeRequested = false
+        }
+    }
 
     SwipeToDismissBox(
         state = dismissState,
@@ -73,7 +77,7 @@ fun EditableBlock(
             isEditing = true,
             onValueChange = onValueChange,
             onLanguageClick = onLanguageClick,
-            onMoreClick = onRemove,
+            onDelete = onRemove,
             onMoveUp = onMoveUp.takeIf { index > 0 },
             onMoveDown = onMoveDown.takeIf { index < total - 1 },
             todoItems = todoItems,
@@ -85,6 +89,16 @@ fun EditableBlock(
         )
     }
 }
+
+fun shouldRequestSwipeDelete(direction: SwipeToDismissBoxValue): Boolean =
+    direction == SwipeToDismissBoxValue.EndToStart
+
+fun shouldConfirmSwipeValueChange(direction: SwipeToDismissBoxValue): Boolean =
+    when (direction) {
+        SwipeToDismissBoxValue.EndToStart -> false
+        SwipeToDismissBoxValue.StartToEnd -> false
+        SwipeToDismissBoxValue.Settled -> true
+    }
 
 @Composable
 private fun DeleteBackground() {
