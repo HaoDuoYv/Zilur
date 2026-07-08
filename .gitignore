@@ -1,0 +1,12 @@
+.gradle/
+.gradle-local/
+.kotlin/
+.idea/
+.claude/
+.worktrees/
+android-qa-artifacts-*/
+build/
+local.properties
+*.iml
+captures/
+app/build/
