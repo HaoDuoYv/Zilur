@@ -364,6 +364,108 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             savedStateHandle = SavedStateHandle()
         )
+
+    @Test
+    fun setDraggingPausesAutosave() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Drag test",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "A", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "B", sortOrder = 1)
+                )
+            )
+        )
+        val viewModel = NoteViewModel(
+            noteRepository = noteRepository,
+            tagRepository = EmptyTagRepository(),
+            reviewRepository = AdvancedBlockReviewRepository(),
+            todoRepository = AdvancedBlockTodoRepository(),
+            reminderRepository = AdvancedBlockReminderRepository(),
+            savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
+        )
+        advanceUntilIdle()
+        noteRepository.updatedNotes.clear()
+
+        viewModel.setDragging(true)
+        viewModel.onBlockContentChange(0, "Changed while dragging")
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals("scheduleSave should be skipped while dragging", 0, noteRepository.updatedNotes.size)
+
+        viewModel.setDragging(false)
+        viewModel.onBlockContentChange(0, "Final content")
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals("save should fire after drag ends", 1, noteRepository.updatedNotes.size)
+    }
+
+    @Test
+    fun moveBlockStillPersistsWhenNotDragging() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Move test",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "A", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "B", sortOrder = 1)
+                )
+            )
+        )
+        val viewModel = NoteViewModel(
+            noteRepository = noteRepository,
+            tagRepository = EmptyTagRepository(),
+            reviewRepository = AdvancedBlockReviewRepository(),
+            todoRepository = AdvancedBlockTodoRepository(),
+            reminderRepository = AdvancedBlockReminderRepository(),
+            savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
+        )
+        advanceUntilIdle()
+        noteRepository.updatedNotes.clear()
+
+        viewModel.moveBlock(1, 0)
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals("moveBlock should trigger save when not dragging", 1, noteRepository.updatedNotes.size)
+        assertEquals(listOf("B", "A"), noteRepository.updatedNotes.single().blocks.map { it.content })
+    }
+
+    @Test
+    fun moveBlockSkipsScheduleSaveWhenDragging() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Drag move test",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "A", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "B", sortOrder = 1)
+                )
+            )
+        )
+        val viewModel = NoteViewModel(
+            noteRepository = noteRepository,
+            tagRepository = EmptyTagRepository(),
+            reviewRepository = AdvancedBlockReviewRepository(),
+            todoRepository = AdvancedBlockTodoRepository(),
+            reminderRepository = AdvancedBlockReminderRepository(),
+            savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
+        )
+        advanceUntilIdle()
+        noteRepository.updatedNotes.clear()
+
+        viewModel.setDragging(true)
+        viewModel.moveBlock(1, 0)
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals("moveBlock should skip save when dragging", 0, noteRepository.updatedNotes.size)
+        assertEquals(listOf("B", "A"), viewModel.uiState.value.blocks.map { it.content })
+    }
+
 }
 
 private class EmptyTagRepository : TagRepository {

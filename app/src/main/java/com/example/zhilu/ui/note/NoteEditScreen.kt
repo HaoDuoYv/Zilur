@@ -206,19 +206,22 @@ fun NoteEditScreen(
                                 viewModel.setDragging(false)
                             },
                             onDrag = { offsetY ->
-                                val dragIndex = state.blocks.indexOf(block)
-                                val itemHeight = listState.layoutInfo.visibleItemsInfo
-                                    .firstOrNull()?.size?.toFloat() ?: 100f
-                                val newOffset = cumulativeDragOffset + offsetY
-                                if (kotlin.math.abs(newOffset) >= itemHeight * 0.5f) {
-                                    val direction = if (newOffset > 0) 1 else -1
-                                    val targetIndex = (dragIndex + direction).coerceIn(0, state.blocks.lastIndex)
-                                    if (targetIndex != dragIndex) {
-                                        viewModel.moveBlock(dragIndex, targetIndex)
+                                val currentIndex = state.blocks.indexOf(block)
+                                if (currentIndex >= 0) {
+                                    val itemHeight = listState.layoutInfo.visibleItemsInfo
+                                        .find { it.index == currentIndex }?.size?.toFloat()
+                                        ?: 100f
+                                    val newOffset = cumulativeDragOffset + offsetY
+                                    if (kotlin.math.abs(newOffset) >= itemHeight * 0.5f) {
+                                        val direction = if (newOffset > 0) 1 else -1
+                                        val targetIndex = (currentIndex + direction).coerceIn(0, state.blocks.lastIndex)
+                                        if (targetIndex != currentIndex) {
+                                            viewModel.moveBlock(currentIndex, targetIndex)
+                                        }
+                                        cumulativeDragOffset = 0f
+                                    } else {
+                                        cumulativeDragOffset = newOffset
                                     }
-                                    cumulativeDragOffset = 0f
-                                } else {
-                                    cumulativeDragOffset = newOffset
                                 }
                             },
                             isDragging = isDragging,

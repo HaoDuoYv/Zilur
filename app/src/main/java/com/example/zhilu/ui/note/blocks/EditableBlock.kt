@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
@@ -75,7 +77,7 @@ fun EditableBlock(
 
     val dragModifier = if (onDrag != null) {
         Modifier
-            .pointerInput(Unit) {
+            .pointerInput(block.id) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { onDragStart?.invoke() },
                     onDragEnd = { onDragEnd?.invoke() },
@@ -86,6 +88,7 @@ fun EditableBlock(
                     }
                 )
             }
+            .semantics { contentDescription = "Long press to reorder block" }
             .zIndex(if (isDragging) 1f else 0f)
             .shadow(if (isDragging) 8.dp else 0.dp)
     } else {

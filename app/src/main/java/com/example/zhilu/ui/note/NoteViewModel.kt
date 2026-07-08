@@ -161,7 +161,7 @@ class NoteViewModel @Inject constructor(
         val block = _blocks.removeAt(fromIndex)
         _blocks.add(toIndex.coerceIn(0, _blocks.size), block)
         syncBlocksToState()
-        scheduleSave()
+        if (!_isDragging) scheduleSave()
     }
 
     fun removeBlock(index: Int) {
