@@ -1,5 +1,4 @@
-package com.example.zhilu.ui.note
-
+﻿package com.example.zhilu.ui.note
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,19 +19,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import com.example.zhilu.ui.note.blocks.EditableBlock
+import com.example.zhilu.ui.note.blocks.ReadOnlyBlock
+import com.example.zhilu.ui.note.tag.TagPickerInline
+import com.example.zhilu.ui.note.toolbar.BlockToolbar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material3.Button
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -50,14 +49,17 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
-import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
-import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.TagChip
 import com.example.zhilu.ui.note.theme.NoteColors
@@ -84,7 +86,7 @@ fun NoteEditScreen(
         onResult = { granted ->
             if (!granted) {
                 coroutineScope.launch {
-                    snackbarHostState.showSnackbar("通知权限未开启，可在提醒中心查看到期项目")
+                    snackbarHostState.showSnackbar("閫氱煡鏉冮檺鏈紑鍚紝鍙湪鎻愰啋涓績鏌ョ湅鍒版湡椤圭洰")
                 }
             }
         }
@@ -136,9 +138,9 @@ fun NoteEditScreen(
         topBar = {
             AppTopBar(
                 title = when {
-                    state.isEditing && state.noteId == 0L -> "新建记录"
-                    state.isEditing -> "编辑记录"
-                    else -> "知识详情"
+                    state.isEditing && state.noteId == 0L -> "鏂板缓璁板綍"
+                    state.isEditing -> "缂栬緫璁板綍"
+                    else -> "鐭ヨ瘑璇︽儏"
                 },
                 onBack = { navController.popBackStack() },
                 actions = {
@@ -159,7 +161,7 @@ fun NoteEditScreen(
                         SaveStatus.ERROR -> {
                             Icon(
                                 Icons.Default.Error,
-                                contentDescription = "保存失败",
+                                contentDescription = "淇濆瓨澶辫触",
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -170,11 +172,11 @@ fun NoteEditScreen(
                     }
                     if (state.isEditing) {
                         IconButton(onClick = viewModel::saveNow) {
-                            Icon(Icons.Default.Check, contentDescription = "保存")
+                            Icon(Icons.Default.Check, contentDescription = "淇濆瓨")
                         }
                     } else {
                         IconButton(onClick = viewModel::startEditing) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑")
+                            Icon(Icons.Default.Edit, contentDescription = "缂栬緫")
                         }
                     }
                 }
@@ -198,20 +200,36 @@ fun NoteEditScreen(
             ) {
                 if (state.isEditing) {
                     item {
-                        OutlinedTextField(
+                        BasicTextField(
                             value = state.title,
                             onValueChange = viewModel::onTitleChange,
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("标题") },
                             singleLine = true,
-                            textStyle = MaterialTheme.typography.titleLarge
+                            textStyle = MaterialTheme.typography.headlineMedium.copy(
+                                color = NoteColors.primaryIndigo
+                            ),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = {}),
+                            decorationBox = { innerTextField: @Composable () -> Unit ->
+                                if (state.title.isEmpty()) {
+                                    Text(
+                                        text = "输入标题...",
+                                        style = MaterialTheme.typography.headlineMedium.copy(
+                                            color = NoteColors.titlePlaceholder
+                                        )
+                                    )
+                                }
+                                innerTextField()
+                            }
                         )
                     }
                     item {
-                        TagSelector(
-                            state = state,
-                            onToggleTag = viewModel::toggleTag,
-                            onCreateTag = viewModel::createTag
+                        TagPickerInline(
+                            availableTags = state.availableTags,
+                            selectedTags = state.selectedTags,
+                            onToggle = viewModel::toggleTag,
+                            onCreate = viewModel::createTag,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                     itemsIndexed(state.blocks) { index, block ->
@@ -271,9 +289,45 @@ fun NoteEditScreen(
                             onToggleCompletedTodos = { viewModel.toggleCompletedTodos() }
                         )
                     }
+                    if (state.blocks.isEmpty()) {
+                        item {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp),
+                                horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+                            ) {
+                                TextButton(onClick = { viewModel.addBlock(BlockType.TEXT) }) {
+                                    Text(
+                                        text = "开始记录...",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = NoteColors.titlePlaceholder
+                                    )
+                                }
+                            }
+                        }
+                    }
                 } else {
                     item {
-                        ReadOnlyHeader(state)
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                text = state.title.ifBlank { "未命名知识" },
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            if (state.selectedTags.isNotEmpty()) {
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    state.selectedTags.forEach { tag ->
+                                        TagChip(tag = tag)
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
                     }
                     item {
                         ReviewPanel(
@@ -291,6 +345,7 @@ fun NoteEditScreen(
                     itemsIndexed(state.blocks) { _, block ->
                         ReadOnlyBlock(
                             block = block,
+                            onCopy = {},
                             todoItems = state.todoItems,
                             showCompletedTodos = state.showCompletedTodos,
                             onToggleCompletedTodos = viewModel::toggleCompletedTodos
@@ -299,7 +354,7 @@ fun NoteEditScreen(
                     if (state.blocks.isEmpty()) {
                         item {
                             Text(
-                                text = "暂无正文内容",
+                                text = "鏆傛棤姝ｆ枃鍐呭",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -310,11 +365,10 @@ fun NoteEditScreen(
             if (state.isEditing) {
                 BlockToolbar(
                     onAddText = { viewModel.addBlock(BlockType.TEXT) },
+                    onAddCode = { viewModel.addBlock(BlockType.CODE) },
                     onAddImage = { navController.navigate("camera") },
                     onAddLink = { viewModel.addBlock(BlockType.LINK) },
                     onAddLatex = { viewModel.addBlock(BlockType.LATEX) },
-                    onAddCode = { viewModel.addBlock(BlockType.CODE) },
-                    onAddTodo = { viewModel.addBlock(BlockType.TODO) },
                     onAddDivider = { viewModel.addBlock(BlockType.DIVIDER) }
                 )
             }
@@ -322,157 +376,6 @@ fun NoteEditScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun ReadOnlyHeader(state: NoteUiState) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = state.title.ifBlank { "未命名知识" },
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        if (state.selectedTags.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                state.selectedTags.forEach { tag ->
-                    TagChip(tag = tag)
-                }
-            }
-        }
-        HorizontalDivider()
-    }
-}
-
-@Composable
-private fun ReadOnlyBlock(
-    block: Block,
-    todoItems: List<TodoItem>,
-    showCompletedTodos: Boolean,
-    onToggleCompletedTodos: () -> Unit
-) {
-    when (block.type) {
-        BlockType.TEXT -> Text(
-            text = block.content.ifBlank { " " },
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.fillMaxWidth()
-        )
-        BlockType.IMAGE -> ImageBlock(value = block.content)
-        BlockType.LINK -> Text(
-            text = block.content,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.fillMaxWidth()
-        )
-        BlockType.LATEX -> ReadOnlyLatexBlock(value = block.content)
-        BlockType.CODE -> ReadOnlyCodeBlock(value = block.content)
-        BlockType.DIVIDER -> HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        BlockType.TODO -> TodoBlock(
-            todoItems = todoItems,
-            showCompletedTodos = showCompletedTodos,
-            onCreateTodo = { _, _ -> false },
-            onUpdateTodo = {},
-            onCompleteTodo = {},
-            onToggleCompletedTodos = onToggleCompletedTodos,
-            readOnly = true
-        )
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun TagSelector(
-    state: NoteUiState,
-    onToggleTag: (com.example.zhilu.domain.model.Tag) -> Unit,
-    onCreateTag: (String) -> Unit
-) {
-    var newTagName by remember { mutableStateOf("") }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("标签", style = MaterialTheme.typography.titleSmall)
-        Text(
-            text = if (state.availableTags.isEmpty()) {
-                "暂无已添加标签，可在下方新建一个。"
-            } else {
-                "选择已添加过的标签，可多选；再次点击可取消。"
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        if (state.availableTags.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                state.availableTags.forEach { tag ->
-                    TagChip(
-                        tag = tag,
-                        selected = state.selectedTags.any { it.id == tag.id },
-                        onClick = { onToggleTag(tag) }
-                    )
-                }
-            }
-        }
-        if (state.selectedTags.isNotEmpty()) {
-            Text(
-                text = "已选择：${state.selectedTags.joinToString("、") { it.name }}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = newTagName,
-                onValueChange = { newTagName = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("新建标签") },
-                singleLine = true
-            )
-            Button(
-                onClick = {
-                    onCreateTag(newTagName)
-                    newTagName = ""
-                }
-            ) {
-                Text("添加")
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable
-private fun BlockToolbar(
-    onAddText: () -> Unit,
-    onAddImage: () -> Unit,
-    onAddLink: () -> Unit,
-    onAddLatex: () -> Unit,
-    onAddCode: () -> Unit,
-    onAddTodo: () -> Unit,
-    onAddDivider: () -> Unit
-) {
-    FlowRow(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        TextButton(onClick = onAddTodo) {
-            Icon(Icons.Default.Check, contentDescription = null)
-            Spacer(Modifier.width(4.dp))
-            Text("TODO")
-        }
-        TextButton(onClick = onAddText) { Text("文字") }
-        TextButton(onClick = onAddImage) { Text("拍照") }
-        TextButton(onClick = onAddLink) { Text("链接") }
-        TextButton(onClick = onAddLatex) { Text("公式") }
-        TextButton(onClick = onAddCode) { Text("代码") }
-        TextButton(onClick = onAddDivider) { Text("分割线") }
-    }
-}
 
 private fun Context.shouldRequestNotificationPermission(): Boolean =
     NotificationPermissionState.requiresRuntimePermission(Build.VERSION.SDK_INT) &&
@@ -481,12 +384,3 @@ private fun Context.shouldRequestNotificationPermission(): Boolean =
             Manifest.permission.POST_NOTIFICATIONS
         ) != PackageManager.PERMISSION_GRANTED
 
-private fun BlockType.displayName(): String = when (this) {
-    BlockType.TODO -> "TODO"
-    BlockType.TEXT -> "文字"
-    BlockType.IMAGE -> "图片"
-    BlockType.LINK -> "链接"
-    BlockType.LATEX -> "公式"
-    BlockType.CODE -> "代码"
-    BlockType.DIVIDER -> "分割线"
-}
