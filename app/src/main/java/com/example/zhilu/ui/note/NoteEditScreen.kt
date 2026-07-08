@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -24,11 +25,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -57,6 +60,8 @@ import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.note.theme.NoteColors
+import com.example.zhilu.ui.note.SaveStatus
 import com.example.zhilu.ui.settings.NotificationPermissionState
 import kotlinx.coroutines.launch
 
@@ -137,6 +142,32 @@ fun NoteEditScreen(
                 },
                 onBack = { navController.popBackStack() },
                 actions = {
+                    when (state.saveStatus) {
+                        SaveStatus.SAVING -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                        SaveStatus.SAVED -> {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = "已保存",
+                                tint = NoteColors.primaryIndigo
+                            )
+                        }
+                        SaveStatus.ERROR -> {
+                            Icon(
+                                Icons.Default.Error,
+                                contentDescription = "保存失败",
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        SaveStatus.IDLE -> { /* show nothing */ }
+                    }
+                    if (state.saveStatus != SaveStatus.IDLE) {
+                        Spacer(Modifier.width(8.dp))
+                    }
                     if (state.isEditing) {
                         IconButton(onClick = viewModel::saveNow) {
                             Icon(Icons.Default.Check, contentDescription = "保存")
