@@ -296,6 +296,31 @@ class NoteViewModelAdvancedBlockTest {
     }
 
     @Test
+    fun todoCreationDuringNewNoteAutosaveReusesInsertedNote() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(id = 7L, title = "", blocks = emptyList()),
+            insertDelayMillis = 1_000
+        )
+        val viewModel = createNewNoteViewModel(noteRepository)
+        val todoResults = mutableListOf<Boolean>()
+
+        viewModel.onBlockContentChange(0, "Draft")
+        advanceTimeBy(500)
+        runCurrent()
+        val todoJob = launch {
+            todoResults += viewModel.createTodo("Follow up", remindAt = null)
+        }
+        runCurrent()
+        advanceTimeBy(1_000)
+        runCurrent()
+        todoJob.join()
+
+        assertEquals(listOf("Draft"), noteRepository.insertedNotes.map { it.blocks.single().content })
+        assertEquals(listOf(true), todoResults)
+        assertEquals(1L, viewModel.uiState.value.noteId)
+    }
+
+    @Test
     fun successfulDebouncedSaveTransitionsToSavedStatus() = runTest(dispatcher) {
         val noteRepository = RecordingNoteRepository(
             note = Note(

@@ -473,29 +473,33 @@ class NoteViewModel @Inject constructor(
     }
 
     private suspend fun ensureNoteIdForTodo(): Long {
-        val currentNoteId = _uiState.value.noteId
-        if (currentNoteId > 0L) return currentNoteId
+        _uiState.value.noteId.takeIf { it > 0L }?.let { return it }
 
-        _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
-        return when (val result = noteRepository.insertNote(_uiState.value.toNote())) {
-            is RepositoryResult.Success -> {
-                val newId = result.data
-                _uiState.update {
-                    it.copy(
-                        noteId = newId,
-                        isSaving = false,
-                        saveStatus = SaveStatus.SAVED,
-                        lastSavedAt = System.currentTimeMillis()
-                    )
+        return saveMutex.withLock {
+            val currentNoteId = _uiState.value.noteId
+            if (currentNoteId > 0L) return@withLock currentNoteId
+
+            _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
+            when (val result = noteRepository.insertNote(_uiState.value.toNote())) {
+                is RepositoryResult.Success -> {
+                    val newId = result.data
+                    _uiState.update {
+                        it.copy(
+                            noteId = newId,
+                            isSaving = false,
+                            saveStatus = SaveStatus.SAVED,
+                            lastSavedAt = System.currentTimeMillis()
+                        )
+                    }
+                    observeTodos(newId)
+                    newId
                 }
-                observeTodos(newId)
-                newId
-            }
-            is RepositoryResult.Error -> {
-                _uiState.update {
-                    it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
+                is RepositoryResult.Error -> {
+                    _uiState.update {
+                        it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
+                    }
+                    0L
                 }
-                0L
             }
         }
     }
