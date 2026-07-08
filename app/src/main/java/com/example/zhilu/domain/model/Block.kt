@@ -19,5 +19,6 @@ data class Block(
     val noteId: Long = 0,
     val type: BlockType = BlockType.TEXT,
     val content: String = "",
+    val language: String = "",
     val sortOrder: Int = 0
 )

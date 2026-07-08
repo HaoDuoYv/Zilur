@@ -10,6 +10,7 @@ object BlockMapper {
         noteId = entity.noteId,
         type = BlockType.fromValue(entity.type),
         content = entity.content,
+        language = entity.language,
         sortOrder = entity.sortOrder
     )
 
@@ -18,6 +19,7 @@ object BlockMapper {
         noteId = domain.noteId,
         type = domain.type.value,
         content = domain.content,
+        language = domain.language,
         sortOrder = domain.sortOrder
     )
 }

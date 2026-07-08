@@ -18,5 +18,11 @@ object Migration {
         }
     }
 
-    val all = arrayOf(MIGRATION_1_2)
+    private val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE note_blocks ADD COLUMN language TEXT NOT NULL DEFAULT ''")
+        }
+    }
+
+    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
 }

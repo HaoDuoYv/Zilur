@@ -27,6 +27,25 @@ class MarkdownExporterAdvancedBlockTest {
     }
 
     @Test
+    fun exportsCodeBlockLanguageFence() {
+        val note = Note(
+            title = "Code",
+            blocks = listOf(
+                Block(
+                    type = BlockType.CODE,
+                    content = "val answer = 42",
+                    language = "kotlin",
+                    sortOrder = 0
+                )
+            )
+        )
+
+        val markdown = MarkdownExporter.exportNote(note)
+
+        assertTrue(markdown.contains("```kotlin\nval answer = 42\n```"))
+    }
+
+    @Test
     fun exportsEmbeddedImageReferenceFromMediaContent() {
         val note = Note(
             title = "Image",

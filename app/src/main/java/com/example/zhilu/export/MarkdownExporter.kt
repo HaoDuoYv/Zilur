@@ -49,7 +49,10 @@ object MarkdownExporter {
             BlockType.LINK -> append(linkMarkdown(block.content))
             BlockType.DIVIDER -> append("---")
             BlockType.LATEX -> append("$$\n").append(block.content.trim()).append("\n$$")
-            BlockType.CODE -> append("```text\n").append(block.content.trimEnd()).append("\n```")
+            BlockType.CODE -> {
+                val language = block.language.ifBlank { "text" }
+                append("```").append(language).append("\n").append(block.content.trimEnd()).append("\n```")
+            }
             BlockType.TODO -> append(todoMarkdown(block.content, todoItems))
         }
     }

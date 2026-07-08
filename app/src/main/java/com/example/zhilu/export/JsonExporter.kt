@@ -72,6 +72,7 @@ object JsonExporter {
         appendJsonField("noteId", block.noteId).append(",")
         appendJsonField("type", block.type.name).append(",")
         appendJsonField("content", block.content).append(",")
+        appendJsonField("language", block.language).append(",")
         appendJsonField("sortOrder", block.sortOrder)
         append("}")
     }
@@ -158,6 +159,7 @@ object JsonExporter {
             type = BlockType.entries.firstOrNull { it.name == typeName }
                 ?: BlockType.fromValue(int("type", BlockType.TEXT.value)),
             content = string("content"),
+            language = string("language"),
             sortOrder = int("sortOrder")
         )
     }

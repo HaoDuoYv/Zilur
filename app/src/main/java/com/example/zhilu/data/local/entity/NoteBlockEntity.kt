@@ -26,5 +26,6 @@ data class NoteBlockEntity(
     val noteId: Long,
     val type: Int,
     val content: String,
-    val sortOrder: Int
+    val sortOrder: Int,
+    val language: String = ""
 )
