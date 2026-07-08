@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed interface UiEvent {
-    data class ShowUndoSnackbar(val block: Block, val index: Int) : UiEvent
+    data class ShowUndoSnackbar(val block: Block, val index: Int, val token: Long) : UiEvent
 }
 
 private data class PendingBlockRemoval(
@@ -56,11 +56,13 @@ class NoteViewModel @Inject constructor(
     val uiEvents = _uiEvents.receiveAsFlow()
 
     private var saveJob: Job? = null
-    private var removalConfirmJob: Job? = null
+    private var saveVersion: Long = 0L
+    private val pendingRemovals = mutableMapOf<Long, PendingBlockRemoval>()
+    private val removalConfirmJobs = mutableMapOf<Long, Job>()
+    private var nextRemovalToken: Long = 1L
     private var todoObservationJob: Job? = null
     private var observedTodoNoteId: Long = 0L
     private var recordingReviewPlanId: Long? = null
-    private var pendingRemoval: PendingBlockRemoval? = null
 
     init {
         load(NoteRouteArgs.noteId(savedStateHandle))
@@ -146,10 +148,10 @@ class NoteViewModel @Inject constructor(
     }
 
     fun moveBlock(fromIndex: Int, toIndex: Int) {
-        if (fromIndex == toIndex) return
-        if (fromIndex !in _blocks.indices || toIndex !in _blocks.indices) return
+        if (fromIndex !in _blocks.indices || toIndex !in 0.._blocks.size) return
+        if (fromIndex == toIndex || (fromIndex == _blocks.lastIndex && toIndex == _blocks.size)) return
         val block = _blocks.removeAt(fromIndex)
-        _blocks.add(toIndex, block)
+        _blocks.add(toIndex.coerceIn(0, _blocks.size), block)
         syncBlocksToState()
         scheduleSave()
     }
@@ -164,22 +166,27 @@ class NoteViewModel @Inject constructor(
         if (_blocks.isEmpty()) {
             _blocks.addAll(defaultBlocks())
         }
-        pendingRemoval = PendingBlockRemoval(
+        val token = nextRemovalToken++
+        pendingRemovals[token] = PendingBlockRemoval(
             block = removed,
             index = index.coerceAtMost(_blocks.size)
         )
         syncBlocksToState()
-        _uiEvents.trySend(UiEvent.ShowUndoSnackbar(removed, index))
-        removalConfirmJob?.cancel()
-        removalConfirmJob = viewModelScope.launch {
+        _uiEvents.trySend(UiEvent.ShowUndoSnackbar(removed, index, token))
+        removalConfirmJobs[token]?.cancel()
+        removalConfirmJobs[token] = viewModelScope.launch {
             delay(5_000)
-            confirmRemoveBlock()
+            confirmRemoveBlock(token)
         }
         scheduleSave()
     }
 
     fun undoRemoveBlock() {
-        val removal = pendingRemoval ?: return
+        undoRemoveBlock(pendingRemovals.keys.lastOrNull() ?: return)
+    }
+
+    fun undoRemoveBlock(token: Long) {
+        val removal = pendingRemovals.remove(token) ?: return
         val isOnlyDefaultBlankBlock = _blocks.size == 1 &&
             _blocks.single().type == BlockType.TEXT &&
             _blocks.single().content.isBlank()
@@ -187,17 +194,18 @@ class NoteViewModel @Inject constructor(
             _blocks.clear()
         }
         _blocks.add(removal.index.coerceIn(0, _blocks.size), removal.block)
-        pendingRemoval = null
-        removalConfirmJob?.cancel()
-        removalConfirmJob = null
+        removalConfirmJobs.remove(token)?.cancel()
         syncBlocksToState()
         scheduleSave()
     }
 
     fun confirmRemoveBlock() {
-        pendingRemoval = null
-        removalConfirmJob?.cancel()
-        removalConfirmJob = null
+        confirmRemoveBlock(pendingRemovals.keys.lastOrNull() ?: return)
+    }
+
+    fun confirmRemoveBlock(token: Long) {
+        pendingRemovals.remove(token)
+        removalConfirmJobs.remove(token)?.cancel()
     }
 
     fun toggleTag(tag: Tag) {
@@ -228,7 +236,8 @@ class NoteViewModel @Inject constructor(
 
     fun saveNow() {
         saveJob?.cancel()
-        viewModelScope.launch { saveInternal(exitEditMode = true) }
+        val version = nextSaveVersion()
+        viewModelScope.launch { saveInternal(version = version, exitEditMode = true) }
     }
 
     fun startEditing() {
@@ -500,16 +509,28 @@ class NoteViewModel @Inject constructor(
     }
 
     private fun scheduleSave() {
+        val version = nextSaveVersion()
         saveJob?.cancel()
         saveJob = viewModelScope.launch {
             delay(500)
-            saveInternal(exitEditMode = false)
+            viewModelScope.launch { saveInternal(version = version, exitEditMode = false) }
         }
     }
 
-    private suspend fun saveInternal(exitEditMode: Boolean) {
+    private fun nextSaveVersion(): Long {
+        saveVersion += 1
+        _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
+        return saveVersion
+    }
+
+    private suspend fun saveInternal(version: Long, exitEditMode: Boolean) {
         val state = _uiState.value
-        if (state.title.isBlank() && state.blocks.all { it.content.isBlank() }) return
+        if (state.noteId == 0L && state.title.isBlank() && state.blocks.all { it.content.isBlank() }) {
+            if (version == saveVersion) {
+                _uiState.update { it.copy(isSaving = false, saveStatus = SaveStatus.IDLE) }
+            }
+            return
+        }
         _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
         val note = state.toNote()
         val result = if (state.noteId == 0L) {
@@ -520,21 +541,29 @@ class NoteViewModel @Inject constructor(
         when (result) {
             is RepositoryResult.Success -> {
                 val newId = if (state.noteId == 0L && result.data is Long) result.data else state.noteId
-                _uiState.update {
-                    it.copy(
-                        noteId = newId,
-                        isEditing = if (exitEditMode) false else it.isEditing,
-                        isSaving = false,
-                        saveStatus = SaveStatus.SAVED,
-                        lastSavedAt = System.currentTimeMillis()
-                    )
+                if (version == saveVersion) {
+                    _uiState.update {
+                        it.copy(
+                            noteId = newId,
+                            isEditing = if (exitEditMode) false else it.isEditing,
+                            isSaving = false,
+                            saveStatus = SaveStatus.SAVED,
+                            lastSavedAt = System.currentTimeMillis()
+                        )
+                    }
+                } else if (state.noteId == 0L && newId > 0L) {
+                    _uiState.update { it.copy(noteId = newId) }
                 }
                 if (state.noteId == 0L && newId > 0L) {
                     observeTodos(newId)
                 }
             }
-            is RepositoryResult.Error -> _uiState.update {
-                it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
+            is RepositoryResult.Error -> {
+                if (version == saveVersion) {
+                    _uiState.update {
+                        it.copy(isSaving = false, saveStatus = SaveStatus.ERROR, error = result.message)
+                    }
+                }
             }
         }
     }

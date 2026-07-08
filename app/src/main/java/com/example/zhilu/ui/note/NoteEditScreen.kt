@@ -113,9 +113,9 @@ fun NoteEditScreen(
                         actionLabel = "Undo"
                     )
                     if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.undoRemoveBlock()
+                        viewModel.undoRemoveBlock(event.token)
                     } else {
-                        viewModel.confirmRemoveBlock()
+                        viewModel.confirmRemoveBlock(event.token)
                     }
                 }
             }

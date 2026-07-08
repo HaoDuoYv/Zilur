@@ -16,11 +16,13 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -134,6 +136,33 @@ class NoteViewModelAdvancedBlockTest {
     }
 
     @Test
+    fun moveBlockAllowsAppendToEndIndex() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Append move note",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "A", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "B", sortOrder = 1),
+                    Block(type = BlockType.TEXT, content = "C", sortOrder = 2)
+                )
+            )
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+
+        viewModel.moveBlock(0, viewModel.uiState.value.blocks.size)
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals(listOf("B", "C", "A"), viewModel.uiState.value.blocks.map { it.content })
+        assertEquals(
+            listOf("B" to 0, "C" to 1, "A" to 2),
+            noteRepository.updatedNotes.single().blocks.map { it.content to it.sortOrder }
+        )
+    }
+
+    @Test
     fun undoRemoveBlockRestoresDeletedBlockAtOriginalIndex() = runTest(dispatcher) {
         val noteRepository = RecordingNoteRepository(
             note = Note(
@@ -153,6 +182,92 @@ class NoteViewModelAdvancedBlockTest {
         viewModel.undoRemoveBlock()
 
         assertEquals(listOf("A", "B", "C"), viewModel.uiState.value.blocks.map { it.content })
+    }
+
+    @Test
+    fun quickDeleteConfirmForFirstEventDoesNotClearSecondUndo() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Queued undo note",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "A", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "B", sortOrder = 1),
+                    Block(type = BlockType.TEXT, content = "C", sortOrder = 2)
+                )
+            )
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+        val events = mutableListOf<UiEvent.ShowUndoSnackbar>()
+        val eventJob = launch {
+            viewModel.uiEvents.take(2).collect { event ->
+                events += event as UiEvent.ShowUndoSnackbar
+            }
+        }
+
+        viewModel.removeBlock(0)
+        viewModel.removeBlock(0)
+        runCurrent()
+        viewModel.confirmRemoveBlock(events[0].token)
+        viewModel.undoRemoveBlock(events[1].token)
+        eventJob.cancel()
+
+        assertEquals(listOf("B", "C"), viewModel.uiState.value.blocks.map { it.content })
+    }
+
+    @Test
+    fun deletingLastMeaningfulBlockFromExistingUntitledNotePersistsBlankState() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "",
+                blocks = listOf(Block(type = BlockType.TEXT, content = "Only content", sortOrder = 0))
+            )
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+
+        viewModel.removeBlock(0)
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        assertEquals(1, noteRepository.updatedNotes.size)
+        assertEquals("", noteRepository.updatedNotes.single().title)
+        assertEquals(listOf(""), noteRepository.updatedNotes.single().blocks.map { it.content })
+    }
+
+    @Test
+    fun newEditDoesNotCancelInFlightSaveAndStatusWaitsForLatestSave() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "Save note",
+                blocks = listOf(Block(type = BlockType.TEXT, content = "Before", sortOrder = 0))
+            ),
+            updateDelayMillis = 1_000
+        )
+        val viewModel = createViewModel(noteRepository)
+        advanceUntilIdle()
+
+        viewModel.onBlockContentChange(0, "First")
+        advanceTimeBy(500)
+        runCurrent()
+        viewModel.onBlockContentChange(0, "Second")
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertEquals(listOf("First"), noteRepository.updatedNotes.map { it.blocks.single().content })
+        assertEquals(SaveStatus.SAVING, viewModel.uiState.value.saveStatus)
+
+        advanceTimeBy(500)
+        runCurrent()
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        assertEquals(listOf("First", "Second"), noteRepository.updatedNotes.map { it.blocks.single().content })
+        assertEquals(SaveStatus.SAVED, viewModel.uiState.value.saveStatus)
+        assertEquals(false, viewModel.uiState.value.isSaving)
     }
 
     @Test
