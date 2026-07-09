@@ -25,6 +25,7 @@ import com.example.zhilu.ui.note.toolbar.BlockToolbar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.HorizontalDivider
@@ -66,6 +67,8 @@ import com.example.zhilu.ui.note.theme.NoteColors
 import com.example.zhilu.ui.note.SaveStatus
 import com.example.zhilu.ui.settings.NotificationPermissionState
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -81,6 +84,7 @@ fun NoteEditScreen(
     var isDragging by remember { mutableStateOf(false) }
     var cumulativeDragOffset by remember { mutableStateOf(0f) }
     val coroutineScope = rememberCoroutineScope()
+    val clipboardManager = LocalClipboardManager.current
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { granted ->
@@ -175,6 +179,20 @@ fun NoteEditScreen(
                             Icon(Icons.Default.Check, contentDescription = "保存")
                         }
                     } else {
+                        IconButton(onClick = {
+                            val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_SUBJECT, state.title.ifBlank { "知识分享" })
+                                putExtra(android.content.Intent.EXTRA_TEXT, buildString {
+                                    appendLine(state.title.ifBlank { "知识分享" })
+                                    appendLine()
+                                    state.blocks.forEach { appendLine(it.content) }
+                                })
+                            }
+                            context.startActivity(android.content.Intent.createChooser(sendIntent, null))
+                        }) {
+                            Icon(Icons.Default.Share, contentDescription = "分享")
+                        }
                         IconButton(onClick = viewModel::startEditing) {
                             Icon(Icons.Default.Edit, contentDescription = "编辑")
                         }
@@ -311,10 +329,10 @@ fun NoteEditScreen(
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
-                                text = state.title.ifBlank { "未命名知识" },
+                                text = state.title.ifBlank { "新建知识" },
                                 style = MaterialTheme.typography.headlineLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = if (state.title.isBlank()) NoteColors.titlePlaceholder else MaterialTheme.colorScheme.onSurface
                             )
                             if (state.selectedTags.isNotEmpty()) {
                                 FlowRow(
@@ -322,7 +340,7 @@ fun NoteEditScreen(
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     state.selectedTags.forEach { tag ->
-                                        TagChip(tag = tag)
+                                        TagChip(tag = tag, onClick = {})
                                     }
                                 }
                             }
@@ -345,7 +363,9 @@ fun NoteEditScreen(
                     itemsIndexed(state.blocks) { _, block ->
                         ReadOnlyBlock(
                             block = block,
-                            onCopy = {},
+                            onCopy = {
+                                clipboardManager.setText(AnnotatedString(block.content))
+                            },
                             todoItems = state.todoItems,
                             showCompletedTodos = state.showCompletedTodos,
                             onToggleCompletedTodos = viewModel::toggleCompletedTodos
