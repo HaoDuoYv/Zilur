@@ -86,7 +86,7 @@ fun NoteEditScreen(
         onResult = { granted ->
             if (!granted) {
                 coroutineScope.launch {
-                    snackbarHostState.showSnackbar("閫氱煡鏉冮檺鏈紑鍚紝鍙湪鎻愰啋涓績鏌ョ湅鍒版湡椤圭洰")
+                    snackbarHostState.showSnackbar("通知权限未开启，可在提醒中心查看到期项目")
                 }
             }
         }
@@ -138,9 +138,9 @@ fun NoteEditScreen(
         topBar = {
             AppTopBar(
                 title = when {
-                    state.isEditing && state.noteId == 0L -> "鏂板缓璁板綍"
-                    state.isEditing -> "缂栬緫璁板綍"
-                    else -> "鐭ヨ瘑璇︽儏"
+                    state.isEditing && state.noteId == 0L -> "新建记录"
+                    state.isEditing -> "编辑记录"
+                    else -> "知识详情"
                 },
                 onBack = { navController.popBackStack() },
                 actions = {
@@ -161,7 +161,7 @@ fun NoteEditScreen(
                         SaveStatus.ERROR -> {
                             Icon(
                                 Icons.Default.Error,
-                                contentDescription = "淇濆瓨澶辫触",
+                                contentDescription = "保存失败",
                                 tint = MaterialTheme.colorScheme.error
                             )
                         }
@@ -172,11 +172,11 @@ fun NoteEditScreen(
                     }
                     if (state.isEditing) {
                         IconButton(onClick = viewModel::saveNow) {
-                            Icon(Icons.Default.Check, contentDescription = "淇濆瓨")
+                            Icon(Icons.Default.Check, contentDescription = "保存")
                         }
                     } else {
                         IconButton(onClick = viewModel::startEditing) {
-                            Icon(Icons.Default.Edit, contentDescription = "缂栬緫")
+                            Icon(Icons.Default.Edit, contentDescription = "编辑")
                         }
                     }
                 }
@@ -354,7 +354,7 @@ fun NoteEditScreen(
                     if (state.blocks.isEmpty()) {
                         item {
                             Text(
-                                text = "鏆傛棤姝ｆ枃鍐呭",
+                                text = "暂无正文内容",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
