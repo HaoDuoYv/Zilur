@@ -17,13 +17,13 @@
 ### Design
 - 新建 `ui/note/blocks/BlockListManager.kt`：
   - 内部用 `mutableStateListOf<Block>()` 持块；
-  - 暴露 `val blocks: SnapshotStateList<Block>` 给 Compose 直接观察；
-  - `addBlock(type, afterIndex)`：生成唯一 id，设置 `isNewlyAdded = true`，插入列表；
-  - `moveBlock/removeBlock/updateContent/clearNewFlag` 等操作；
+  - 暴露 `val blocks: SnapshotStateList<Block>` 给 ViewModel，再存入 `NoteUiState.blocks` 给 Compose 直接观察；
+  - `addBlock(type, afterIndex)`：生成唯一正 id（基于时间戳/UUID，避免与数据库 id 冲突），插入列表，并在内部 `newlyAddedIds` 集合中记录该 id；
+  - `moveBlock/removeBlock/updateContent/clearNewFlag(id)` 等操作；
   - `toPersistableList()`：持久化时按索引生成 `sortOrder`；
   - 用简单 `isProcessing` 标志防止同一帧内多次添加（UI 层再配 300ms 防抖）。
 - `NoteViewModel` 不再直接操作 `_blocks`，改为调用 `BlockListManager`；
-- UI 层新块焦点：`LaunchedEffect(block.id) { awaitFrame(); focusRequester.requestFocus() }`，布局完成后再要焦点。
+- UI 层新块焦点：`LaunchedEffect(block.id) { awaitFrame(); focusRequester.requestFocus(); viewModel.clearNewFlag(block.id) }`，布局完成后再要焦点。
 
 ---
 
