@@ -1,5 +1,6 @@
 package com.example.zhilu.ui.component
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,16 +14,40 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AppCard(
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-        content = content
+    val cardModifier = modifier
+        .fillMaxWidth()
+        .padding(horizontal = 16.dp, vertical = 6.dp)
+    val shape = MaterialTheme.shapes.medium
+    val colors = CardDefaults.cardColors(
+        containerColor = MaterialTheme.colorScheme.surface
     )
+    val elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+
+    if (onClick != null) {
+        Card(
+            modifier = cardModifier,
+            onClick = onClick,
+            shape = shape,
+            colors = colors,
+            elevation = elevation
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                content()
+            }
+        }
+    } else {
+        Card(
+            modifier = cardModifier,
+            shape = shape,
+            colors = colors,
+            elevation = elevation
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                content()
+            }
+        }
+    }
 }

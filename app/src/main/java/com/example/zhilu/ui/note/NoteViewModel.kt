@@ -1,5 +1,7 @@
 package com.example.zhilu.ui.note
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,18 +9,24 @@ import androidx.compose.runtime.mutableStateListOf
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.ImageBlockContent
+import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderType
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.Job
@@ -48,6 +56,8 @@ class NoteViewModel @Inject constructor(
     private val reviewRepository: ReviewRepository,
     private val todoRepository: TodoRepository,
     private val reminderRepository: ReminderRepository,
+    private val mediaRepository: MediaRepository,
+    @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(NoteUiState())
@@ -60,6 +70,7 @@ class NoteViewModel @Inject constructor(
     private val saveMutex = Mutex()
     private var saveJob: Job? = null
     private var saveVersion: Long = 0L
+    private var nextBlockId: Long = -1L
     private var _isDragging = false
     private val pendingRemovals = mutableMapOf<Long, PendingBlockRemoval>()
     private val removalConfirmJobs = mutableMapOf<Long, Job>()
@@ -124,6 +135,7 @@ class NoteViewModel @Inject constructor(
     fun addBlock(type: BlockType) {
         val content = defaultContentFor(type)
         _blocks += Block(
+            id = nextBlockId--,
             type = type,
             content = content,
             sortOrder = _blocks.size
@@ -136,12 +148,64 @@ class NoteViewModel @Inject constructor(
 
     fun addImageBlock(uri: String) {
         _blocks += Block(
+            id = nextBlockId--,
             type = BlockType.IMAGE,
             content = uri,
             sortOrder = _blocks.size
         )
         syncBlocksToState()
         scheduleSave()
+    }
+
+    fun addImageFromGallery(uri: Uri) {
+        _uiState.update { it.copy(isProcessingImage = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val imagesDir = File(context.filesDir, "images").apply { mkdirs() }
+                val extension = resolveImageExtension(uri)
+                val fileName = "${System.currentTimeMillis()}_${UUID.randomUUID()}.$extension"
+                val destFile = File(imagesDir, fileName)
+
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    destFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: throw IllegalStateException("无法读取所选图片")
+
+                val internalUri = Uri.fromFile(destFile).toString()
+                val media = Media(
+                    uri = internalUri,
+                    size = destFile.length(),
+                    createdAt = System.currentTimeMillis()
+                )
+                when (val result = mediaRepository.insertMedia(media)) {
+                    is RepositoryResult.Success -> {
+                        addImageBlock(ImageBlockContent.fromMedia(result.data, internalUri))
+                        _uiState.update { it.copy(isProcessingImage = false, error = null) }
+                    }
+                    is RepositoryResult.Error -> {
+                        destFile.deleteSilently()
+                        _uiState.update { it.copy(isProcessingImage = false, error = result.message) }
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isProcessingImage = false, error = e.message ?: "保存图片失败") }
+            }
+        }
+    }
+
+    private fun resolveImageExtension(uri: Uri): String {
+        val mimeType = context.contentResolver.getType(uri)
+        return when {
+            mimeType?.contains("png", ignoreCase = true) == true -> "png"
+            mimeType?.contains("gif", ignoreCase = true) == true -> "gif"
+            mimeType?.contains("webp", ignoreCase = true) == true -> "webp"
+            else -> "jpg"
+        }
+    }
+
+    private fun File.deleteSilently() {
+        runCatching { delete() }
     }
 
     fun setBlockLanguage(index: Int, language: String) {
@@ -590,7 +654,7 @@ class NoteViewModel @Inject constructor(
     private fun defaultContentFor(type: BlockType): String = when (type) {
         BlockType.TEXT -> ""
         BlockType.IMAGE -> ""
-        BlockType.LINK -> "https://"
+        BlockType.LINK -> ""
         BlockType.LATEX -> ""
         BlockType.CODE -> ""
         BlockType.DIVIDER -> ""

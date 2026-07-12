@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.annotation.SuppressLint
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -19,6 +20,7 @@ import javax.inject.Inject
 class ReminderNotifier @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
+    @SuppressLint("MissingPermission")
     fun showReminder(reminder: ReminderInstance): Boolean {
         ensureNotificationChannel()
 

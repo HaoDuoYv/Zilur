@@ -7,10 +7,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
@@ -32,12 +34,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppCard
+import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.NoteListItem
 import com.example.zhilu.ui.navigation.BottomBar
@@ -60,7 +65,7 @@ fun TagsScreen(
     }
 
     Scaffold(
-        topBar = { AppTopBar(title = "Tags") },
+        topBar = { AppTopBar(title = "标签") },
         bottomBar = { BottomBar(navController = navController) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
@@ -69,49 +74,67 @@ fun TagsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            if (state.isLoading) LinearProgressIndicator()
+            if (state.isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             AppCard {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "${state.noteCount} notes across ${state.tags.size} tags",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "${state.noteCount} 条笔记，${state.tags.size} 个标签",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
                             value = newTagName,
                             onValueChange = { newTagName = it },
                             modifier = Modifier.weight(1f),
-                            label = { Text("New tag") },
-                            singleLine = true
+                            label = { Text("新标签") },
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.medium
                         )
                         Button(
                             onClick = {
                                 viewModel.addTag(newTagName)
                                 newTagName = ""
-                            }
+                            },
+                            enabled = newTagName.isNotBlank()
                         ) {
-                            Text("Add")
+                            Text("添加")
                         }
                     }
                 }
             }
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(state.tags, key = { it.id }) { tag ->
-                    TagRow(
-                        tag = tag,
-                        selected = state.selectedTag?.id == tag.id,
-                        onClick = { viewModel.selectTag(tag) },
-                        onDelete = { viewModel.deleteTag(tag) }
-                    )
+                if (!state.isLoading && state.tags.isEmpty()) {
+                    item {
+                        AppEmptyState(
+                            onAction = { navController.navigate(Destination.NoteEdit.createRoute()) },
+                            icon = "标",
+                            title = "还没有标签",
+                            description = "创建第一条笔记并添加标签，知识将更容易被找到。",
+                            buttonText = "去记录"
+                        )
+                    }
+                } else {
+                    itemsIndexed(state.tags, key = { _, tag -> tag.id }) { index, tag ->
+                        AnimatedListItem(index = index) {
+                            TagRow(
+                                tag = tag,
+                                selected = state.selectedTag?.id == tag.id,
+                                onClick = { viewModel.selectTag(tag) },
+                                onDelete = { viewModel.deleteTag(tag) }
+                            )
+                        }
+                    }
                 }
                 state.selectedTag?.let { tag ->
                     item {
                         Text(
                             text = "“${tag.name}” 下的知识点",
                             style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                         )
                     }
@@ -123,18 +146,21 @@ fun TagsScreen(
                                 Text(
                                     text = "这个标签下还没有知识点。",
                                     modifier = Modifier.padding(16.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
                     } else {
-                        items(state.filteredNotes, key = { "note-${it.id}" }) { note ->
-                            NoteListItem(
-                                note = note,
-                                onClick = {
-                                    navController.navigate(Destination.NoteEdit.createRoute(note.id))
-                                }
-                            )
+                        itemsIndexed(state.filteredNotes, key = { _, note -> "note-${note.id}" }) { index, note ->
+                            AnimatedListItem(index = index) {
+                                NoteListItem(
+                                    note = note,
+                                    onClick = {
+                                        navController.navigate(Destination.NoteEdit.createRoute(note.id))
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -160,24 +186,34 @@ private fun TagRow(
             Box(
                 modifier = Modifier
                     .size(14.dp)
-                    .background(Color(tag.color), MaterialTheme.shapes.small)
+                    .clip(CircleShape)
+                    .background(Color(tag.color))
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 12.dp),
             ) {
-                Text(tag.name, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    if (selected) "正在显示该标签下的知识点" else "点击查看该标签下的知识点",
-                    style = MaterialTheme.typography.bodySmall
+                    text = tag.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = if (selected) "正在显示该标签下的知识点" else "点击查看该标签下的知识点",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Button(onClick = onClick) {
                 Text(if (selected) "收起" else "查看")
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete tag")
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = "删除标签",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

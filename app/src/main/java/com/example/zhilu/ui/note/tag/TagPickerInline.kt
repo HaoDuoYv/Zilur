@@ -1,38 +1,44 @@
 package com.example.zhilu.ui.note.tag
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.TagChip
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TagPickerInline(
     availableTags: List<Tag>,
@@ -41,87 +47,174 @@ fun TagPickerInline(
     onCreate: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    TagPickerContent(
-        availableTags = availableTags,
-        selectedTags = selectedTags,
-        onToggle = onToggle,
-        onCreate = onCreate,
-        maxHeight = 120.dp,
-        modifier = modifier
-    )
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun TagPickerContent(
-    availableTags: List<Tag>,
-    selectedTags: List<Tag>,
-    onToggle: (Tag) -> Unit,
-    onCreate: (String) -> Unit,
-    maxHeight: Dp,
-    modifier: Modifier = Modifier
-) {
+    var isExpanded by remember { mutableStateOf(false) }
     var newTagName by remember { mutableStateOf("") }
     val selectedTagIds = remember(selectedTags) { selectedTags.map { it.id }.toSet() }
-    val keyboardController = LocalSoftwareKeyboardController.current
+    val unselectedTags = remember(availableTags, selectedTagIds) {
+        availableTags.filter { !selectedTagIds.contains(it.id) }
+    }
 
     fun submitTag() {
         val trimmed = newTagName.trim()
         if (trimmed.isBlank()) return
-
         onCreate(trimmed)
         newTagName = ""
-        keyboardController?.hide()
     }
 
-    Column(
+    BackHandler(enabled = isExpanded && newTagName.isBlank()) {
+        isExpanded = false
+    }
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(max = maxHeight)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    if (isExpanded && newTagName.isBlank()) {
+                        isExpanded = false
+                    }
+                }
+            }
     ) {
-        if (availableTags.isEmpty()) {
-            Text(
-                text = "暂无标签",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                availableTags.forEach { tag ->
+                selectedTags.forEach { tag ->
                     TagChip(
                         tag = tag,
-                        selected = selectedTagIds.contains(tag.id),
+                        selected = true,
                         onClick = { onToggle(tag) }
                     )
                 }
+                if (!isExpanded) {
+                    AddTagChip(onClick = { isExpanded = true })
+                }
+            }
+
+            if (isExpanded) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        TagInputField(
+                            value = newTagName,
+                            onValueChange = { newTagName = it },
+                            onSubmit = { submitTag() }
+                        )
+
+                        if (unselectedTags.isNotEmpty()) {
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                unselectedTags.forEach { tag ->
+                                    TagChip(
+                                        tag = tag,
+                                        selected = false,
+                                        onClick = { onToggle(tag) }
+                                    )
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "暂无更多标签",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
+    }
+}
 
+@Composable
+private fun AddTagChip(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
         ) {
-            OutlinedTextField(
-                value = newTagName,
-                onValueChange = { newTagName = it },
-                modifier = Modifier.weight(1f),
-                label = { Text("新建标签") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { submitTag() })
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
             )
-            Button(
-                onClick = { submitTag() },
-                enabled = newTagName.isNotBlank()
+            Spacer(Modifier.width(4.dp))
+            Text(
+                text = "标签",
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun TagInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit
+) {
+    val textColor = MaterialTheme.colorScheme.onSurface
+    val placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)
+
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, borderColor)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .defaultMinSize(minWidth = 120.dp)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Box(
+                modifier = Modifier.defaultMinSize(minWidth = 96.dp),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Icon(Icons.Default.Add, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text("添加")
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    textStyle = MaterialTheme.typography.labelMedium.copy(color = textColor),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                    singleLine = true,
+                    cursorBrush = SolidColor(textColor),
+                    decorationBox = { innerTextField ->
+                        if (value.isEmpty()) {
+                            Text(
+                                text = "新标签",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = placeholderColor
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
             }
         }
     }

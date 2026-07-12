@@ -4,11 +4,18 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Functions
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
@@ -26,12 +33,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
-import com.example.zhilu.ui.note.theme.NoteColors
+
+private val BlockTypeIconSize = 20.dp
+private val BlockTypeIconSpacing = 8.dp
 
 @Composable
 fun BlockCard(
@@ -43,33 +52,57 @@ fun BlockCard(
     onDelete: (() -> Unit)? = null,
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
+    isDragging: Boolean = false,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
     onCreateTodo: (suspend (String, Long?) -> Boolean)? = null,
     onUpdateTodo: ((TodoItem) -> Unit)? = null,
     onCompleteTodo: ((Long) -> Unit)? = null,
-    onToggleCompletedTodos: (() -> Unit)? = null
+    onToggleCompletedTodos: (() -> Unit)? = null,
+    onImageClick: (() -> Unit)? = null
 ) {
+    val borderColor = if (isDragging) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.outlineVariant
+    }
+    val backgroundColor = if (isDragging) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
+        shape = MaterialTheme.shapes.medium,
+        color = backgroundColor,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, NoteColors.cardOutline)
+        border = BorderStroke(1.dp, borderColor)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TypeBadge(type = block.type)
+                if (isEditing) {
+                    val icon = blockTypeIcon(block.type)
+                    if (icon != null) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = blockTypeLabel(block.type),
+                            modifier = Modifier.size(BlockTypeIconSize),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(BlockTypeIconSpacing))
+                    }
+                }
                 if (
                     shouldShowBlockActionMenu(
                         isEditing = isEditing,
@@ -96,7 +129,8 @@ fun BlockCard(
                 onCreateTodo = onCreateTodo,
                 onUpdateTodo = onUpdateTodo,
                 onCompleteTodo = onCompleteTodo,
-                onToggleCompletedTodos = onToggleCompletedTodos
+                onToggleCompletedTodos = onToggleCompletedTodos,
+                onImageClick = onImageClick
             )
         }
     }
@@ -112,28 +146,22 @@ fun blockTypeLabel(type: BlockType): String = when (type) {
     BlockType.TODO -> "待办"
 }
 
+fun blockTypeIcon(type: BlockType): ImageVector? = when (type) {
+    BlockType.TEXT -> Icons.AutoMirrored.Filled.Article
+    BlockType.IMAGE -> Icons.Default.Image
+    BlockType.LINK -> Icons.Default.Link
+    BlockType.LATEX -> Icons.Default.Functions
+    BlockType.CODE -> Icons.Default.Code
+    BlockType.DIVIDER -> null
+    BlockType.TODO -> null
+}
+
 fun shouldShowBlockActionMenu(
     isEditing: Boolean,
     hasDelete: Boolean,
     hasMoveUp: Boolean,
     hasMoveDown: Boolean
 ): Boolean = isEditing && (hasDelete || hasMoveUp || hasMoveDown)
-
-@Composable
-private fun TypeBadge(type: BlockType) {
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = NoteColors.typeBadgeBackground,
-        contentColor = NoteColors.typeBadgeText
-    ) {
-        Text(
-            text = blockTypeLabel(type),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
 
 @Composable
 private fun BlockOverflowMenu(
@@ -146,7 +174,8 @@ private fun BlockOverflowMenu(
     IconButton(onClick = { expanded = true }) {
         Icon(
             imageVector = Icons.Default.MoreVert,
-            contentDescription = "更多操作"
+            contentDescription = "更多操作",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
     DropdownMenu(
@@ -190,7 +219,7 @@ private fun BlockOverflowMenu(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = null,
-                        tint = NoteColors.deleteIcon
+                        tint = MaterialTheme.colorScheme.error
                     )
                 },
                 onClick = {

@@ -1,10 +1,21 @@
 package com.example.zhilu.ui.note.blocks
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
@@ -22,7 +33,8 @@ fun BlockContent(
     onCreateTodo: (suspend (String, Long?) -> Boolean)? = null,
     onUpdateTodo: ((TodoItem) -> Unit)? = null,
     onCompleteTodo: ((Long) -> Unit)? = null,
-    onToggleCompletedTodos: (() -> Unit)? = null
+    onToggleCompletedTodos: (() -> Unit)? = null,
+    onImageClick: (() -> Unit)? = null
 ) {
     when (block.type) {
         BlockType.TEXT -> {
@@ -33,11 +45,9 @@ fun BlockContent(
                     modifier = modifier
                 )
             } else {
-                Text(
-                    text = block.content.ifBlank { " " },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = modifier.fillMaxWidth()
+                ExpandableTextContent(
+                    text = block.content,
+                    modifier = modifier
                 )
             }
         }
@@ -66,11 +76,9 @@ fun BlockContent(
                     modifier = modifier
                 )
             } else {
-                Text(
-                    text = block.content.ifBlank { " " },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = modifier.fillMaxWidth()
+                ReadOnlyLinkBlockContent(
+                    value = block.content,
+                    modifier = modifier
                 )
             }
         }
@@ -85,7 +93,11 @@ fun BlockContent(
                 ReadOnlyLatexBlockContent(value = block.content, modifier = modifier)
             }
         }
-        BlockType.IMAGE -> ImageBlockView(value = block.content, modifier = modifier)
+        BlockType.IMAGE -> ImageBlockView(
+            value = block.content,
+            onClick = onImageClick,
+            modifier = modifier
+        )
         BlockType.DIVIDER -> DividerBlockView(readOnly = !isEditing, modifier = modifier)
         BlockType.TODO -> TodoBlockContent(
             block = block,
@@ -135,5 +147,92 @@ private fun TodoBlockContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier.fillMaxWidth()
         )
+    }
+}
+
+@Composable
+private fun ReadOnlyLinkBlockContent(
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val (rawTitle, rawUrl) = rememberLinkContent(value)
+    val normalizedUrl = remember(rawUrl) { rawUrl.normalizeUrl() }
+    val displayTitle = rawTitle.takeIf { it.isNotBlank() && it != normalizedUrl } ?: ""
+    val displayLink = normalizedUrl.takeIf { it.isNotBlank() } ?: rawTitle
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        if (displayTitle.isNotBlank()) {
+            ExpandableText(
+                text = displayTitle,
+                maxLines = 6,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        if (displayLink.isNotBlank()) {
+            ExpandableText(
+                text = displayLink,
+                maxLines = 3,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { openLink(context, rawUrl) }
+            )
+        } else {
+            ExpandableText(
+                text = "链接",
+                maxLines = 3,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberLinkContent(content: String): Pair<String, String> {
+    val parts = content.split("|", limit = 2)
+    return when (parts.size) {
+        2 -> parts[0].trim() to parts[1].trim()
+        else -> "" to content.trim()
+    }
+}
+
+private fun String.normalizeUrl(): String {
+    val trimmed = this.trim()
+    if (trimmed.isBlank()) return ""
+    val duplicateHttps = "https://https://"
+    val duplicateHttp = "http://http://"
+    return when {
+        trimmed.startsWith(duplicateHttps, ignoreCase = true) ->
+            trimmed.removePrefix(duplicateHttps).let { "https://$it" }
+        trimmed.startsWith(duplicateHttp, ignoreCase = true) ->
+            trimmed.removePrefix(duplicateHttp).let { "http://$it" }
+        trimmed.startsWith("http://", ignoreCase = true) -> trimmed
+        trimmed.startsWith("https://", ignoreCase = true) -> trimmed
+        else -> "https://$trimmed"
+    }
+}
+
+private fun isSafeUrl(url: String): Boolean =
+    url.startsWith("http://", ignoreCase = true) ||
+        url.startsWith("https://", ignoreCase = true)
+
+private fun openLink(context: Context, url: String) {
+    val normalized = url.normalizeUrl()
+    if (!isSafeUrl(normalized)) {
+        Toast.makeText(context, "链接格式不正确", Toast.LENGTH_SHORT).show()
+        return
+    }
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(normalized))
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(context, "无法打开链接", Toast.LENGTH_SHORT).show()
+    } catch (_: SecurityException) {
+        Toast.makeText(context, "没有权限打开链接", Toast.LENGTH_SHORT).show()
     }
 }

@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -32,9 +32,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import androidx.compose.ui.graphics.Color
 import com.example.zhilu.domain.model.ReminderInstance
-import com.example.zhilu.domain.model.ReminderType
+import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppCard
+import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.Destination
 import java.text.SimpleDateFormat
@@ -56,10 +58,15 @@ fun ReminderCenterScreen(
         }
     }
 
+    val pending = remember(state.today, state.future) {
+        (state.today + state.future).sortedBy { it.dueAt }
+    }
+    val allEmpty = state.overdue.isEmpty() && pending.isEmpty() && state.completed.isEmpty()
+
     Scaffold(
         topBar = {
             AppTopBar(
-                title = "\u63d0\u9192\u4e2d\u5fc3",
+                title = "提醒",
                 onBack = { navController.popBackStack() }
             )
         },
@@ -71,64 +78,67 @@ fun ReminderCenterScreen(
                 .padding(padding)
         ) {
             if (state.isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                reminderSection(
-                    title = "\u903e\u671f",
-                    reminders = state.overdue,
-                    emptyText = "\u6682\u65e0\u903e\u671f\u63d0\u9192",
-                    actionsEnabled = true,
-                    onReminderClick = { reminder ->
-                        reminder.noteId?.let { navController.navigate(Destination.NoteEdit.createRoute(it)) }
-                    },
-                    onDone = viewModel::markDone,
-                    onCancel = viewModel::cancel
+            if (!state.isLoading && allEmpty) {
+                AppEmptyState(
+                    onAction = { navController.popBackStack() },
+                    icon = "提",
+                    title = "没有提醒",
+                    description = "为笔记设置复习或待办提醒，它们会按时出现在这里。",
+                    buttonText = "返回"
                 )
-                reminderSection(
-                    title = "\u4eca\u65e5",
-                    reminders = state.today,
-                    emptyText = "\u4eca\u5929\u6ca1\u6709\u63d0\u9192",
-                    actionsEnabled = true,
-                    onReminderClick = { reminder ->
-                        reminder.noteId?.let { navController.navigate(Destination.NoteEdit.createRoute(it)) }
-                    },
-                    onDone = viewModel::markDone,
-                    onCancel = viewModel::cancel
-                )
-                reminderSection(
-                    title = "\u672a\u6765",
-                    reminders = state.future,
-                    emptyText = "\u6682\u65e0\u672a\u6765\u63d0\u9192",
-                    actionsEnabled = true,
-                    onReminderClick = { reminder ->
-                        reminder.noteId?.let { navController.navigate(Destination.NoteEdit.createRoute(it)) }
-                    },
-                    onDone = viewModel::markDone,
-                    onCancel = viewModel::cancel
-                )
-                reminderSection(
-                    title = "\u5df2\u5b8c\u6210",
-                    reminders = state.completed,
-                    emptyText = "\u6682\u65e0\u5df2\u5b8c\u6210\u63d0\u9192",
-                    actionsEnabled = false,
-                    onReminderClick = { reminder ->
-                        reminder.noteId?.let { navController.navigate(Destination.NoteEdit.createRoute(it)) }
-                    },
-                    onDone = viewModel::markDone,
-                    onCancel = viewModel::cancel
-                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ReminderSection(
+                        title = "待处理",
+                        reminders = pending,
+                        emptyText = "暂无待处理提醒",
+                        statusLabel = "待处理",
+                        actionsEnabled = true,
+                        onReminderClick = { reminder ->
+                            reminder.noteId?.let { navController.navigate(Destination.NoteEdit.createRoute(it)) }
+                        },
+                        onDone = viewModel::markDone,
+                        onCancel = viewModel::cancel
+                    )
+                    ReminderSection(
+                        title = "已逾期",
+                        reminders = state.overdue,
+                        emptyText = "暂无逾期提醒",
+                        statusLabel = "已逾期",
+                        actionsEnabled = true,
+                        onReminderClick = { reminder ->
+                            reminder.noteId?.let { navController.navigate(Destination.NoteEdit.createRoute(it)) }
+                        },
+                        onDone = viewModel::markDone,
+                        onCancel = viewModel::cancel
+                    )
+                    ReminderSection(
+                        title = "已完成",
+                        reminders = state.completed,
+                        emptyText = "暂无已完成提醒",
+                        statusLabel = "已完成",
+                        actionsEnabled = false,
+                        onReminderClick = { reminder ->
+                            reminder.noteId?.let { navController.navigate(Destination.NoteEdit.createRoute(it)) }
+                        },
+                        onDone = viewModel::markDone,
+                        onCancel = viewModel::cancel
+                    )
+                }
             }
         }
     }
 }
 
-private fun LazyListScope.reminderSection(
+private fun LazyListScope.ReminderSection(
     title: String,
     reminders: List<ReminderInstance>,
     emptyText: String,
+    statusLabel: String,
     actionsEnabled: Boolean,
     onReminderClick: (ReminderInstance) -> Unit,
     onDone: (ReminderInstance) -> Unit,
@@ -141,7 +151,11 @@ private fun LazyListScope.reminderSection(
                 .padding(top = 4.dp, start = 4.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = reminders.size.toString(),
@@ -155,28 +169,50 @@ private fun LazyListScope.reminderSection(
             AppCard {
                 Text(
                     text = emptyText,
-                    modifier = Modifier.padding(12.dp),
-                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
     } else {
-        items(reminders, key = { "${title}-${it.id}-${it.status.value}" }) { reminder ->
-            ReminderRow(
-                reminder = reminder,
-                actionsEnabled = actionsEnabled,
-                onClick = { onReminderClick(reminder) },
-                onDone = { onDone(reminder) },
-                onCancel = { onCancel(reminder) }
-            )
+        itemsIndexed(
+            items = reminders,
+            key = { _, reminder -> "${title}-${reminder.id}-${reminder.status.value}" }
+        ) { index, reminder ->
+            val statusColors = rememberStatusColors(title)
+            AnimatedListItem(index = index) {
+                ReminderRow(
+                    reminder = reminder,
+                    statusLabel = statusLabel,
+                    statusColor = statusColors.first,
+                    statusContentColor = statusColors.second,
+                    actionsEnabled = actionsEnabled,
+                    onClick = { onReminderClick(reminder) },
+                    onDone = { onDone(reminder) },
+                    onCancel = { onCancel(reminder) }
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun rememberStatusColors(title: String): Pair<Color, Color> {
+    return when (title) {
+        "待处理" -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
+        "已逾期" -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+        "已完成" -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
     }
 }
 
 @Composable
 private fun ReminderRow(
     reminder: ReminderInstance,
+    statusLabel: String,
+    statusColor: Color,
+    statusContentColor: Color,
     actionsEnabled: Boolean,
     onClick: () -> Unit,
     onDone: () -> Unit,
@@ -187,11 +223,15 @@ private fun ReminderRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(enabled = reminder.noteId != null, onClick = onClick)
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            TypeLabel(text = typeLabel(reminder.type))
+            StatusCapsule(
+                text = statusLabel,
+                color = statusColor,
+                contentColor = statusContentColor
+            )
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -199,21 +239,22 @@ private fun ReminderRow(
                 Text(
                     text = formatDueTime(reminder.dueAt),
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = if (reminder.noteId != null) "\u5173\u8054\u7b14\u8bb0 #${reminder.noteId}" else "\u672a\u5173\u8054\u7b14\u8bb0",
+                    text = if (reminder.noteId != null) "关联笔记 #${reminder.noteId}" else "未关联笔记",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (actionsEnabled) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = onDone) {
-                        Text("\u5b8c\u6210")
+                        Text("完成")
                     }
                     OutlinedButton(onClick = onCancel) {
-                        Text("\u53d6\u6d88")
+                        Text("取消")
                     }
                 }
             }
@@ -222,23 +263,23 @@ private fun ReminderRow(
 }
 
 @Composable
-private fun TypeLabel(text: String) {
+private fun StatusCapsule(
+    text: String,
+    color: Color,
+    contentColor: Color
+) {
     Surface(
-        shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        shape = MaterialTheme.shapes.extraLarge,
+        color = color,
+        contentColor = contentColor
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-            style = MaterialTheme.typography.labelMedium
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium
         )
     }
-}
-
-private fun typeLabel(type: ReminderType): String = when (type) {
-    ReminderType.REVIEW -> "\u590d\u4e60"
-    ReminderType.TODO -> "TODO"
 }
 
 private fun formatDueTime(dueAt: Long): String =

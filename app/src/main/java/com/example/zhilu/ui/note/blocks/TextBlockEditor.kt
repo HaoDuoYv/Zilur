@@ -18,7 +18,10 @@ fun TextBlockEditor(
     modifier: Modifier = Modifier
 ) {
     val textStyle = MaterialTheme.typography.bodyLarge.merge(
-        TextStyle(color = MaterialTheme.colorScheme.onSurface)
+        TextStyle(
+            color = MaterialTheme.colorScheme.onSurface,
+            lineHeight = MaterialTheme.typography.bodyLarge.lineHeight
+        )
     )
 
     BasicTextField(
@@ -32,8 +35,8 @@ fun TextBlockEditor(
             Box(modifier = Modifier.fillMaxWidth()) {
                 if (value.isEmpty()) {
                     Text(
-                        text = "输入文字...",
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "输入正文…",
+                        style = textStyle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

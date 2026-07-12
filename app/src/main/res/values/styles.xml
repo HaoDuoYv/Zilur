@@ -1,8 +1,3 @@
 <resources>
-    <style name="Theme.ZhiLu" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:windowActionBar">false</item>
-        <item name="android:windowLightStatusBar">true</item>
-        <item name="android:navigationBarColor">@android:color/white</item>
-    </style>
+    <!-- Theme definitions moved to themes.xml to follow Material 3 conventions. -->
 </resources>

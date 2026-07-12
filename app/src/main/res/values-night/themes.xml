@@ -1,0 +1,13 @@
+<resources>
+    <style name="Theme.ZhiLu" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:statusBarColor">#1A1A1A</item>
+        <item name="android:navigationBarColor">#1A1A1A</item>
+        <item name="android:windowBackground">#1A1A1A</item>
+        <item name="android:colorPrimary">#A0B1CC</item>
+        <item name="android:colorPrimaryDark">#A0B1CC</item>
+        <item name="android:colorAccent">#C7B9A8</item>
+    </style>
+</resources>

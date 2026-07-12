@@ -32,6 +32,7 @@ data class NoteUiState(
     val isSaving: Boolean = false,
     val saveStatus: SaveStatus = SaveStatus.IDLE,
     val lastSavedAt: Long? = null,
+    val isProcessingImage: Boolean = false,
     val error: String? = null
 ) {
     fun toNote(): Note = Note(

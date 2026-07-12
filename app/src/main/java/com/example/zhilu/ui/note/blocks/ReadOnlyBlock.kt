@@ -1,9 +1,14 @@
 package com.example.zhilu.ui.note.blocks
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,8 +20,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.AnnotatedString
 import com.example.zhilu.domain.model.Block
+import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
 
 @Composable
@@ -25,12 +32,14 @@ fun ReadOnlyBlock(
     onCopy: () -> Unit,
     modifier: Modifier = Modifier,
     onLanguageClick: () -> Unit = {},
+    showTopDivider: Boolean = false,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
     onCreateTodo: (suspend (String, Long?) -> Boolean)? = null,
     onUpdateTodo: ((TodoItem) -> Unit)? = null,
     onCompleteTodo: ((Long) -> Unit)? = null,
-    onToggleCompletedTodos: (() -> Unit)? = null
+    onToggleCompletedTodos: (() -> Unit)? = null,
+    onImageClick: (() -> Unit)? = null
 ) {
     val clipboardManager = LocalClipboardManager.current
     val currentOnCopy by rememberUpdatedState(onCopy)
@@ -43,18 +52,37 @@ fun ReadOnlyBlock(
             )
         }
     ) {
-        BlockCard(
-            block = block,
-            isEditing = false,
-            onLanguageClick = onLanguageClick,
-            modifier = Modifier.fillMaxWidth(),
-            todoItems = todoItems,
-            showCompletedTodos = showCompletedTodos,
-            onCreateTodo = onCreateTodo,
-            onUpdateTodo = onUpdateTodo,
-            onCompleteTodo = onCompleteTodo,
-            onToggleCompletedTodos = onToggleCompletedTodos
-        )
+        Column {
+            if (showTopDivider) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+                )
+            }
+            if (block.type == BlockType.DIVIDER) {
+                DividerBlockView(
+                    readOnly = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                BlockCard(
+                    block = block,
+                    isEditing = false,
+                    onLanguageClick = onLanguageClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    todoItems = todoItems,
+                    showCompletedTodos = showCompletedTodos,
+                    onCreateTodo = onCreateTodo,
+                    onUpdateTodo = onUpdateTodo,
+                    onCompleteTodo = onCompleteTodo,
+                    onToggleCompletedTodos = onToggleCompletedTodos,
+                    onImageClick = onImageClick
+                )
+            }
+        }
         DropdownMenu(
             expanded = copyMenuExpanded,
             onDismissRequest = { copyMenuExpanded = false }

@@ -10,9 +10,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -89,123 +93,160 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        topBar = { AppTopBar(title = "Settings") },
+        topBar = { AppTopBar(title = "设置") },
         bottomBar = { BottomBar(navController = navController) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (state.isWorking) LinearProgressIndicator()
-            AppCard {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Appearance", style = MaterialTheme.typography.titleMedium)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Follow system theme")
-                            Text(
-                                "Theme wiring belongs to the app shell.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(checked = followSystem, onCheckedChange = { followSystem = it })
-                    }
+            if (state.isWorking) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+
+            SettingsSection(title = "外观") {
+                SettingRow(
+                    title = "跟随系统主题",
+                    description = "应用主题将随系统深浅色模式自动切换。"
+                ) {
+                    Switch(checked = followSystem, onCheckedChange = { followSystem = it })
                 }
             }
-            AppCard {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Data", style = MaterialTheme.typography.titleMedium)
-                    Text("${state.noteCount} notes")
-                    Text("${state.tagCount} tags")
-                    Text("${state.mediaCount} media items, ${formatBytes(state.totalMediaSize)}")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = {
-                            jsonExportLauncher.launch("zhilu-backup.json")
-                        }) {
-                            Text("Export JSON")
-                        }
-                        OutlinedButton(onClick = {
-                            markdownExportLauncher.launch("zhilu-notes.md")
-                        }) {
-                            Text("Export MD")
-                        }
+
+            SettingsSection(title = "数据") {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "${state.noteCount} 条笔记",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "${state.tagCount} 个标签",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = "${state.mediaCount} 个媒体文件，共 ${formatBytes(state.totalMediaSize)}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { jsonExportLauncher.launch("zhilu-backup.json") }) {
+                        Text("导出 JSON")
                     }
-                    OutlinedButton(onClick = {
-                        jsonImportLauncher.launch(arrayOf("application/json", "text/*"))
-                    }) {
-                        Text("Import JSON")
+                    OutlinedButton(onClick = { markdownExportLauncher.launch("zhilu-notes.md") }) {
+                        Text("导出 Markdown")
                     }
                 }
-            }
-            AppCard {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Reminders", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Review pending, overdue, and completed reminders.",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                        OutlinedButton(onClick = { navController.navigate(Destination.Reminders.path) }) {
-                            Text("Open")
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Notification permission")
-                            Text(
-                                if (state.notificationPermissionGranted) "Enabled" else "Not enabled",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        OutlinedButton(
-                            onClick = {
-                                context.startActivity(
-                                    Intent(SystemSettings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                        .putExtra(SystemSettings.EXTRA_APP_PACKAGE, context.packageName)
-                                )
-                            }
-                        ) {
-                            Text("System settings")
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Reminder master switch")
-                            Text(
-                                "Placeholder only; reminder delivery is controlled by saved reminders and system permission.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Switch(checked = true, onCheckedChange = {}, enabled = false)
-                    }
+                OutlinedButton(onClick = { jsonImportLauncher.launch(arrayOf("application/json", "text/*")) }) {
+                    Text("导入 JSON")
                 }
             }
+
+            SettingsSection(title = "提醒") {
+                SettingRow(
+                    title = "提醒中心",
+                    description = "查看待处理、已逾期和已完成的提醒。"
+                ) {
+                    OutlinedButton(onClick = { navController.navigate(Destination.Reminders.path) }) {
+                        Text("打开")
+                    }
+                }
+                SettingRow(
+                    title = "通知权限",
+                    description = if (state.notificationPermissionGranted) "已开启" else "未开启"
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(SystemSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(SystemSettings.EXTRA_APP_PACKAGE, context.packageName)
+                            )
+                        }
+                    ) {
+                        Text("系统设置")
+                    }
+                }
+                SettingRow(
+                    title = "提醒总开关",
+                    description = "提醒通知由已保存的提醒与系统权限共同控制。"
+                ) {
+                    Switch(checked = true, onCheckedChange = {}, enabled = false)
+                }
+            }
+
             AppCard {
                 Row(
                     modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Trash", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Restore or permanently delete removed notes.",
-                            style = MaterialTheme.typography.bodySmall
+                            text = "回收站",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "恢复或永久删除已移除的笔记。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     OutlinedButton(onClick = { navController.navigate(Destination.Trash.path) }) {
-                        Text("Open")
+                        Text("打开")
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    AppCard {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(
+    title: String,
+    description: String,
+    trailing: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        trailing()
     }
 }
 

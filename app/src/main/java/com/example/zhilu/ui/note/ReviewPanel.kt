@@ -7,14 +7,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewRating
+import com.example.zhilu.ui.component.AppCard
 
 @Composable
 fun ReviewPanel(
@@ -25,20 +27,35 @@ fun ReviewPanel(
     onDisable: () -> Unit,
     onRate: (ReviewRating) -> Unit
 ) {
-    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("复习计划", style = MaterialTheme.typography.titleMedium)
+    AppCard {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "复习计划",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             if (plan == null || !plan.enabled) {
-                Button(onClick = onStart) { Text("开启复习") }
+                OutlinedButton(onClick = onStart) { Text("开启复习") }
             } else {
-                Text("下一次复习：${formatReminderTime(plan.nextReviewAt)}")
+                Text(
+                    text = "下一次复习：${formatReminderTime(plan.nextReviewAt)}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 if (isDue) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
                             onClick = { onRate(ReviewRating.HARD) },
                             enabled = !isRecording
                         ) { Text("困难") }
-                        TextButton(
+                        OutlinedButton(
                             onClick = { onRate(ReviewRating.NORMAL) },
                             enabled = !isRecording
                         ) { Text("一般") }

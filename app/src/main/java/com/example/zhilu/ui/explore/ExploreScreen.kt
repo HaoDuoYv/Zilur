@@ -8,33 +8,40 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppCard
+import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.NoteListItem
 import com.example.zhilu.ui.component.TagChip
 import com.example.zhilu.ui.navigation.BottomBar
+import com.example.zhilu.ui.navigation.Destination
 
 @Composable
 fun ExploreScreen(
@@ -52,7 +59,7 @@ fun ExploreScreen(
     }
 
     Scaffold(
-        topBar = { AppTopBar(title = "Explore") },
+        topBar = { AppTopBar(title = "探索") },
         bottomBar = { BottomBar(navController = navController) },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
@@ -69,19 +76,31 @@ fun ExploreScreen(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        OutlinedTextField(
+                        TextField(
                             value = state.query,
                             onValueChange = viewModel::onQueryChange,
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Search notes and tags") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            placeholder = { Text("搜索笔记和标签") },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
                             singleLine = true,
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                imeAction = ImeAction.Search
+                            shape = MaterialTheme.shapes.extraLarge,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                disabledIndicatorColor = Color.Transparent,
+                                errorIndicatorColor = Color.Transparent
                             ),
-                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                                onSearch = { viewModel.submitSearch() }
-                            )
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { viewModel.submitSearch() })
                         )
                         if (state.isSearching) CircularProgressIndicator()
                     }
@@ -89,7 +108,7 @@ fun ExploreScreen(
             }
             if (state.recentQueries.isNotEmpty()) {
                 item {
-                    ChipSection(title = "Recent searches") {
+                    ChipSection(title = "最近搜索") {
                         state.recentQueries.forEach { query ->
                             AssistChip(
                                 onClick = { viewModel.useRecentQuery(query) },
@@ -101,7 +120,7 @@ fun ExploreScreen(
             }
             if (state.tags.isNotEmpty()) {
                 item {
-                    ChipSection(title = "Tags") {
+                    ChipSection(title = "标签") {
                         state.tags.take(12).forEach { tag ->
                             TagChip(tag = tag, onClick = { viewModel.onQueryChange(tag.name) })
                         }
@@ -110,16 +129,30 @@ fun ExploreScreen(
             }
             item {
                 Text(
-                    text = if (state.query.isBlank()) "Search results" else "${state.results.size} results",
+                    text = if (state.query.isBlank()) "搜索结果" else "${state.results.size} 条结果",
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             }
-            items(state.results, key = { it.id }) { note ->
-                NoteListItem(
-                    note = note,
-                    onClick = { navController.navigate("note/${note.id}") }
-                )
+            if (state.query.isNotBlank() && state.results.isEmpty() && !state.isSearching) {
+                item {
+                    AppEmptyState(
+                        onAction = { viewModel.onQueryChange("") },
+                        icon = "搜",
+                        title = "未找到相关笔记",
+                        description = "换个关键词试试，或通过标签缩小范围。",
+                        buttonText = "清空搜索"
+                    )
+                }
+            }
+            itemsIndexed(state.results, key = { _, note -> note.id }) { index, note ->
+                AnimatedListItem(index = index) {
+                    NoteListItem(
+                        note = note,
+                        onClick = { navController.navigate(Destination.NoteEdit.createRoute(note.id)) }
+                    )
+                }
             }
         }
     }
@@ -136,7 +169,11 @@ private fun ChipSection(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),

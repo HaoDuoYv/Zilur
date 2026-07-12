@@ -2,7 +2,7 @@
 
 **Goal:** 修复 4 个独立 bug：连续添加块崩溃、拍照图片块丢失、链接块点击无反应、LaTeX 渲染异常与卡顿。
 
-**Scope:** 仅修改 `ui/note` 层，不动数据模型和 Repository。
+**Scope:** 以 `ui/note` 为主，允许新增 `data/local/file/ImageFileManager.kt`（或等效包）负责文件复制，允许修改 `NoteViewModel` 的保存与块操作逻辑。数据模型实体（`BlockEntity`、`MediaEntity`）本身不变，但 `NoteViewModel.save()` 需配合临时 ID 替换逻辑。
 
 ---
 
@@ -17,8 +17,9 @@
 ### Design
 - 新建 `ui/note/blocks/BlockListManager.kt`：
   - 内部用 `mutableStateListOf<Block>()` 持块；
-  - 暴露 `val blocks: SnapshotStateList<Block>` 给 ViewModel，再存入 `NoteUiState.blocks` 给 Compose 直接观察；
-  - `addBlock(type, afterIndex)`：生成唯一正 id（基于时间戳/UUID，避免与数据库 id 冲突），插入列表，并在内部 `newlyAddedIds` 集合中记录该 id；
+  - 暴露 `val blocks: SnapshotStateList<Block>` 给 ViewModel；`NoteUiState.blocks` 字段类型也声明为 `SnapshotStateList<Block>`，直接引用 `BlockListManager.blocks`，Compose 可细粒度观察变化；
+  - `addBlock(type, afterIndex)`：新块临时 id 用负数（如 `-System.currentTimeMillis()`），数据库自增 id 均为正数，天然不冲突；插入列表，并在内部 `newlyAddedIds` 集合中记录该 id；
+  - 保存流程：负数 id 的块走 `INSERT`，正数 id 的块走 `UPDATE`；保存完成后用数据库返回的真实 id 替换 `BlockListManager` 中的临时 id；
   - `moveBlock/removeBlock/updateContent/clearNewFlag(id)` 等操作；
   - `toPersistableList()`：持久化时按索引生成 `sortOrder`；
   - 用简单 `isProcessing` 标志防止同一帧内多次添加（UI 层再配 300ms 防抖）。
@@ -41,7 +42,7 @@
 - `NoteViewModel` 统一方法：
   - 相册：`importImageToStorage(uri)` → 插入 Media → `BlockListManager.addBlock(IMAGE, internalUri)`；
   - 相机：直接用内部文件 Uri → 插入 Media → `BlockListManager.addBlock(IMAGE, internalUri)`；
-- 导入前插入占位块，失败时自动移除并 Toast 提示；
+- 占位块就是 `BlockType.IMAGE`，`content = ""`；`ImageBlockView` 处理 `content.isEmpty()` 时显示 `CircularProgressIndicator` 骨架；导入成功后更新 `content` 为内部 Uri，失败后 `BlockListManager.removeBlock(index)` 移除；
 - `isProcessingImage` 保持 Boolean（当前单选），后续多选可改计数器。
 
 ---
@@ -60,7 +61,7 @@
   - `resolveActivity` + `try-catch(ActivityNotFoundException)`，无浏览器时 Toast；
   - 格式错误时显示"链接格式错误，点击编辑修复"。
 - `BlockContent` 分发：`isEditing` 用 `LinkBlockEditor`，只读用 `LinkBlockViewer`；
-- `LinkBlockEditor` placeholder 改为 `"标题|https://..."`。
+- `LinkBlockEditor` 同步修改：placeholder 改为 `"标题|https://..."`，提示用户输入格式。
 
 ---
 
@@ -87,7 +88,19 @@
 
 ---
 
-## 5. Error Handling & Validation
+## 5. 文件变更清单
+
+| 新建文件 | 修改文件 |
+|----------|----------|
+| `ui/note/blocks/BlockListManager.kt` | `ui/note/NoteViewModel.kt` |
+| `ui/note/blocks/LinkBlockViewer.kt` | `ui/note/blocks/BlockContent.kt` |
+| `data/local/file/ImageFileManager.kt`（或等效包） | `ui/note/blocks/LinkBlockEditor.kt`（placeholder） |
+| `ui/note/latex/LatexRenderState.kt`（如需要） | `ui/note/blocks/ImageBlockView.kt`（loading 态） |
+| | `ui/note/blocks/LatexBlockEditor.kt` / `LatexImage.kt` |
+
+---
+
+## 6. Error Handling & Validation
 
 - 块列表：防连点 + 延迟焦点；
 - 图片导入：`Result<String>`，失败移除占位块 + Toast；
@@ -96,10 +109,28 @@
 
 ---
 
-## 6. Testing
+## 7. Testing
 
-- 自动：`compileDebugKotlin`、`assembleDebug`、`lintDebug`；
-- 手动：
+### 单元测试
+- `BlockListManagerTest`：
+  - 快速两次 `addBlock` 只产生一个块；
+  - `moveBlock` 后顺序正确；
+  - `toPersistableList()` 的 `sortOrder` 按索引生成；
+  - 临时 id 为负数。
+- `LatexSanitizerTest`：
+  - 行内 `$...$` 不重复包裹；
+  - 裸公式包成 `$$...$$`；
+  - `align*` 两列环境转成 `array{rl}`；
+  - 非法输入有确定输出。
+- `ImageFileManagerTest`（使用 mock ContentResolver）：
+  - 成功复制返回 `Result.Success`；
+  - 输入流为空返回 `Result.Failure`；
+  - IO 异常返回 `Result.Failure`。
+
+### 构建与 lint
+- `compileDebugKotlin`、`assembleDebug`、`lintDebug`。
+
+### 手动验证
   1. 快速连点「文字」按钮不崩溃；
   2. 拍照后笔记出现图片块；
   3. 相册选图后笔记出现图片块；
