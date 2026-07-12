@@ -34,6 +34,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import io.mockk.mockk
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -65,6 +66,8 @@ class NoteViewModelAdvancedBlockTest {
             reviewRepository = AdvancedBlockReviewRepository(),
             todoRepository = AdvancedBlockTodoRepository(),
             reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
         advanceUntilIdle()
@@ -352,6 +355,8 @@ class NoteViewModelAdvancedBlockTest {
             reviewRepository = AdvancedBlockReviewRepository(),
             todoRepository = AdvancedBlockTodoRepository(),
             reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
 
@@ -362,6 +367,8 @@ class NoteViewModelAdvancedBlockTest {
             reviewRepository = AdvancedBlockReviewRepository(),
             todoRepository = AdvancedBlockTodoRepository(),
             reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle()
         )
 
@@ -383,6 +390,8 @@ class NoteViewModelAdvancedBlockTest {
             reviewRepository = AdvancedBlockReviewRepository(),
             todoRepository = AdvancedBlockTodoRepository(),
             reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
         advanceUntilIdle()
@@ -421,6 +430,8 @@ class NoteViewModelAdvancedBlockTest {
             reviewRepository = AdvancedBlockReviewRepository(),
             todoRepository = AdvancedBlockTodoRepository(),
             reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
         advanceUntilIdle()
@@ -452,6 +463,8 @@ class NoteViewModelAdvancedBlockTest {
             reviewRepository = AdvancedBlockReviewRepository(),
             todoRepository = AdvancedBlockTodoRepository(),
             reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
         advanceUntilIdle()

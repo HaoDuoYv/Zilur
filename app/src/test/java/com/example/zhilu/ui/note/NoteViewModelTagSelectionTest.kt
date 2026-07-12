@@ -26,6 +26,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
+import io.mockk.mockk
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -51,6 +52,8 @@ class NoteViewModelTagSelectionTest {
             reviewRepository = EmptyReviewRepository(),
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
 
@@ -72,6 +75,8 @@ class NoteViewModelTagSelectionTest {
             reviewRepository = EmptyReviewRepository(),
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
 
@@ -89,6 +94,8 @@ class NoteViewModelTagSelectionTest {
             reviewRepository = EmptyReviewRepository(),
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
         )
 
@@ -109,6 +116,8 @@ class NoteViewModelTagSelectionTest {
             reviewRepository = EmptyReviewRepository(),
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
         )
 

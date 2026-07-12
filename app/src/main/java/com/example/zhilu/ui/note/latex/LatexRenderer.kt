@@ -50,6 +50,10 @@ fun sanitizeLatex(input: String): String {
 
     var result = trimmed
 
+    // JLatexMath 在 array 环境里会把 \[8pt] 的可选间距当成普通文本渲染，
+    // 因此先统一去掉行间距参数，保留换行符 \\。
+    result = result.replace(Regex("""\\\\\[.*?]"""), "\\\\\\\\")
+
     result = convertAlignToArray(result)
 
     result = result.removeSurrounding("\\[", "\\]")
@@ -70,7 +74,7 @@ private fun convertAlignToArray(input: String): String {
         .replace("\\end{align*}", "\\end{array}")
         .replace("\\begin{align}", "\\begin{array}{rl}")
         .replace("\\end{align}", "\\end{array}")
-        .replace(Regex("""\\\\\[.*?]"""), "\\\\")
+        .replace(Regex("""\\\\\[.*?]"""), "\\\\\\\\")
 }
 
 /**

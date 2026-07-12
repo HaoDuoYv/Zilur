@@ -44,4 +44,11 @@ class LatexSanitizerTest {
         val input = "\\begin{array}{rl}1 & 2\\\\3 & 4\\end{array}"
         assertEquals(input, sanitizeLatex(input))
     }
+
+    @Test
+    fun arrayLineBreakSpacingIsStripped() {
+        val input = "\\begin{array}{ll}a & b \\\\[8pt]c & d\\end{array}"
+        val expected = "\\begin{array}{ll}a & b \\\\c & d\\end{array}"
+        assertEquals(expected, sanitizeLatex(input))
+    }
 }

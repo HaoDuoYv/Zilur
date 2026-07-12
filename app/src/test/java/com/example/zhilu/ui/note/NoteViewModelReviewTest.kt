@@ -29,6 +29,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Before
+import io.mockk.mockk
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -55,6 +56,8 @@ class NoteViewModelReviewTest {
             reviewRepository = reviewRepository,
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
@@ -80,6 +83,8 @@ class NoteViewModelReviewTest {
             reviewRepository = reviewRepository,
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
@@ -111,6 +116,8 @@ class NoteViewModelReviewTest {
             ),
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
@@ -131,6 +138,8 @@ class NoteViewModelReviewTest {
             ),
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
@@ -151,6 +160,8 @@ class NoteViewModelReviewTest {
             reviewRepository = reviewRepository,
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
@@ -175,6 +186,8 @@ class NoteViewModelReviewTest {
             reviewRepository = reviewRepository,
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
@@ -201,6 +214,8 @@ class NoteViewModelReviewTest {
             ),
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
@@ -224,6 +239,8 @@ class NoteViewModelReviewTest {
             reviewRepository = ReviewTestReviewRepository(plan = startingPlan),
             todoRepository = ReviewTestTodoRepository(),
             reminderRepository = reminderRepository,
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 3L))
         )
 
