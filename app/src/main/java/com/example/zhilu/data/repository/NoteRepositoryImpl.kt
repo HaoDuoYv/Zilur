@@ -114,10 +114,16 @@ class NoteRepositoryImpl(
         val cardDomains = if (cards.isEmpty()) {
             emptyList()
         } else {
+            val cardIds = cards.map { it.id }.toSet()
+            val (matched, orphans) = blocks.partition { it.cardId in cardIds }
             cards.map { card ->
+                val cardBlocks = matched.filter { it.cardId == card.id }.toMutableList()
+                if (card == cards.first()) {
+                    cardBlocks.addAll(orphans)
+                }
                 CardMapper.toDomain(
                     entity = card,
-                    blocks = blocks.filter { it.cardId == card.id }.sortedBy { it.sortOrder }
+                    blocks = cardBlocks.sortedBy { it.sortOrder }
                 )
             }
         }
