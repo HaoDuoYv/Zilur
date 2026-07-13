@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableStateListOf
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
@@ -24,6 +25,9 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
+import com.example.zhilu.export.DtkExporter
+import com.example.zhilu.export.HtmlExporter
+import com.example.zhilu.export.MarkdownExporter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -697,6 +701,58 @@ class NoteViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    fun shareNote(
+        format: ShareFormat,
+        onReady: (File, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val note = _uiState.value.toNote()
+            val mediaResult = mediaRepository.getAllMedia()
+            val media = (mediaResult as? RepositoryResult.Success)?.data.orEmpty()
+            val noteMedia = media.filter { m ->
+                note.blocks.any { it.type == BlockType.IMAGE && it.content.contains(m.id.toString()) }
+            }
+            val mediaFileManager = MediaFileManager(context)
+            when (format) {
+                ShareFormat.HTML -> {
+                    HtmlExporter(context, mediaFileManager).exportNote(note, noteMedia)
+                        .onSuccess { html ->
+                            val file = File(context.cacheDir, "share_${System.currentTimeMillis()}.html")
+                            file.writeText(html)
+                            onReady(file, "text/html")
+                        }
+                        .onFailure { error ->
+                            _uiState.update { it.copy(error = "HTML 导出失败：${error.message}") }
+                        }
+                }
+                ShareFormat.MARKDOWN -> {
+                    runCatching {
+                        val md = MarkdownExporter.exportNoteWithBase64(
+                            note = note,
+                            media = noteMedia,
+                            mediaFileManager = mediaFileManager,
+                            context = context
+                        )
+                        val file = File(context.cacheDir, "share_${System.currentTimeMillis()}.md")
+                        file.writeText(md)
+                        onReady(file, "text/markdown")
+                    }.onFailure { error ->
+                        _uiState.update { it.copy(error = "Markdown 导出失败：${error.message}") }
+                    }
+                }
+                ShareFormat.DTK -> {
+                    DtkExporter(context, mediaFileManager).exportNote(note, noteMedia)
+                        .onSuccess { file ->
+                            onReady(file, "application/zip")
+                        }
+                        .onFailure { error ->
+                            _uiState.update { it.copy(error = ".dtk 导出失败：${error.message}") }
+                        }
+                }
+            }
+        }
     }
 
     private fun replaceBlocks(blocks: List<Block>) {

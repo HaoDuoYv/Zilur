@@ -3,6 +3,7 @@
 .kotlin/
 .idea/
 .claude/
+.trae/
 .worktrees/
 android-qa-artifacts-*/
 build/

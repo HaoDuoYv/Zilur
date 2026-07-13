@@ -1,5 +1,6 @@
 package com.example.zhilu.ui.home
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
@@ -7,6 +8,7 @@ import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
+import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +22,8 @@ import timber.log.Timber
 class HomeViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
     private val tagRepository: TagRepository,
-    private val mediaRepository: MediaRepository
+    private val mediaRepository: MediaRepository,
+    private val importKnowledgeUseCase: ImportKnowledgeUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -90,5 +93,53 @@ class HomeViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+
+    fun parseImportPreview(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result = importKnowledgeUseCase.parsePreview(uri)
+            result.onSuccess { preview ->
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        importPreview = preview,
+                        pendingImportUri = uri
+                    )
+                }
+            }.onFailure { error ->
+                Timber.e(error)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "无法解析文件：${error.message}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun confirmImport() {
+        val uri = _uiState.value.pendingImportUri ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, importPreview = null, pendingImportUri = null) }
+            val result = importKnowledgeUseCase.import(uri)
+            result.onSuccess {
+                loadNotes()
+                _uiState.update { it.copy(isLoading = false, error = "导入成功") }
+            }.onFailure { error ->
+                Timber.e(error)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        error = "导入失败：${error.message}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun dismissImportPreview() {
+        _uiState.update { it.copy(importPreview = null, pendingImportUri = null) }
     }
 }

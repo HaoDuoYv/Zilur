@@ -11,6 +11,7 @@ import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.dao.TagDao
 import com.example.zhilu.data.local.dao.TodoDao
 import com.example.zhilu.data.local.database.AppDatabase
+import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.data.local.database.Migration
 import com.example.zhilu.data.repository.MediaRepositoryImpl
 import com.example.zhilu.data.repository.NoteRepositoryImpl
@@ -118,4 +119,9 @@ object AppModule {
     fun provideReminderWorkEnqueuer(
         @ApplicationContext context: Context
     ): ReminderScheduler.WorkEnqueuer = ReminderScheduler.WorkManagerWorkEnqueuer(context)
+
+    @Provides
+    @Singleton
+    fun provideMediaFileManager(@ApplicationContext context: Context): MediaFileManager =
+        MediaFileManager(context)
 }

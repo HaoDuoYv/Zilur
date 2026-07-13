@@ -1,6 +1,8 @@
 package com.example.zhilu.ui.home
 
+import android.net.Uri
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 
 enum class ViewMode {
     LIST,
@@ -14,5 +16,7 @@ data class HomeUiState(
     val mediaCount: Int = 0,
     val viewMode: ViewMode = ViewMode.LIST,
     val isLoading: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val importPreview: ImportKnowledgeUseCase.Preview? = null,
+    val pendingImportUri: Uri? = null
 )

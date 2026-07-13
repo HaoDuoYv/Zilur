@@ -1,30 +1,24 @@
 package com.example.zhilu.export
 
+import android.content.Context
+import android.graphics.Color
+import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.note.latex.renderLatexBitmap
+import com.example.zhilu.ui.note.latex.sanitizeLatex
+import java.io.File
 
 object MarkdownExporter {
     fun exportNote(
         note: Note,
         media: List<Media> = emptyList(),
         todoItems: List<TodoItem> = emptyList()
-    ): String {
-        val mediaById = media.associateBy { it.id.toString() }
-        return buildString {
-            append("# ").append(note.title.ifBlank { "Untitled" }.escapeMarkdownHeading()).append("\n\n")
-            if (note.tags.isNotEmpty()) {
-                append(note.tags.joinToString(" ") { "#${it.name.toMarkdownTag()}" }).append("\n\n")
-            }
-            note.blocks.sortedBy { it.sortOrder }.forEach { block ->
-                appendBlock(block, mediaById, todoItems)
-                append("\n\n")
-            }
-        }.trimEnd() + "\n"
-    }
+    ): String = exportNoteInternal(note, media, todoItems, imageResolver = null, latexResolver = null)
 
     fun exportNotes(
         notes: List<Note>,
@@ -32,23 +26,90 @@ object MarkdownExporter {
         todosByNoteId: Map<Long, List<TodoItem>> = emptyMap()
     ): String =
         notes.joinToString(separator = "\n\n") { note ->
-            exportNote(note, media, todosByNoteId[note.id].orEmpty()).trimEnd()
+            exportNoteInternal(note, media, todosByNoteId[note.id].orEmpty(), imageResolver = null, latexResolver = null).trimEnd()
         } + "\n"
+
+    suspend fun exportNoteWithBase64(
+        note: Note,
+        media: List<Media> = emptyList(),
+        todoItems: List<TodoItem> = emptyList(),
+        mediaFileManager: MediaFileManager,
+        context: Context
+    ): String {
+        val mediaById = media.associateBy { it.id.toString() }
+        return exportNoteInternal(
+            note = note,
+            media = media,
+            todoItems = todoItems,
+            imageResolver = { block ->
+                runCatching {
+                    val mediaId = ImageBlockContent.mediaId(block.content)?.toString()
+                    val targetMedia = mediaId?.let { mediaById[it] }
+                        ?: mediaById.values.find { block.content.contains(it.uri) }
+                        ?: throw IllegalArgumentException("未找到媒体")
+                    val cacheDir = File(context.cacheDir, "export_md_images").apply { mkdirs() }
+                    val copied = mediaFileManager.copyToCache(targetMedia, cacheDir).getOrThrow()
+                    mediaFileManager.toBase64(copied).getOrThrow()
+                }.getOrNull()
+            },
+            latexResolver = { latex ->
+                runCatching {
+                    val sanitized = sanitizeLatex(latex)
+                    val bitmap = renderLatexBitmap(sanitized, 36f, Color.BLACK).getOrThrow()
+                    mediaFileManager.bitmapToBase64Png(bitmap)
+                }.getOrNull()
+            }
+        )
+    }
+
+    private fun exportNoteInternal(
+        note: Note,
+        media: List<Media>,
+        todoItems: List<TodoItem>,
+        imageResolver: ((Block) -> String?)? = null,
+        latexResolver: ((String) -> String?)? = null
+    ): String {
+        val mediaById = media.associateBy { it.id.toString() }
+        return buildString {
+            append("# ").append(note.title.ifBlank { "Untitled" }.escapeMarkdownHeading()).append("\n\n")
+            if (note.tags.isNotEmpty()) {
+                append(note.tags.joinToString(" ") { "#${it.name.toMarkdownTag()}" }).append("\n\n")
+            }
+            val blocks = note.cards.takeIf { it.isNotEmpty() }
+                ?.flatMap { it.blocks }
+                ?.sortedBy { it.sortOrder }
+                ?: note.blocks.sortedBy { it.sortOrder }
+            blocks.forEach { block ->
+                appendBlock(block, mediaById, todoItems, imageResolver, latexResolver)
+                append("\n\n")
+            }
+        }.trimEnd() + "\n"
+    }
 
     private fun StringBuilder.appendBlock(
         block: Block,
         mediaById: Map<String, Media>,
-        todoItems: List<TodoItem>
+        todoItems: List<TodoItem>,
+        imageResolver: ((Block) -> String?)?,
+        latexResolver: ((String) -> String?)?
     ) {
         when (block.type) {
             BlockType.TEXT -> append(block.content)
             BlockType.IMAGE -> {
-                val target = ImageBlockContent.resolveUri(block.content, mediaById)
+                val base64 = imageResolver?.invoke(block)
+                val target = base64 ?: ImageBlockContent.resolveUri(block.content, mediaById)
                 append("![](").append(target.escapeMarkdownUrl()).append(")")
             }
             BlockType.LINK -> append(linkMarkdown(block.content))
             BlockType.DIVIDER -> append("---")
-            BlockType.LATEX -> append("$$\n").append(block.content.trim()).append("\n$$")
+            BlockType.LATEX -> {
+                val base64 = latexResolver?.invoke(block.content.trim())
+                if (base64 != null) {
+                    append("![formula](").append(base64.escapeMarkdownUrl()).append(")")
+                } else {
+                    append("$$\n").append(block.content.trim()).append("\n$$")
+                }
+            }
             BlockType.CODE -> {
                 val language = block.language.ifBlank { "text" }
                 append("```").append(language).append("\n").append(block.content.trimEnd()).append("\n```")

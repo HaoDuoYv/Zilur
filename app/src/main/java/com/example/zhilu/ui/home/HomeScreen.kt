@@ -1,5 +1,7 @@
 package com.example.zhilu.ui.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -25,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -34,7 +37,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -43,7 +48,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.ui.component.AnimatedListItem
-import com.example.zhilu.ui.component.AppFAB
 import com.example.zhilu.ui.navigation.BottomBar
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.theme.MotionDuration
@@ -90,11 +94,20 @@ fun HomeScreen(
         },
         bottomBar = { BottomBar(navController = navController) },
         floatingActionButton = {
-            AppFAB(
-                contentDescription = "新建知识",
-                icon = Icons.Default.Add,
-                text = "新建",
-                onClick = { navController.navigate(Destination.NoteEdit.createRoute()) }
+            var fabExpanded by remember { mutableStateOf(false) }
+            val importLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument(),
+                onResult = { uri ->
+                    uri?.let { viewModel.parseImportPreview(it) }
+                }
+            )
+            HomeFabMenu(
+                expanded = fabExpanded,
+                onToggle = { fabExpanded = !fabExpanded },
+                onCreateNote = { navController.navigate(Destination.NoteEdit.createRoute()) },
+                onImport = {
+                    importLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+                }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -169,6 +182,31 @@ fun HomeScreen(
                 }
             }
         }
+    }
+
+    val preview = uiState.importPreview
+    if (preview != null) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissImportPreview,
+            title = { Text("导入知识点") },
+            text = {
+                Text(
+                    "标题：${preview.title}\n" +
+                    "块数：${preview.blockCount}\n" +
+                    "图片：${preview.imageCount}"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = viewModel::confirmImport) {
+                    Text("导入")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissImportPreview) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 

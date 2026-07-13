@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
@@ -161,6 +162,28 @@ suspend fun renderLatex(
         return@withContext Result.failure(LatexRenderException("LaTeX 输入为空"))
     }
     renderLatexSync(latex, textSize, color)
+}
+
+/**
+ * 异步将 LaTeX 字符串渲染为 Android [Bitmap]，便于导出等场景使用。
+ */
+suspend fun renderLatexBitmap(
+    latex: String,
+    textSize: Float,
+    color: Int
+): Result<Bitmap> = withContext(Dispatchers.Default) {
+    renderLatexSync(latex, textSize, color).map { imageBitmap ->
+        val width = imageBitmap.width
+        val height = imageBitmap.height
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint().apply {
+            isAntiAlias = true
+            isFilterBitmap = true
+        }
+        canvas.drawBitmap(imageBitmap.asAndroidBitmap(), 0f, 0f, paint)
+        bitmap
+    }
 }
 
 /**

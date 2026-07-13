@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -98,6 +99,7 @@ fun NoteEditScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
+    var showShareSheet by remember { mutableStateOf(false) }
     var viewingImageUri by remember { mutableStateOf<String?>(null) }
     var pendingBranchImageBlockId by remember { mutableStateOf<Long?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -236,19 +238,7 @@ fun NoteEditScreen(
                             Icon(Icons.Default.Check, contentDescription = "保存")
                         }
                     } else {
-                        IconButton(onClick = {
-                            val allBlocks = state.cards.flatMap { it.blocks }
-                            val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(android.content.Intent.EXTRA_SUBJECT, state.title.ifBlank { "知识分享" })
-                                putExtra(android.content.Intent.EXTRA_TEXT, buildString {
-                                    appendLine(state.title.ifBlank { "知识分享" })
-                                    appendLine()
-                                    allBlocks.forEach { appendLine(it.content) }
-                                })
-                            }
-                            context.startActivity(android.content.Intent.createChooser(sendIntent, null))
-                        }) {
+                        IconButton(onClick = { showShareSheet = true }) {
                             Icon(Icons.Default.Share, contentDescription = "分享")
                         }
                         IconButton(onClick = viewModel::startEditing) {
@@ -398,6 +388,28 @@ fun NoteEditScreen(
         ImageViewer(
             imageUri = uri,
             onClose = { viewingImageUri = null }
+        )
+    }
+
+    if (showShareSheet) {
+        ShareFormatBottomSheet(
+            onDismiss = { showShareSheet = false },
+            onSelect = { format ->
+                showShareSheet = false
+                viewModel.shareNote(format) { file, mimeType ->
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        context,
+                        "${context.packageName}.fileprovider",
+                        file
+                    )
+                    val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = mimeType
+                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(sendIntent, "分享"))
+                }
+            }
         )
     }
 }
