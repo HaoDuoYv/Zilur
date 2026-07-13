@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.AnnotatedString
 import com.example.zhilu.domain.model.Block
-import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
 
 @Composable
@@ -39,7 +38,11 @@ fun ReadOnlyBlock(
     onUpdateTodo: ((TodoItem) -> Unit)? = null,
     onCompleteTodo: ((Long) -> Unit)? = null,
     onToggleCompletedTodos: (() -> Unit)? = null,
-    onImageClick: (() -> Unit)? = null
+    onImageClick: (() -> Unit)? = null,
+    branchChildBlocks: List<Block> = emptyList(),
+    isBranchExpanded: Boolean = false,
+    onToggleBranchExpanded: () -> Unit = {},
+    onToggleCompletedTodosInBranch: (() -> Unit)? = null
 ) {
     val clipboardManager = LocalClipboardManager.current
     val currentOnCopy by rememberUpdatedState(onCopy)
@@ -62,26 +65,22 @@ fun ReadOnlyBlock(
                         .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
                 )
             }
-            if (block.type == BlockType.DIVIDER) {
-                DividerBlockView(
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                BlockCard(
-                    block = block,
-                    isEditing = false,
-                    onLanguageClick = onLanguageClick,
-                    modifier = Modifier.fillMaxWidth(),
-                    todoItems = todoItems,
-                    showCompletedTodos = showCompletedTodos,
-                    onCreateTodo = onCreateTodo,
-                    onUpdateTodo = onUpdateTodo,
-                    onCompleteTodo = onCompleteTodo,
-                    onToggleCompletedTodos = onToggleCompletedTodos,
-                    onImageClick = onImageClick
-                )
-            }
+            BlockCard(
+                block = block,
+                isEditing = false,
+                onLanguageClick = onLanguageClick,
+                modifier = Modifier.fillMaxWidth(),
+                todoItems = todoItems,
+                showCompletedTodos = showCompletedTodos,
+                onCreateTodo = onCreateTodo,
+                onUpdateTodo = onUpdateTodo,
+                onCompleteTodo = onCompleteTodo,
+                onToggleCompletedTodos = onToggleCompletedTodos,
+                onImageClick = onImageClick,
+                branchChildBlocks = branchChildBlocks,
+                isBranchExpanded = isBranchExpanded,
+                onToggleBranchExpanded = onToggleBranchExpanded
+            )
         }
         DropdownMenu(
             expanded = copyMenuExpanded,

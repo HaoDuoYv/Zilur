@@ -21,7 +21,7 @@ interface NoteBlockDao {
     suspend fun insert(block: NoteBlockEntity): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(blocks: List<NoteBlockEntity>)
+    suspend fun insertAll(blocks: List<NoteBlockEntity>): List<Long>
 
     @Update
     suspend fun update(block: NoteBlockEntity)

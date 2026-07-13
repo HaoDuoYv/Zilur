@@ -103,11 +103,11 @@ private class FakeNoteRepository(
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =
         RepositoryResult.Success(notesByTag[tagId].orEmpty())
 
-    override suspend fun insertNote(note: Note): RepositoryResult<Long> =
-        RepositoryResult.Success(note.id)
+    override suspend fun insertNote(note: Note): RepositoryResult<Note> =
+        RepositoryResult.Success(note)
 
-    override suspend fun updateNote(note: Note): RepositoryResult<Unit> =
-        RepositoryResult.Success(Unit)
+    override suspend fun updateNote(note: Note): RepositoryResult<Note> =
+        RepositoryResult.Success(note)
 
     override suspend fun deleteNote(note: Note): RepositoryResult<Unit> =
         RepositoryResult.Success(Unit)

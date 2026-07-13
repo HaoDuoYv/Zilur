@@ -397,11 +397,11 @@ private class ReviewTestNoteRepository(
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
-    override suspend fun insertNote(note: Note): RepositoryResult<Long> =
-        RepositoryResult.Success(1L)
+    override suspend fun insertNote(note: Note): RepositoryResult<Note> =
+        RepositoryResult.Success(note.copy(id = 1L))
 
-    override suspend fun updateNote(note: Note): RepositoryResult<Unit> =
-        RepositoryResult.Success(Unit)
+    override suspend fun updateNote(note: Note): RepositoryResult<Note> =
+        RepositoryResult.Success(note)
 
     override suspend fun deleteNote(note: Note): RepositoryResult<Unit> =
         RepositoryResult.Success(Unit)

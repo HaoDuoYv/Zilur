@@ -6,7 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 @Entity(
-    tableName = "note_blocks",
+    tableName = "note_cards",
     foreignKeys = [
         ForeignKey(
             entity = NoteEntity::class,
@@ -16,20 +16,13 @@ import androidx.room.PrimaryKey
         )
     ],
     indices = [
-        Index(value = ["noteId"]),
-        Index(value = ["type"]),
-        Index(value = ["cardId"]),
-        Index(value = ["parentBranchId"])
+        Index(value = ["noteId"])
     ]
 )
-data class NoteBlockEntity(
+data class NoteCardEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val noteId: Long,
-    val cardId: Long? = null,
-    val type: Int,
-    val content: String,
-    val sortOrder: Int,
-    val language: String = "",
-    val parentBranchId: Long? = null
+    val title: String,
+    val sortOrder: Int
 )

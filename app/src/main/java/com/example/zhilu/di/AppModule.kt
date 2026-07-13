@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.example.zhilu.data.local.dao.MediaDao
 import com.example.zhilu.data.local.dao.NoteBlockDao
+import com.example.zhilu.data.local.dao.NoteCardDao
 import com.example.zhilu.data.local.dao.NoteDao
 import com.example.zhilu.data.local.dao.ReminderDao
 import com.example.zhilu.data.local.dao.ReviewDao
@@ -53,6 +54,9 @@ object AppModule {
     fun provideNoteBlockDao(database: AppDatabase): NoteBlockDao = database.noteBlockDao()
 
     @Provides
+    fun provideNoteCardDao(database: AppDatabase): NoteCardDao = database.noteCardDao()
+
+    @Provides
     fun provideMediaDao(database: AppDatabase): MediaDao = database.mediaDao()
 
     @Provides
@@ -70,8 +74,9 @@ object AppModule {
         database: AppDatabase,
         noteDao: NoteDao,
         noteBlockDao: NoteBlockDao,
+        noteCardDao: NoteCardDao,
         tagDao: TagDao
-    ): NoteRepository = NoteRepositoryImpl(database, noteDao, noteBlockDao, tagDao)
+    ): NoteRepository = NoteRepositoryImpl(database, noteDao, noteBlockDao, noteCardDao, tagDao)
 
     @Provides
     @Singleton

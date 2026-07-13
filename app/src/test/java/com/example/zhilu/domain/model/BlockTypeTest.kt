@@ -15,4 +15,10 @@ class BlockTypeTest {
         assertEquals(BlockType.TODO, BlockType.fromValue(7))
         assertEquals(7, BlockType.TODO.value)
     }
+
+    @Test
+    fun branchBlockTypeUsesStableValue() {
+        assertEquals(BlockType.BRANCH, BlockType.fromValue(8))
+        assertEquals(8, BlockType.BRANCH.value)
+    }
 }

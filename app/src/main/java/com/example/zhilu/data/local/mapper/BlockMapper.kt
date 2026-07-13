@@ -8,18 +8,22 @@ object BlockMapper {
     fun toDomain(entity: NoteBlockEntity): Block = Block(
         id = entity.id,
         noteId = entity.noteId,
+        cardId = entity.cardId,
         type = BlockType.fromValue(entity.type),
         content = entity.content,
         language = entity.language,
-        sortOrder = entity.sortOrder
+        sortOrder = entity.sortOrder,
+        parentBranchId = entity.parentBranchId
     )
 
     fun toEntity(domain: Block): NoteBlockEntity = NoteBlockEntity(
         id = domain.id,
         noteId = domain.noteId,
+        cardId = domain.cardId,
         type = domain.type.value,
         content = domain.content,
         language = domain.language,
-        sortOrder = domain.sortOrder
+        sortOrder = domain.sortOrder,
+        parentBranchId = domain.parentBranchId
     )
 }

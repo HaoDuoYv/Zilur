@@ -16,7 +16,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -50,12 +49,12 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,11 +64,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -77,17 +73,21 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
+import com.example.zhilu.domain.model.KnowledgeCard
+import com.example.zhilu.domain.model.ReviewPlan
+import com.example.zhilu.domain.model.ReviewRating
+import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.ImageViewer
 import com.example.zhilu.ui.component.TagChip
-import com.example.zhilu.ui.note.blocks.EditableBlock
-import com.example.zhilu.ui.note.blocks.ReadOnlyBlock
+import com.example.zhilu.ui.note.knowledge.AddKnowledgeCardButton
+import com.example.zhilu.ui.note.knowledge.KnowledgeCardItem
 import com.example.zhilu.ui.note.tag.TagPickerInline
-import com.example.zhilu.ui.note.toolbar.BlockToolbar
+import com.example.zhilu.ui.note.toolbar.KnowledgeBottomToolbar
 import com.example.zhilu.ui.settings.NotificationPermissionState
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NoteEditScreen(
     navController: NavHostController,
@@ -98,11 +98,18 @@ fun NoteEditScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val listState = rememberLazyListState()
-    var isDragging by remember { mutableStateOf(false) }
-    var cumulativeDragOffset by remember { mutableStateOf(0f) }
     var viewingImageUri by remember { mutableStateOf<String?>(null) }
+    var pendingBranchImageBlockId by remember { mutableStateOf<Long?>(null) }
     val coroutineScope = rememberCoroutineScope()
-    val clipboardManager = LocalClipboardManager.current
+    var previousCardCount by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(state.cards.size) {
+        if (state.cards.size > previousCardCount && previousCardCount > 0) {
+            val lastIndex = if (state.isEditing) state.cards.size + 1 else state.cards.size
+            listState.animateScrollToItem(lastIndex)
+        }
+        previousCardCount = state.cards.size
+    }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -118,7 +125,15 @@ fun NoteEditScreen(
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri: Uri? ->
-            uri?.let { viewModel.addImageFromGallery(it) }
+            uri?.let {
+                val branchId = pendingBranchImageBlockId
+                if (branchId != null) {
+                    viewModel.addImageFromGallery(it, branchId)
+                    pendingBranchImageBlockId = null
+                } else {
+                    viewModel.addImageToActiveCardFromGallery(it)
+                }
+            }
         }
     )
 
@@ -168,7 +183,7 @@ fun NoteEditScreen(
                 val handle = navController.currentBackStackEntry?.savedStateHandle
                 val uri = handle?.get<String?>("capturedImageUri")
                 if (uri != null) {
-                    viewModel.addImageBlock(uri)
+                    viewModel.addImageToActiveCardFromCamera(uri)
                     handle["capturedImageUri"] = null
                 }
             }
@@ -222,13 +237,14 @@ fun NoteEditScreen(
                         }
                     } else {
                         IconButton(onClick = {
+                            val allBlocks = state.cards.flatMap { it.blocks }
                             val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(android.content.Intent.EXTRA_SUBJECT, state.title.ifBlank { "知识分享" })
                                 putExtra(android.content.Intent.EXTRA_TEXT, buildString {
                                     appendLine(state.title.ifBlank { "知识分享" })
                                     appendLine()
-                                    state.blocks.forEach { appendLine(it.content) }
+                                    allBlocks.forEach { appendLine(it.content) }
                                 })
                             }
                             context.startActivity(android.content.Intent.createChooser(sendIntent, null))
@@ -248,247 +264,130 @@ fun NoteEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .background(PageBackground)
         ) {
-            val bottomPadding = if (state.isEditing) 0.dp else 32.dp
             LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = bottomPadding)
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
             ) {
-                if (state.isEditing) {
-                    item {
-                        TitleInput(
+                item {
+                    if (state.isEditing) {
+                        EditModeHeader(
                             title = state.title,
                             onTitleChange = viewModel::onTitleChange,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    item {
-                        TagPickerInline(
                             availableTags = state.availableTags,
                             selectedTags = state.selectedTags,
-                            onToggle = viewModel::toggleTag,
-                            onCreate = viewModel::createTag,
-                            modifier = Modifier.fillMaxWidth()
+                            onToggleTag = viewModel::toggleTag,
+                            onCreateTag = viewModel::createTag,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    } else {
+                        ReadOnlyHeader(
+                            title = state.title,
+                            selectedTags = state.selectedTags,
+                            reviewPlan = state.reviewPlan,
+                            isReviewDue = state.isReviewDue,
+                            isRecordingReview = state.isRecordingReview,
+                            onStartReviewPlan = {
+                                requestNotificationPermissionIfNeeded()
+                                viewModel.startReviewPlan()
+                            },
+                            onDisableReviewPlan = viewModel::disableReviewPlan,
+                            onRecordReview = viewModel::recordReview,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
-                    itemsIndexed(state.blocks, key = { _, block -> block.id }) { index, block ->
-                        val prevType = state.blocks.getOrNull(index - 1)?.type
-                        val topPadding = when {
-                            block.type == BlockType.DIVIDER || prevType == BlockType.DIVIDER -> 24.dp
-                            prevType != null && prevType == block.type -> 8.dp
-                            prevType != null -> 16.dp
-                            else -> 0.dp
-                        }
-                        val showTopDivider = prevType != null &&
-                            prevType == block.type &&
-                            block.type != BlockType.DIVIDER &&
-                            block.type != BlockType.IMAGE &&
-                            block.type != BlockType.LATEX
-                        EditableBlock(
-                            index = index,
-                            block = block,
-                            total = state.blocks.size,
-                            onValueChange = { viewModel.onBlockContentChange(index, it) },
-                            onLanguageClick = { },
-                            onRemove = { viewModel.removeBlock(index) },
-                            onMoveUp = { viewModel.moveBlock(index, index - 1) },
-                            onMoveDown = { viewModel.moveBlock(index, index + 1) },
-                            onImageClick = if (block.type == BlockType.IMAGE) {
-                                { viewingImageUri = ImageBlockContent.displayUri(block.content) }
-                            } else {
-                                null
-                            },
-                            onDragStart = {
-                                if (!isDragging) {
-                                    isDragging = true
-                                    cumulativeDragOffset = 0f
-                                    viewModel.setDragging(true)
-                                }
-                            },
-                            onDragEnd = {
-                                isDragging = false
-                                cumulativeDragOffset = 0f
-                                viewModel.setDragging(false)
-                            },
-                            onDrag = { offsetY ->
-                                val currentIndex = state.blocks.indexOf(block)
-                                if (currentIndex >= 0) {
-                                    val itemHeight = listState.layoutInfo.visibleItemsInfo
-                                        .find { it.index == currentIndex }?.size?.toFloat()
-                                        ?: 100f
-                                    val newOffset = cumulativeDragOffset + offsetY
-                                    if (kotlin.math.abs(newOffset) >= itemHeight * 0.5f) {
-                                        val direction = if (newOffset > 0) 1 else -1
-                                        val targetIndex = (currentIndex + direction).coerceIn(0, state.blocks.lastIndex)
-                                        if (targetIndex != currentIndex) {
-                                            viewModel.moveBlock(currentIndex, targetIndex)
-                                        }
-                                        cumulativeDragOffset = 0f
-                                    } else {
-                                        cumulativeDragOffset = newOffset
-                                    }
-                                }
-                            },
-                            isDragging = isDragging,
-                            showTopDivider = showTopDivider,
-                            modifier = Modifier
-                                .padding(top = topPadding)
-                                .animateItem(),
-                            todoItems = state.todoItems,
-                            showCompletedTodos = state.showCompletedTodos,
-                            onCreateTodo = { content, remindAt ->
+                }
+
+                itemsIndexed(
+                    items = state.cards,
+                    key = { _, card -> card.id }
+                ) { _, card ->
+                    KnowledgeCardItem(
+                        card = card,
+                        isEditing = state.isEditing,
+                        canDelete = state.cards.size > 1,
+                        onFocus = { viewModel.focusCard(card.id) },
+                        onTitleChange = { viewModel.onCardTitleChange(card.id, it) },
+                        onDelete = { viewModel.removeKnowledgeCard(card.id) },
+                        onBlockContentChange = viewModel::onBlockContentChange,
+                        onBlockLanguageClick = { },
+                        onRemoveBlock = viewModel::removeBlock,
+                        onMoveBlockUp = { blockId -> moveBlockUp(card, blockId, viewModel) },
+                        onMoveBlockDown = { blockId -> moveBlockDown(card, blockId, viewModel) },
+                        onImageClick = { block ->
+                            viewingImageUri = ImageBlockContent.displayUri(block.content)
+                        },
+                        onToggleBranchExpanded = viewModel::toggleBranchExpanded,
+                        onBranchTitleChange = viewModel::onBlockContentChange,
+                        onBranchChildValueChange = viewModel::onBlockContentChange,
+                        onBranchChildLanguageClick = { },
+                        onRemoveBranchChild = viewModel::removeBlock,
+                        onAddBranchChild = viewModel::addBranchChildBlock,
+                        onAddBranchChildImage = { branchId ->
+                            pendingBranchImageBlockId = branchId
+                            launchGalleryPicker()
+                        },
+                        branchExpandedStates = state.branchExpandedStates,
+                        todoItems = state.todoItems,
+                        showCompletedTodos = state.showCompletedTodos,
+                        onCreateTodo = if (state.isEditing) {
+                            { content, remindAt ->
                                 val created = viewModel.createTodo(content, remindAt)
                                 if (created && remindAt != null) {
                                     requestNotificationPermissionIfNeeded()
                                 }
                                 created
-                            },
-                            onUpdateTodo = { viewModel.updateTodo(it) },
-                            onCompleteTodo = { viewModel.completeTodo(it) },
-                            onToggleCompletedTodos = { viewModel.toggleCompletedTodos() }
-                        )
-                    }
-                    if (state.blocks.isEmpty()) {
-                        item {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 48.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                TextButton(onClick = { viewModel.addBlock(BlockType.TEXT) }) {
-                                    Text(
-                                        text = "开始记录...",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
                             }
-                        }
-                    }
-                } else {
+                        } else null,
+                        onUpdateTodo = if (state.isEditing) viewModel::updateTodo else null,
+                        onCompleteTodo = if (state.isEditing) viewModel::completeTodo else null,
+                        onToggleCompletedTodos = viewModel::toggleCompletedTodos,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+
+                if (state.isEditing) {
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(
-                                text = state.title.ifBlank { "新建知识" },
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = if (state.title.isBlank()) {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                } else {
-                                    MaterialTheme.colorScheme.onBackground
-                                }
-                            )
-                            if (state.selectedTags.isNotEmpty()) {
-                                FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    state.selectedTags.forEach { tag ->
-                                        TagChip(tag = tag, onClick = {})
-                                    }
-                                }
-                            }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                        }
+                        AddKnowledgeCardButton(onClick = viewModel::addKnowledgeCard)
                     }
+                } else if (state.cards.all { it.blocks.isEmpty() }) {
                     item {
-                        ReviewPanel(
-                            plan = state.reviewPlan,
-                            isDue = state.isReviewDue,
-                            isRecording = state.isRecordingReview,
-                            onStart = {
-                                requestNotificationPermissionIfNeeded()
-                                viewModel.startReviewPlan()
-                            },
-                            onDisable = viewModel::disableReviewPlan,
-                            onRate = { rating -> viewModel.recordReview(rating) }
+                        Text(
+                            text = "暂无正文内容",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp)
                         )
-                    }
-                    itemsIndexed(state.blocks) { index, block ->
-                        val prevType = state.blocks.getOrNull(index - 1)?.type
-                        val topPadding = when {
-                            block.type == BlockType.DIVIDER || prevType == BlockType.DIVIDER -> 24.dp
-                            prevType != null && prevType == block.type -> 8.dp
-                            prevType != null -> 16.dp
-                            else -> 0.dp
-                        }
-                        val showTopDivider = prevType != null &&
-                            prevType == block.type &&
-                            block.type != BlockType.DIVIDER &&
-                            block.type != BlockType.IMAGE &&
-                            block.type != BlockType.LATEX
-                        ReadOnlyBlock(
-                            block = block,
-                            onCopy = {
-                                clipboardManager.setText(AnnotatedString(block.content))
-                            },
-                            showTopDivider = showTopDivider,
-                            modifier = Modifier.padding(top = topPadding),
-                            todoItems = state.todoItems,
-                            showCompletedTodos = state.showCompletedTodos,
-                            onToggleCompletedTodos = { viewModel.toggleCompletedTodos() },
-                            onImageClick = if (block.type == BlockType.IMAGE) {
-                                { viewingImageUri = ImageBlockContent.displayUri(block.content) }
-                            } else {
-                                null
-                            }
-                        )
-                    }
-                    if (state.blocks.isEmpty()) {
-                        item {
-                            Text(
-                                text = "暂无正文内容",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                     }
                 }
             }
+
             if (state.isEditing) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to MaterialTheme.colorScheme.background
-                            )
-                        )
+                KnowledgeBottomToolbar(
+                    activeCardId = state.activeCardId,
+                    onAddText = { viewModel.addBlockToActiveCard(BlockType.TEXT) },
+                    onTakePhoto = { navController.navigate("camera") },
+                    onPickImageFromGallery = ::launchGalleryPicker,
+                    onAddLatex = { viewModel.addBlockToActiveCard(BlockType.LATEX) },
+                    onAddCode = { viewModel.addBlockToActiveCard(BlockType.CODE) },
+                    onAddLink = { viewModel.addBlockToActiveCard(BlockType.LINK) },
+                    onAddBranch = { viewModel.addBlockToActiveCard(BlockType.BRANCH) }
                 )
-                Column(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    HorizontalDivider(
-                        modifier = Modifier.fillMaxWidth(),
-                        thickness = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                    )
+                if (state.isProcessingImage) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface),
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        BlockToolbar(
-                            onAddText = { viewModel.addBlock(BlockType.TEXT) },
-                            onAddCode = { viewModel.addBlock(BlockType.CODE) },
-                            onAddImage = { navController.navigate("camera") },
-                            onPickImageFromGallery = ::launchGalleryPicker,
-                            onAddLink = { viewModel.addBlock(BlockType.LINK) },
-                            onAddLatex = { viewModel.addBlock(BlockType.LATEX) },
-                            onAddDivider = { viewModel.addBlock(BlockType.DIVIDER) }
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        if (state.isProcessingImage) {
-                            Spacer(Modifier.width(12.dp))
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
                 }
             }
@@ -578,6 +477,99 @@ private fun TitleInput(
             innerTextField()
         }
     )
+}
+
+private val PageBackground = Color(0xFFF5F7FA)
+
+@Composable
+private fun EditModeHeader(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    availableTags: List<Tag>,
+    selectedTags: List<Tag>,
+    onToggleTag: (Tag) -> Unit,
+    onCreateTag: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        TitleInput(
+            title = title,
+            onTitleChange = onTitleChange,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        TagPickerInline(
+            availableTags = availableTags,
+            selectedTags = selectedTags,
+            onToggle = onToggleTag,
+            onCreate = onCreateTag,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ReadOnlyHeader(
+    title: String,
+    selectedTags: List<Tag>,
+    reviewPlan: ReviewPlan?,
+    isReviewDue: Boolean,
+    isRecordingReview: Boolean,
+    onStartReviewPlan: () -> Unit,
+    onDisableReviewPlan: () -> Unit,
+    onRecordReview: (ReviewRating) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text(
+            text = title.ifBlank { "新建知识" },
+            style = MaterialTheme.typography.headlineSmall,
+            color = if (title.isBlank()) {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            } else {
+                MaterialTheme.colorScheme.onBackground
+            }
+        )
+        if (selectedTags.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                selectedTags.forEach { tag ->
+                    TagChip(tag = tag, onClick = {})
+                }
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        ReviewPanel(
+            plan = reviewPlan,
+            isDue = isReviewDue,
+            isRecording = isRecordingReview,
+            onStart = onStartReviewPlan,
+            onDisable = onDisableReviewPlan,
+            onRate = onRecordReview
+        )
+    }
+}
+
+private fun moveBlockUp(card: KnowledgeCard, blockId: Long, viewModel: NoteViewModel) {
+    val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
+    val index = topLevelBlocks.indexOfFirst { it.id == blockId }
+    if (index <= 0) return
+    val targetBlock = topLevelBlocks[index - 1]
+    viewModel.moveBlock(blockId, targetBlock.id)
+}
+
+private fun moveBlockDown(card: KnowledgeCard, blockId: Long, viewModel: NoteViewModel) {
+    val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
+    val index = topLevelBlocks.indexOfFirst { it.id == blockId }
+    if (index < 0 || index >= topLevelBlocks.lastIndex) return
+    val targetBlock = topLevelBlocks[index + 1]
+    viewModel.moveBlock(targetBlock.id, blockId)
 }
 
 private fun Context.shouldRequestNotificationPermission(): Boolean =

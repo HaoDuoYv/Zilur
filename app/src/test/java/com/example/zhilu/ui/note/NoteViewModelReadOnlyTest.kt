@@ -2,6 +2,9 @@ package com.example.zhilu.ui.note
 
 import androidx.lifecycle.SavedStateHandle
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.domain.model.Block
+import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderType
@@ -14,6 +17,7 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -25,12 +29,14 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
-import io.mockk.mockk
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class NoteViewModelTagSelectionTest {
+class NoteViewModelReadOnlyTest {
     private val dispatcher = StandardTestDispatcher()
 
     @Before
@@ -44,123 +50,98 @@ class NoteViewModelTagSelectionTest {
     }
 
     @Test
-    fun existingTagsCanBeSelectedAndUnselected() = runTest(dispatcher) {
-        val tag = Tag(id = 1L, name = "数学", color = 0xFF0061A4.toInt())
-        val viewModel = NoteViewModel(
-            noteRepository = FakeNoteRepository(),
-            tagRepository = FakeTagRepository(listOf(tag)),
-            reviewRepository = EmptyReviewRepository(),
-            todoRepository = EmptyTodoRepository(),
-            reminderRepository = EmptyReminderRepository(),
-            mediaRepository = mockk(relaxed = true),
-            context = mockk(relaxed = true),
-            savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
-        )
+    fun existingNoteLoadsInReadOnlyWithNoFocusedCards() = runTest(dispatcher) {
+        val note = createNoteWithTwoCards()
+        val viewModel = createViewModel(note)
 
         advanceUntilIdle()
-        assertEquals(listOf(tag), viewModel.uiState.value.availableTags)
 
-        viewModel.toggleTag(tag)
-        assertEquals(listOf(tag), viewModel.uiState.value.selectedTags)
-
-        viewModel.toggleTag(tag)
-        assertEquals(emptyList<Tag>(), viewModel.uiState.value.selectedTags)
+        val state = viewModel.uiState.value
+        assertFalse("只读态下不应处于编辑模式", state.isEditing)
+        assertEquals("只读态下不应有活跃卡片", null, state.activeCardId)
+        assertTrue("只读态下所有卡片都应处于未聚焦状态", state.cards.all { !it.isFocused })
     }
 
     @Test
-    fun newNoteStartsEditing() = runTest(dispatcher) {
-        val viewModel = NoteViewModel(
-            noteRepository = FakeNoteRepository(),
-            tagRepository = FakeTagRepository(emptyList()),
-            reviewRepository = EmptyReviewRepository(),
-            todoRepository = EmptyTodoRepository(),
-            reminderRepository = EmptyReminderRepository(),
-            mediaRepository = mockk(relaxed = true),
-            context = mockk(relaxed = true),
-            savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
-        )
+    fun startEditingFromReadOnlyFocusesFirstCard() = runTest(dispatcher) {
+        val note = createNoteWithTwoCards()
+        val viewModel = createViewModel(note)
 
         advanceUntilIdle()
-
-        assertEquals(true, viewModel.uiState.value.isEditing)
-    }
-
-    @Test
-    fun existingNoteStartsReadOnlyAndCanEnterEditMode() = runTest(dispatcher) {
-        val note = Note(id = 12L, title = "红黑树")
-        val viewModel = NoteViewModel(
-            noteRepository = FakeNoteRepository(note),
-            tagRepository = FakeTagRepository(emptyList()),
-            reviewRepository = EmptyReviewRepository(),
-            todoRepository = EmptyTodoRepository(),
-            reminderRepository = EmptyReminderRepository(),
-            mediaRepository = mockk(relaxed = true),
-            context = mockk(relaxed = true),
-            savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
-        )
-
-        advanceUntilIdle()
-        assertEquals(false, viewModel.uiState.value.isEditing)
+        assertFalse(viewModel.uiState.value.isEditing)
 
         viewModel.startEditing()
+        advanceUntilIdle()
 
-        assertEquals(true, viewModel.uiState.value.isEditing)
+        val state = viewModel.uiState.value
+        assertTrue("进入编辑态后应处于编辑模式", state.isEditing)
+        assertNotNull("进入编辑态后应有活跃卡片", state.activeCardId)
+        assertEquals("应自动聚焦第一张卡片", state.cards.first().id, state.activeCardId)
+        assertTrue("第一张卡片应处于聚焦状态", state.cards.first().isFocused)
+        assertTrue("除第一张卡片外其他卡片应处于未聚焦状态", state.cards.drop(1).all { !it.isFocused })
+        assertEquals(
+            "活跃卡片的块应同步到内部状态",
+            state.cards.first().blocks.map { it.content },
+            state.blocks.map { it.content }
+        )
     }
 
     @Test
-    fun savingExistingNoteReturnsToReadOnlyMode() = runTest(dispatcher) {
-        val note = Note(id = 12L, title = "红黑树")
-        val viewModel = NoteViewModel(
-            noteRepository = FakeNoteRepository(note),
-            tagRepository = FakeTagRepository(emptyList()),
-            reviewRepository = EmptyReviewRepository(),
-            todoRepository = EmptyTodoRepository(),
-            reminderRepository = EmptyReminderRepository(),
-            mediaRepository = mockk(relaxed = true),
-            context = mockk(relaxed = true),
-            savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
+    fun readOnlyStateExpandsAllBranchesByDefault() = runTest(dispatcher) {
+        val note = Note(
+            id = 12L,
+            title = "分支笔记",
+            cards = listOf(
+                KnowledgeCard(
+                    id = 1L,
+                    title = "卡片1",
+                    blocks = listOf(
+                        Block(id = 1L, type = BlockType.BRANCH, content = "分支一", sortOrder = 0),
+                        Block(id = 2L, type = BlockType.TEXT, content = "子块", sortOrder = 1, parentBranchId = 1L)
+                    )
+                )
+            )
         )
+        val viewModel = createViewModel(note)
 
         advanceUntilIdle()
-        viewModel.startEditing()
-        viewModel.onTitleChange("红黑树更新")
-        viewModel.saveNow()
-        advanceUntilIdle()
 
-        assertEquals(false, viewModel.uiState.value.isEditing)
+        val state = viewModel.uiState.value
+        assertFalse(state.isEditing)
+        assertTrue("只读态下所有分支应默认展开", state.branchExpandedStates.values.all { it })
     }
+
+    private fun createNoteWithTwoCards(): Note = Note(
+        id = 12L,
+        title = "红黑树",
+        cards = listOf(
+            KnowledgeCard(
+                id = 1L,
+                title = "卡片1",
+                blocks = listOf(Block(id = 1L, type = BlockType.TEXT, content = "内容1", sortOrder = 0))
+            ),
+            KnowledgeCard(
+                id = 2L,
+                title = "卡片2",
+                blocks = listOf(Block(id = 2L, type = BlockType.TEXT, content = "内容2", sortOrder = 0))
+            )
+        )
+    )
+
+    private fun createViewModel(note: Note): NoteViewModel = NoteViewModel(
+        noteRepository = ReadOnlyFakeNoteRepository(note),
+        tagRepository = ReadOnlyFakeTagRepository(),
+        reviewRepository = ReadOnlyFakeReviewRepository(),
+        todoRepository = ReadOnlyFakeTodoRepository(),
+        reminderRepository = ReadOnlyFakeReminderRepository(),
+        mediaRepository = mockk(relaxed = true),
+        context = mockk(relaxed = true),
+        savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
+    )
 }
 
-private class FakeTagRepository(
-    private val tags: List<Tag>
-) : TagRepository {
-    override fun getAllTags(): Flow<RepositoryResult<List<Tag>>> =
-        flowOf(RepositoryResult.Success(tags))
-
-    override suspend fun getTagById(id: Long): RepositoryResult<Tag?> =
-        RepositoryResult.Success(tags.firstOrNull { it.id == id })
-
-    override suspend fun getTagByName(name: String): RepositoryResult<Tag?> =
-        RepositoryResult.Success(tags.firstOrNull { it.name == name })
-
-    override suspend fun getTagsByNoteId(noteId: Long): RepositoryResult<List<Tag>> =
-        RepositoryResult.Success(emptyList())
-
-    override suspend fun insertTag(tag: Tag): RepositoryResult<Long> =
-        RepositoryResult.Success(tag.id)
-
-    override suspend fun updateTag(tag: Tag): RepositoryResult<Unit> =
-        RepositoryResult.Success(Unit)
-
-    override suspend fun deleteTag(tag: Tag): RepositoryResult<Unit> =
-        RepositoryResult.Success(Unit)
-
-    override fun getTagCount(): Flow<RepositoryResult<Int>> =
-        flowOf(RepositoryResult.Success(tags.size))
-}
-
-private class FakeNoteRepository(
-    private val note: Note? = null
+private class ReadOnlyFakeNoteRepository(
+    private val note: Note
 ) : NoteRepository {
     override fun getAllNotes(): Flow<RepositoryResult<List<Note>>> =
         flowOf(RepositoryResult.Success(emptyList()))
@@ -172,7 +153,7 @@ private class FakeNoteRepository(
         flowOf(RepositoryResult.Success(emptyList()))
 
     override suspend fun getNoteById(id: Long): RepositoryResult<Note?> =
-        RepositoryResult.Success(note?.takeIf { it.id == id })
+        RepositoryResult.Success(note.takeIf { it.id == id })
 
     override suspend fun searchNotes(keyword: String): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
@@ -202,7 +183,33 @@ private class FakeNoteRepository(
         RepositoryResult.Success(0)
 }
 
-private class EmptyReviewRepository : ReviewRepository {
+private class ReadOnlyFakeTagRepository : TagRepository {
+    override fun getAllTags(): Flow<RepositoryResult<List<Tag>>> =
+        flowOf(RepositoryResult.Success(emptyList()))
+
+    override suspend fun getTagById(id: Long): RepositoryResult<Tag?> =
+        RepositoryResult.Success(null)
+
+    override suspend fun getTagByName(name: String): RepositoryResult<Tag?> =
+        RepositoryResult.Success(null)
+
+    override suspend fun getTagsByNoteId(noteId: Long): RepositoryResult<List<Tag>> =
+        RepositoryResult.Success(emptyList())
+
+    override suspend fun insertTag(tag: Tag): RepositoryResult<Long> =
+        RepositoryResult.Success(1L)
+
+    override suspend fun updateTag(tag: Tag): RepositoryResult<Unit> =
+        RepositoryResult.Success(Unit)
+
+    override suspend fun deleteTag(tag: Tag): RepositoryResult<Unit> =
+        RepositoryResult.Success(Unit)
+
+    override fun getTagCount(): Flow<RepositoryResult<Int>> =
+        flowOf(RepositoryResult.Success(0))
+}
+
+private class ReadOnlyFakeReviewRepository : ReviewRepository {
     override suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?> =
         RepositoryResult.Success(null)
 
@@ -220,7 +227,7 @@ private class EmptyReviewRepository : ReviewRepository {
         RepositoryResult.Success(Unit)
 }
 
-private class EmptyReminderRepository : ReminderRepository {
+private class ReadOnlyFakeReminderRepository : ReminderRepository {
     override fun observeAll(): Flow<RepositoryResult<List<ReminderInstance>>> =
         flowOf(RepositoryResult.Success(emptyList()))
 
@@ -246,7 +253,7 @@ private class EmptyReminderRepository : ReminderRepository {
         RepositoryResult.Success(Unit)
 }
 
-private class EmptyTodoRepository : TodoRepository {
+private class ReadOnlyFakeTodoRepository : TodoRepository {
     override fun observeByNoteId(noteId: Long): Flow<RepositoryResult<List<TodoItem>>> =
         flowOf(RepositoryResult.Success(emptyList()))
 

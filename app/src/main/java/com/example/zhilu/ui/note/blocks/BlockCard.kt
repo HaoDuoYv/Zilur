@@ -59,7 +59,15 @@ fun BlockCard(
     onUpdateTodo: ((TodoItem) -> Unit)? = null,
     onCompleteTodo: ((Long) -> Unit)? = null,
     onToggleCompletedTodos: (() -> Unit)? = null,
-    onImageClick: (() -> Unit)? = null
+    onImageClick: (() -> Unit)? = null,
+    branchChildBlocks: List<Block> = emptyList(),
+    isBranchExpanded: Boolean = false,
+    onBranchTitleChange: (String) -> Unit = {},
+    onToggleBranchExpanded: () -> Unit = {},
+    onBranchChildValueChange: (Long, String) -> Unit = { _, _ -> },
+    onBranchChildLanguageClick: (Long) -> Unit = {},
+    onRemoveBranchChild: (Long) -> Unit = {},
+    onAddBranchChild: (BlockType) -> Unit = {}
 ) {
     val borderColor = if (isDragging) {
         MaterialTheme.colorScheme.primary
@@ -130,7 +138,15 @@ fun BlockCard(
                 onUpdateTodo = onUpdateTodo,
                 onCompleteTodo = onCompleteTodo,
                 onToggleCompletedTodos = onToggleCompletedTodos,
-                onImageClick = onImageClick
+                onImageClick = onImageClick,
+                branchChildBlocks = branchChildBlocks,
+                isBranchExpanded = isBranchExpanded,
+                onBranchTitleChange = onBranchTitleChange,
+                onToggleBranchExpanded = onToggleBranchExpanded,
+                onBranchChildValueChange = onBranchChildValueChange,
+                onBranchChildLanguageClick = onBranchChildLanguageClick,
+                onRemoveBranchChild = onRemoveBranchChild,
+                onAddBranchChild = onAddBranchChild
             )
         }
     }
@@ -144,6 +160,7 @@ fun blockTypeLabel(type: BlockType): String = when (type) {
     BlockType.CODE -> "代码"
     BlockType.DIVIDER -> "分割线"
     BlockType.TODO -> "待办"
+    BlockType.BRANCH -> "分支"
 }
 
 fun blockTypeIcon(type: BlockType): ImageVector? = when (type) {
@@ -154,6 +171,7 @@ fun blockTypeIcon(type: BlockType): ImageVector? = when (type) {
     BlockType.CODE -> Icons.Default.Code
     BlockType.DIVIDER -> null
     BlockType.TODO -> null
+    BlockType.BRANCH -> null
 }
 
 fun shouldShowBlockActionMenu(

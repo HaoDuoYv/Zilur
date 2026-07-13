@@ -54,6 +54,7 @@ object MarkdownExporter {
                 append("```").append(language).append("\n").append(block.content.trimEnd()).append("\n```")
             }
             BlockType.TODO -> append(todoMarkdown(block.content, todoItems))
+            BlockType.BRANCH -> append(block.content)
         }
     }
 

@@ -11,8 +11,8 @@ interface NoteRepository {
     suspend fun getNoteById(id: Long): RepositoryResult<Note?>
     suspend fun searchNotes(keyword: String): RepositoryResult<List<Note>>
     suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>>
-    suspend fun insertNote(note: Note): RepositoryResult<Long>
-    suspend fun updateNote(note: Note): RepositoryResult<Unit>
+    suspend fun insertNote(note: Note): RepositoryResult<Note>
+    suspend fun updateNote(note: Note): RepositoryResult<Note>
     suspend fun deleteNote(note: Note): RepositoryResult<Unit>
     suspend fun softDeleteNote(id: Long): RepositoryResult<Unit>
     suspend fun restoreNote(id: Long): RepositoryResult<Unit>

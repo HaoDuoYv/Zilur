@@ -34,7 +34,15 @@ fun BlockContent(
     onUpdateTodo: ((TodoItem) -> Unit)? = null,
     onCompleteTodo: ((Long) -> Unit)? = null,
     onToggleCompletedTodos: (() -> Unit)? = null,
-    onImageClick: (() -> Unit)? = null
+    onImageClick: (() -> Unit)? = null,
+    branchChildBlocks: List<Block> = emptyList(),
+    isBranchExpanded: Boolean = false,
+    onBranchTitleChange: (String) -> Unit = {},
+    onToggleBranchExpanded: () -> Unit = {},
+    onBranchChildValueChange: (Long, String) -> Unit = { _, _ -> },
+    onBranchChildLanguageClick: (Long) -> Unit = {},
+    onRemoveBranchChild: (Long) -> Unit = {},
+    onAddBranchChild: (BlockType) -> Unit = {}
 ) {
     when (block.type) {
         BlockType.TEXT -> {
@@ -110,6 +118,39 @@ fun BlockContent(
             onCompleteTodo = onCompleteTodo,
             onToggleCompletedTodos = onToggleCompletedTodos
         )
+        BlockType.BRANCH -> {
+            if (isEditing) {
+                BranchBlockEditor(
+                    block = block,
+                    childBlocks = branchChildBlocks,
+                    isExpanded = isBranchExpanded,
+                    onTitleChange = onBranchTitleChange,
+                    onToggleExpanded = onToggleBranchExpanded,
+                    onChildValueChange = onBranchChildValueChange,
+                    onChildLanguageClick = onBranchChildLanguageClick,
+                    onRemoveChild = onRemoveBranchChild,
+                    onAddChild = onAddBranchChild,
+                    modifier = modifier,
+                    todoItems = todoItems,
+                    showCompletedTodos = showCompletedTodos,
+                    onCreateTodo = onCreateTodo,
+                    onUpdateTodo = onUpdateTodo,
+                    onCompleteTodo = onCompleteTodo,
+                    onToggleCompletedTodos = onToggleCompletedTodos
+                )
+            } else {
+                BranchBlockView(
+                    block = block,
+                    childBlocks = branchChildBlocks,
+                    isExpanded = isBranchExpanded,
+                    onToggleExpanded = onToggleBranchExpanded,
+                    modifier = modifier,
+                    todoItems = todoItems,
+                    showCompletedTodos = showCompletedTodos,
+                    onToggleCompletedTodos = onToggleCompletedTodos
+                )
+            }
+        }
     }
 }
 

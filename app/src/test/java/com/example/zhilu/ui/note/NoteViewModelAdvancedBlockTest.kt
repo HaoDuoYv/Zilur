@@ -79,8 +79,8 @@ class NoteViewModelAdvancedBlockTest {
         assertEquals(0, noteRepository.updatedNotes.size)
         assertTrue(viewModel.uiState.value.blocks.any { it.type == BlockType.LATEX })
 
-        val latexIndex = viewModel.uiState.value.blocks.indexOfFirst { it.type == BlockType.LATEX }
-        viewModel.onBlockContentChange(latexIndex, "\\alpha^2")
+        val latexBlock = viewModel.uiState.value.blocks.first { it.type == BlockType.LATEX }
+        viewModel.onBlockContentChange(latexBlock.id, "\\alpha^2")
         advanceTimeBy(600)
         advanceUntilIdle()
 
@@ -103,12 +103,13 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createViewModel(noteRepository)
         advanceUntilIdle()
 
-        viewModel.setBlockLanguage(1, "java")
+        val codeBlock = viewModel.uiState.value.blocks[1]
+        viewModel.setBlockLanguage(codeBlock.id, "java")
         advanceTimeBy(600)
         advanceUntilIdle()
 
-        assertEquals("java", viewModel.uiState.value.blocks[1].language)
-        assertEquals("java", noteRepository.updatedNotes.single().blocks[1].language)
+        assertEquals("java", viewModel.uiState.value.blocks.first { it.id == codeBlock.id }.language)
+        assertEquals("java", noteRepository.updatedNotes.single().blocks.first { it.id == codeBlock.id }.language)
     }
 
     @Test
@@ -127,7 +128,8 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createViewModel(noteRepository)
         advanceUntilIdle()
 
-        viewModel.moveBlock(2, 0)
+        val blocks = viewModel.uiState.value.blocks
+        viewModel.moveBlock(blocks[2].id, blocks[0].id)
         advanceTimeBy(600)
         advanceUntilIdle()
 
@@ -139,7 +141,7 @@ class NoteViewModelAdvancedBlockTest {
     }
 
     @Test
-    fun moveBlockAllowsAppendToEndIndex() = runTest(dispatcher) {
+    fun moveBlockReordersByBlockId() = runTest(dispatcher) {
         val noteRepository = RecordingNoteRepository(
             note = Note(
                 id = 7L,
@@ -154,13 +156,14 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createViewModel(noteRepository)
         advanceUntilIdle()
 
-        viewModel.moveBlock(0, viewModel.uiState.value.blocks.size)
+        val blocks = viewModel.uiState.value.blocks
+        viewModel.moveBlock(blocks[1].id, blocks[0].id)
         advanceTimeBy(600)
         advanceUntilIdle()
 
-        assertEquals(listOf("B", "C", "A"), viewModel.uiState.value.blocks.map { it.content })
+        assertEquals(listOf("B", "A", "C"), viewModel.uiState.value.blocks.map { it.content })
         assertEquals(
-            listOf("B" to 0, "C" to 1, "A" to 2),
+            listOf("B" to 0, "A" to 1, "C" to 2),
             noteRepository.updatedNotes.single().blocks.map { it.content to it.sortOrder }
         )
     }
@@ -181,7 +184,7 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createViewModel(noteRepository)
         advanceUntilIdle()
 
-        viewModel.removeBlock(1)
+        viewModel.removeBlock(viewModel.uiState.value.blocks[1].id)
         viewModel.undoRemoveBlock()
 
         assertEquals(listOf("A", "B", "C"), viewModel.uiState.value.blocks.map { it.content })
@@ -209,8 +212,8 @@ class NoteViewModelAdvancedBlockTest {
             }
         }
 
-        viewModel.removeBlock(0)
-        viewModel.removeBlock(0)
+        viewModel.removeBlock(viewModel.uiState.value.blocks[0].id)
+        viewModel.removeBlock(viewModel.uiState.value.blocks[0].id)
         runCurrent()
         viewModel.confirmRemoveBlock(events[0].token)
         viewModel.undoRemoveBlock(events[1].token)
@@ -231,7 +234,7 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createViewModel(noteRepository)
         advanceUntilIdle()
 
-        viewModel.removeBlock(0)
+        viewModel.removeBlock(viewModel.uiState.value.blocks[0].id)
         advanceTimeBy(600)
         advanceUntilIdle()
 
@@ -253,10 +256,11 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createViewModel(noteRepository)
         advanceUntilIdle()
 
-        viewModel.onBlockContentChange(0, "First")
+        val blockId = viewModel.uiState.value.blocks[0].id
+        viewModel.onBlockContentChange(blockId, "First")
         advanceTimeBy(500)
         runCurrent()
-        viewModel.onBlockContentChange(0, "Second")
+        viewModel.onBlockContentChange(blockId, "Second")
         advanceTimeBy(1_000)
         runCurrent()
 
@@ -281,10 +285,11 @@ class NoteViewModelAdvancedBlockTest {
         )
         val viewModel = createNewNoteViewModel(noteRepository)
 
-        viewModel.onBlockContentChange(0, "First")
+        val blockId = viewModel.uiState.value.blocks[0].id
+        viewModel.onBlockContentChange(blockId, "First")
         advanceTimeBy(500)
         runCurrent()
-        viewModel.onBlockContentChange(0, "Second")
+        viewModel.onBlockContentChange(blockId, "Second")
         advanceTimeBy(500)
         runCurrent()
         advanceTimeBy(1_000)
@@ -307,7 +312,7 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createNewNoteViewModel(noteRepository)
         val todoResults = mutableListOf<Boolean>()
 
-        viewModel.onBlockContentChange(0, "Draft")
+        viewModel.onBlockContentChange(viewModel.uiState.value.blocks[0].id, "Draft")
         advanceTimeBy(500)
         runCurrent()
         val todoJob = launch {
@@ -336,7 +341,7 @@ class NoteViewModelAdvancedBlockTest {
         val viewModel = createViewModel(noteRepository)
         advanceUntilIdle()
 
-        viewModel.onBlockContentChange(0, "After")
+        viewModel.onBlockContentChange(viewModel.uiState.value.blocks[0].id, "After")
         advanceTimeBy(500)
         runCurrent()
         assertEquals(SaveStatus.SAVING, viewModel.uiState.value.saveStatus)
@@ -397,15 +402,16 @@ class NoteViewModelAdvancedBlockTest {
         advanceUntilIdle()
         noteRepository.updatedNotes.clear()
 
+        val firstBlock = viewModel.uiState.value.blocks[0]
         viewModel.setDragging(true)
-        viewModel.onBlockContentChange(0, "Changed while dragging")
+        viewModel.onBlockContentChange(firstBlock.id, "Changed while dragging")
         advanceTimeBy(600)
         advanceUntilIdle()
 
         assertEquals("scheduleSave should be skipped while dragging", 0, noteRepository.updatedNotes.size)
 
         viewModel.setDragging(false)
-        viewModel.onBlockContentChange(0, "Final content")
+        viewModel.onBlockContentChange(firstBlock.id, "Final content")
         advanceTimeBy(600)
         advanceUntilIdle()
 
@@ -437,7 +443,8 @@ class NoteViewModelAdvancedBlockTest {
         advanceUntilIdle()
         noteRepository.updatedNotes.clear()
 
-        viewModel.moveBlock(1, 0)
+        val blocks = viewModel.uiState.value.blocks
+        viewModel.moveBlock(blocks[1].id, blocks[0].id)
         advanceTimeBy(600)
         advanceUntilIdle()
 
@@ -470,8 +477,9 @@ class NoteViewModelAdvancedBlockTest {
         advanceUntilIdle()
         noteRepository.updatedNotes.clear()
 
+        val blocks = viewModel.uiState.value.blocks
         viewModel.setDragging(true)
-        viewModel.moveBlock(1, 0)
+        viewModel.moveBlock(blocks[1].id, blocks[0].id)
         advanceTimeBy(600)
         advanceUntilIdle()
 
@@ -524,8 +532,16 @@ private class RecordingNoteRepository(
     override fun getDeletedNotes(): Flow<RepositoryResult<List<Note>>> =
         flowOf(RepositoryResult.Success(emptyList()))
 
-    override suspend fun getNoteById(id: Long): RepositoryResult<Note?> =
-        RepositoryResult.Success(note.takeIf { it.id == id })
+    override suspend fun getNoteById(id: Long): RepositoryResult<Note?> {
+        val returnedNote = note.takeIf { it.id == id }?.let { n ->
+            n.copy(
+                blocks = n.blocks.mapIndexed { index, block ->
+                    if (block.id == 0L) block.copy(id = index + 1L) else block
+                }
+            )
+        }
+        return RepositoryResult.Success(returnedNote)
+    }
 
     override suspend fun searchNotes(keyword: String): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
@@ -533,20 +549,20 @@ private class RecordingNoteRepository(
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
-    override suspend fun insertNote(note: Note): RepositoryResult<Long> {
+    override suspend fun insertNote(note: Note): RepositoryResult<Note> {
         insertedNotes += note
         if (insertDelayMillis > 0L) {
             delay(insertDelayMillis)
         }
-        return RepositoryResult.Success(1L)
+        return RepositoryResult.Success(note.copy(id = 1L))
     }
 
-    override suspend fun updateNote(note: Note): RepositoryResult<Unit> {
+    override suspend fun updateNote(note: Note): RepositoryResult<Note> {
         if (updateDelayMillis > 0L) {
             delay(updateDelayMillis)
         }
         updatedNotes += note
-        return RepositoryResult.Success(Unit)
+        return RepositoryResult.Success(note)
     }
 
     override suspend fun deleteNote(note: Note): RepositoryResult<Unit> =

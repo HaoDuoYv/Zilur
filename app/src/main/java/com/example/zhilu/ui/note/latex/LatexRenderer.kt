@@ -1,5 +1,6 @@
 package com.example.zhilu.ui.note.latex
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.foundation.Image
@@ -169,6 +170,7 @@ suspend fun renderLatex(
  * @param textSizeSp 期望字号，单位 sp
  * @param color 公式前景色，默认跟随主题 onSurface
  */
+@SuppressLint("ProduceStateDoesNotAssignValue")
 @Composable
 fun rememberLatexImage(
     latex: String,

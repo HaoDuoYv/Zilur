@@ -24,5 +24,26 @@ object Migration {
         }
     }
 
-    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+    internal val MIGRATION_3_4: androidx.room.migration.Migration = object : androidx.room.migration.Migration(3, 4) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `note_cards` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `noteId` INTEGER NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `sortOrder` INTEGER NOT NULL,
+                    FOREIGN KEY(`noteId`) REFERENCES `notes`(`id`) ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_cards_noteId` ON `note_cards` (`noteId`)")
+            db.execSQL("ALTER TABLE note_blocks ADD COLUMN cardId INTEGER")
+            db.execSQL("ALTER TABLE note_blocks ADD COLUMN parentBranchId INTEGER")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_blocks_cardId` ON `note_blocks` (`cardId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_note_blocks_parentBranchId` ON `note_blocks` (`parentBranchId`)")
+        }
+    }
+
+    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
 }

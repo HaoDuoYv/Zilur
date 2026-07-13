@@ -7,7 +7,8 @@ enum class BlockType(val value: Int) {
     DIVIDER(4),
     LATEX(5),
     CODE(6),
-    TODO(7);
+    TODO(7),
+    BRANCH(8);
 
     companion object {
         fun fromValue(value: Int): BlockType = entries.firstOrNull { it.value == value } ?: TEXT
@@ -17,8 +18,10 @@ enum class BlockType(val value: Int) {
 data class Block(
     val id: Long = 0,
     val noteId: Long = 0,
+    val cardId: Long? = null,
     val type: BlockType = BlockType.TEXT,
     val content: String = "",
     val language: String = "",
-    val sortOrder: Int = 0
+    val sortOrder: Int = 0,
+    val parentBranchId: Long? = null
 )

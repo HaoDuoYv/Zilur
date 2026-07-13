@@ -10,6 +10,7 @@ import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
+import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderType
@@ -71,15 +72,22 @@ class NoteViewModel @Inject constructor(
     private var saveJob: Job? = null
     private var saveVersion: Long = 0L
     private var nextBlockId: Long = -1L
+    private var nextCardId: Long = -1L
+    private var currentCardId: Long = -1L
     private var _isDragging = false
     private val pendingRemovals = mutableMapOf<Long, PendingBlockRemoval>()
     private val removalConfirmJobs = mutableMapOf<Long, Job>()
     private var nextRemovalToken: Long = 1L
+    private val _branchExpandedStates = mutableMapOf<Long, Boolean>()
     private var todoObservationJob: Job? = null
     private var observedTodoNoteId: Long = 0L
     private var recordingReviewPlanId: Long? = null
 
     init {
+        currentCardId = nextCardId--
+        _uiState.update { state ->
+            state.copy(cards = knowledgeCardsFromBlocks(state.title, state.blocks))
+        }
         load(NoteRouteArgs.noteId(savedStateHandle))
         observeTags()
     }
@@ -91,19 +99,33 @@ class NoteViewModel @Inject constructor(
             when (val result = noteRepository.getNoteById(noteId)) {
                 is RepositoryResult.Success -> {
                     val note = result.data
+                    val isEditing = note == null
+                    currentCardId = nextCardId--
                     replaceBlocks(note?.blocks?.ifEmpty { defaultBlocks() } ?: defaultBlocks())
+                    initBranchExpandedStates(isEditing)
+                    val loadedBlocks = blocksForState()
+                    val cards = note?.cards?.takeIf { it.isNotEmpty() }
+                        ?: knowledgeCardsFromBlocks(note?.title.orEmpty(), loadedBlocks)
+                    val activeCardId = if (isEditing) cards.firstOrNull()?.id ?: currentCardId else null
+                    currentCardId = activeCardId ?: currentCardId
+                    replaceBlocks(cards.find { it.id == currentCardId }?.blocks ?: loadedBlocks)
                     _uiState.update {
                         it.copy(
                             noteId = note?.id ?: 0L,
                             title = note?.title.orEmpty(),
                             blocks = blocksForState(),
+                            cards = cards.map { card ->
+                                card.copy(isFocused = activeCardId != null && card.id == activeCardId)
+                            },
+                            activeCardId = activeCardId,
                             selectedTags = note?.tags.orEmpty(),
                             todoItems = emptyList(),
                             reviewPlan = null,
                             isReviewDue = false,
-                            isEditing = note == null,
+                            isEditing = isEditing,
                             isLoading = false,
-                            error = null
+                            error = null,
+                            branchExpandedStates = _branchExpandedStates.toMap()
                         )
                     }
                     note?.let {
@@ -121,43 +143,169 @@ class NoteViewModel @Inject constructor(
     }
 
     fun onTitleChange(value: String) {
-        _uiState.update { it.copy(title = value) }
+        _uiState.update { state ->
+            state.copy(
+                title = value,
+                cards = state.cards.map { card ->
+                    if (card.id == currentCardId) card.copy(title = value) else card
+                }
+            )
+        }
         scheduleSave()
     }
 
-    fun onBlockContentChange(blockIndex: Int, value: String) {
-        val block = _blocks.getOrNull(blockIndex) ?: return
-        _blocks[blockIndex] = block.copy(content = value)
+    fun onCardTitleChange(cardId: Long, value: String) {
+        _uiState.update { state ->
+            state.copy(
+                cards = state.cards.map { card ->
+                    if (card.id == cardId) card.copy(title = value) else card
+                }
+            )
+        }
+        if (cardId == currentCardId) {
+            _uiState.update { it.copy(title = value) }
+        }
+        scheduleSave()
+    }
+
+    fun focusCard(cardId: Long) {
+        if (cardId == currentCardId) {
+            _uiState.update { state ->
+                state.copy(
+                    activeCardId = cardId,
+                    cards = state.cards.map { it.copy(isFocused = it.id == cardId) }
+                )
+            }
+            return
+        }
+
+        val previousBlocks = blocksForState()
+        val targetCard = _uiState.value.cards.find { it.id == cardId }
+
+        _uiState.update { state ->
+            state.copy(
+                activeCardId = cardId,
+                cards = state.cards.map { card ->
+                    when {
+                        card.id == currentCardId -> card.copy(blocks = previousBlocks, isFocused = false)
+                        card.id == cardId -> card.copy(isFocused = true)
+                        else -> card.copy(isFocused = false)
+                    }
+                }
+            )
+        }
+
+        currentCardId = cardId
+        replaceBlocks(targetCard?.blocks?.ifEmpty { defaultBlocks() } ?: defaultBlocks())
+        syncBlocksToState()
+    }
+
+    fun addKnowledgeCard() {
+        val previousBlocks = blocksForState()
+        val newCardId = nextCardId--
+        val newCard = KnowledgeCard(
+            id = newCardId,
+            title = "",
+            blocks = emptyList(),
+            isExpanded = true,
+            isFocused = true
+        )
+
+        _uiState.update { state ->
+            state.copy(
+                activeCardId = newCardId,
+                cards = state.cards.map { card ->
+                    if (card.id == currentCardId) {
+                        card.copy(blocks = previousBlocks, isFocused = false)
+                    } else {
+                        card.copy(isFocused = false)
+                    }
+                } + newCard
+            )
+        }
+
+        currentCardId = newCardId
+        replaceBlocks(defaultBlocks())
         syncBlocksToState()
         scheduleSave()
     }
 
-    fun addBlock(type: BlockType) {
+    fun removeKnowledgeCard(cardId: Long) {
+        val currentCards = _uiState.value.cards
+        if (currentCards.size <= 1) return
+
+        val removedCard = currentCards.find { it.id == cardId } ?: return
+        val remainingCards = currentCards.filter { it.id != cardId }
+        removedCard.blocks.forEach { block ->
+            _branchExpandedStates.remove(block.id)
+        }
+
+        val newActiveCardId = when {
+            currentCardId != cardId -> currentCardId
+            remainingCards.isNotEmpty() -> remainingCards.first().id
+            else -> currentCardId
+        }
+
+        if (currentCardId == cardId) {
+            currentCardId = newActiveCardId
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                cards = remainingCards.map { card ->
+                    card.copy(isFocused = card.id == newActiveCardId)
+                },
+                activeCardId = newActiveCardId
+            )
+        }
+
+        val targetCard = _uiState.value.cards.find { it.id == currentCardId }
+        replaceBlocks(targetCard?.blocks?.ifEmpty { defaultBlocks() } ?: defaultBlocks())
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    fun onBlockContentChange(blockId: Long, value: String) {
+        val index = _blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        val block = _blocks[index]
+        _blocks[index] = block.copy(content = value)
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    fun addBlock(type: BlockType, parentBranchId: Long? = null) {
         val content = defaultContentFor(type)
+        val blockId = nextBlockId--
         _blocks += Block(
-            id = nextBlockId--,
+            id = blockId,
             type = type,
             content = content,
-            sortOrder = _blocks.size
+            sortOrder = _blocks.size,
+            parentBranchId = parentBranchId
         )
+        if (type == BlockType.BRANCH) {
+            _branchExpandedStates[blockId] = false
+        }
         syncBlocksToState()
         if (content.isNotBlank() || type == BlockType.DIVIDER || type == BlockType.TODO) {
             scheduleSave()
         }
     }
 
-    fun addImageBlock(uri: String) {
+    fun addImageBlock(uri: String, parentBranchId: Long? = null) {
         _blocks += Block(
             id = nextBlockId--,
             type = BlockType.IMAGE,
             content = uri,
-            sortOrder = _blocks.size
+            sortOrder = _blocks.size,
+            parentBranchId = parentBranchId
         )
         syncBlocksToState()
         scheduleSave()
     }
 
-    fun addImageFromGallery(uri: Uri) {
+    fun addImageFromGallery(uri: Uri, parentBranchId: Long? = null) {
         _uiState.update { it.copy(isProcessingImage = true, error = null) }
         viewModelScope.launch {
             try {
@@ -180,7 +328,7 @@ class NoteViewModel @Inject constructor(
                 )
                 when (val result = mediaRepository.insertMedia(media)) {
                     is RepositoryResult.Success -> {
-                        addImageBlock(ImageBlockContent.fromMedia(result.data, internalUri))
+                        addImageBlock(ImageBlockContent.fromMedia(result.data, internalUri), parentBranchId)
                         _uiState.update { it.copy(isProcessingImage = false, error = null) }
                     }
                     is RepositoryResult.Error -> {
@@ -192,6 +340,24 @@ class NoteViewModel @Inject constructor(
                 _uiState.update { it.copy(isProcessingImage = false, error = e.message ?: "保存图片失败") }
             }
         }
+    }
+
+    fun addBlockToActiveCard(type: BlockType) {
+        val activeCardId = _uiState.value.activeCardId ?: return
+        focusCard(activeCardId)
+        addBlock(type)
+    }
+
+    fun addImageToActiveCardFromGallery(uri: Uri) {
+        val activeCardId = _uiState.value.activeCardId ?: return
+        focusCard(activeCardId)
+        addImageFromGallery(uri)
+    }
+
+    fun addImageToActiveCardFromCamera(uri: String) {
+        val activeCardId = _uiState.value.activeCardId ?: return
+        focusCard(activeCardId)
+        addImageBlock(uri)
     }
 
     private fun resolveImageExtension(uri: Uri): String {
@@ -208,8 +374,10 @@ class NoteViewModel @Inject constructor(
         runCatching { delete() }
     }
 
-    fun setBlockLanguage(index: Int, language: String) {
-        val block = _blocks.getOrNull(index) ?: return
+    fun setBlockLanguage(blockId: Long, language: String) {
+        val index = _blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        val block = _blocks[index]
         _blocks[index] = block.copy(language = language)
         syncBlocksToState()
         scheduleSave()
@@ -219,32 +387,59 @@ class NoteViewModel @Inject constructor(
         _isDragging = dragging
     }
 
-    fun moveBlock(fromIndex: Int, toIndex: Int) {
-        if (fromIndex !in _blocks.indices || toIndex !in 0.._blocks.size) return
-        if (fromIndex == toIndex || (fromIndex == _blocks.lastIndex && toIndex == _blocks.size)) return
-        val block = _blocks.removeAt(fromIndex)
-        _blocks.add(toIndex.coerceIn(0, _blocks.size), block)
+    fun moveBlock(fromId: Long, toId: Long) {
+        val fromBlock = _blocks.find { it.id == fromId } ?: return
+        val toBlock = _blocks.find { it.id == toId } ?: return
+        if (fromBlock.id == toBlock.id) return
+        if (fromBlock.parentBranchId != null || toBlock.parentBranchId != null) return
+
+        val fromIndex = _blocks.indexOfFirst { it.id == fromId }
+        val toIndex = _blocks.indexOfFirst { it.id == toId }
+        if (fromIndex < 0 || toIndex < 0) return
+
+        if (fromBlock.type == BlockType.BRANCH) {
+            val children = _blocks.filter { it.parentBranchId == fromId }
+            val group = listOf(fromBlock) + children
+            _blocks.removeAll(group)
+            val newToIndex = _blocks.indexOfFirst { it.id == toId }
+            val insertIndex = if (fromIndex < toIndex) newToIndex + 1 else newToIndex
+            _blocks.addAll(insertIndex.coerceIn(0, _blocks.size), group)
+        } else {
+            _blocks.removeAt(fromIndex)
+            val newToIndex = _blocks.indexOfFirst { it.id == toId }
+            _blocks.add(newToIndex.coerceIn(0, _blocks.size), fromBlock)
+        }
         syncBlocksToState()
         if (!_isDragging) scheduleSave()
     }
 
-    fun removeBlock(index: Int) {
-        val block = _blocks.getOrNull(index) ?: return
+    fun removeBlock(blockId: Long) {
+        val block = _blocks.find { it.id == blockId } ?: return
         if (block.type == BlockType.TODO && _uiState.value.todoItems.isNotEmpty()) {
             _uiState.update { it.copy(error = "TODO block still has linked items.") }
             return
         }
-        val removed = _blocks.removeAt(index)
+        val removedIndex = _blocks.indexOfFirst { it.id == blockId }
+        val removed = if (block.type == BlockType.BRANCH) {
+            val group = listOf(block) + _blocks.filter { it.parentBranchId == blockId }
+            _blocks.removeAll(group)
+            group.first()
+        } else {
+            _blocks.removeAt(removedIndex)
+        }
+        if (block.type == BlockType.BRANCH) {
+            _branchExpandedStates.remove(blockId)
+        }
         if (_blocks.isEmpty()) {
             _blocks.addAll(defaultBlocks())
         }
         val token = nextRemovalToken++
         pendingRemovals[token] = PendingBlockRemoval(
             block = removed,
-            index = index.coerceAtMost(_blocks.size)
+            index = removedIndex.coerceAtMost(_blocks.size)
         )
         syncBlocksToState()
-        _uiEvents.trySend(UiEvent.ShowUndoSnackbar(removed, index, token))
+        _uiEvents.trySend(UiEvent.ShowUndoSnackbar(removed, removedIndex, token))
         removalConfirmJobs[token]?.cancel()
         removalConfirmJobs[token] = viewModelScope.launch {
             delay(5_000)
@@ -280,6 +475,61 @@ class NoteViewModel @Inject constructor(
         removalConfirmJobs.remove(token)?.cancel()
     }
 
+    fun isBranchExpanded(branchId: Long): Boolean =
+        _branchExpandedStates[branchId] ?: false
+
+    fun toggleBranchExpanded(branchId: Long) {
+        _branchExpandedStates[branchId] = !isBranchExpanded(branchId)
+        syncBlocksToState()
+    }
+
+    fun addBranchChildBlock(branchId: Long, type: BlockType) {
+        val branchIndex = _blocks.indexOfFirst { it.id == branchId && it.type == BlockType.BRANCH }
+        if (branchIndex < 0) return
+        val childIndices = _blocks.indices.filter { _blocks[it].parentBranchId == branchId }
+        val insertIndex = if (childIndices.isEmpty()) branchIndex + 1 else childIndices.last() + 1
+        _blocks.add(
+            insertIndex.coerceIn(0, _blocks.size),
+            Block(
+                id = nextBlockId--,
+                type = type,
+                content = defaultContentFor(type),
+                sortOrder = insertIndex,
+                parentBranchId = branchId
+            )
+        )
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    fun addBranchChildImageBlock(branchId: Long, uri: String) {
+        val branchIndex = _blocks.indexOfFirst { it.id == branchId && it.type == BlockType.BRANCH }
+        if (branchIndex < 0) return
+        val childIndices = _blocks.indices.filter { _blocks[it].parentBranchId == branchId }
+        val insertIndex = if (childIndices.isEmpty()) branchIndex + 1 else childIndices.last() + 1
+        _blocks.add(
+            insertIndex.coerceIn(0, _blocks.size),
+            Block(
+                id = nextBlockId--,
+                type = BlockType.IMAGE,
+                content = uri,
+                sortOrder = insertIndex,
+                parentBranchId = branchId
+            )
+        )
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    private fun initBranchExpandedStates(isEditing: Boolean) {
+        _branchExpandedStates.clear()
+        _blocks.forEach { block ->
+            if (block.type == BlockType.BRANCH) {
+                _branchExpandedStates[block.id] = !isEditing
+            }
+        }
+    }
+
     fun toggleTag(tag: Tag) {
         _uiState.update { state ->
             val selected = if (state.selectedTags.any { it.id == tag.id }) {
@@ -313,7 +563,19 @@ class NoteViewModel @Inject constructor(
     }
 
     fun startEditing() {
-        _uiState.update { it.copy(isEditing = true) }
+        val activeCardId = _uiState.value.activeCardId
+            ?: _uiState.value.cards.firstOrNull()?.id
+            ?: currentCardId
+        _uiState.update { state ->
+            state.copy(
+                isEditing = true,
+                activeCardId = activeCardId,
+                cards = state.cards.map { card ->
+                    card.copy(isFocused = card.id == activeCardId)
+                }
+            )
+        }
+        focusCard(activeCardId)
     }
 
     fun startReviewPlan(now: Long = System.currentTimeMillis()) {
@@ -443,11 +705,37 @@ class NoteViewModel @Inject constructor(
     }
 
     private fun syncBlocksToState() {
-        _uiState.update { it.copy(blocks = blocksForState()) }
+        val blocks = blocksForState()
+        _uiState.update { state ->
+            state.copy(
+                blocks = blocks,
+                cards = if (state.cards.isEmpty()) {
+                    knowledgeCardsFromBlocks(state.title, blocks)
+                } else {
+                    state.cards.map { card ->
+                        if (card.id == currentCardId) card.copy(blocks = blocks) else card
+                    }
+                },
+                branchExpandedStates = _branchExpandedStates.toMap()
+            )
+        }
     }
 
     private fun blocksForState(): List<Block> =
         _blocks.mapIndexed { index, block -> block.copy(sortOrder = index) }
+
+    private fun knowledgeCardsFromBlocks(
+        title: String,
+        blocks: List<Block>
+    ): List<KnowledgeCard> = listOf(
+        KnowledgeCard(
+            id = currentCardId,
+            title = title,
+            blocks = blocks,
+            isExpanded = true,
+            isFocused = false
+        )
+    )
 
     private suspend fun loadAndApplyReviewPlan(noteId: Long) {
         when (val result = reviewRepository.getPlanByNoteId(noteId)) {
@@ -551,7 +839,8 @@ class NoteViewModel @Inject constructor(
             _uiState.update { it.copy(isSaving = true, saveStatus = SaveStatus.SAVING) }
             when (val result = noteRepository.insertNote(_uiState.value.toNote())) {
                 is RepositoryResult.Success -> {
-                    val newId = result.data
+                    val savedNote = result.data
+                    val newId = savedNote.id
                     _uiState.update {
                         it.copy(
                             noteId = newId,
@@ -618,7 +907,22 @@ class NoteViewModel @Inject constructor(
             }
             when (result) {
                 is RepositoryResult.Success -> {
-                    val newId = if (state.noteId == 0L && result.data is Long) result.data else state.noteId
+                    val savedNote = result.data
+                    val newId = savedNote.id
+                    val cardIdMap = state.cards.mapIndexed { index, card ->
+                        card.id to savedNote.cards.getOrNull(index)?.id
+                    }.toMap()
+                    val blockIdMap = buildMap {
+                        var blockOffset = 0
+                        state.cards.forEach { card ->
+                            card.blocks.forEachIndexed { index, block ->
+                                savedNote.blocks.getOrNull(blockOffset + index)?.let { savedBlock ->
+                                    put(block.id, savedBlock.id)
+                                }
+                            }
+                            blockOffset += card.blocks.size
+                        }
+                    }
                     if (version == saveVersion) {
                         _uiState.update {
                             it.copy(
@@ -626,7 +930,24 @@ class NoteViewModel @Inject constructor(
                                 isEditing = if (exitEditMode) false else it.isEditing,
                                 isSaving = false,
                                 saveStatus = SaveStatus.SAVED,
-                                lastSavedAt = System.currentTimeMillis()
+                                lastSavedAt = System.currentTimeMillis(),
+                                cards = it.cards.map { card ->
+                                    val savedId = cardIdMap[card.id]
+                                    card.copy(
+                                        id = savedId ?: card.id,
+                                        blocks = card.blocks.map { block ->
+                                            block.copy(
+                                                id = blockIdMap[block.id] ?: block.id,
+                                                noteId = newId,
+                                                cardId = savedId ?: card.id,
+                                                parentBranchId = block.parentBranchId?.let { pid ->
+                                                    blockIdMap[pid] ?: pid
+                                                }
+                                            )
+                                        }
+                                    )
+                                },
+                                activeCardId = it.activeCardId?.let { id -> cardIdMap[id] ?: id }
                             )
                         }
                     } else if (state.noteId == 0L && newId > 0L) {
@@ -634,6 +955,17 @@ class NoteViewModel @Inject constructor(
                     }
                     if (state.noteId == 0L && newId > 0L) {
                         observeTodos(newId)
+                    }
+                    currentCardId = cardIdMap[currentCardId] ?: currentCardId
+                    _blocks.replaceAll { block ->
+                        block.copy(
+                            id = blockIdMap[block.id] ?: block.id,
+                            noteId = newId,
+                            cardId = cardIdMap[block.cardId] ?: block.cardId,
+                            parentBranchId = block.parentBranchId?.let { pid ->
+                                blockIdMap[pid] ?: pid
+                            }
+                        )
                     }
                 }
                 is RepositoryResult.Error -> {
@@ -648,7 +980,7 @@ class NoteViewModel @Inject constructor(
     }
 
     private fun defaultBlocks(): List<Block> = listOf(
-        Block(type = BlockType.TEXT, content = "", sortOrder = 0)
+        Block(id = nextBlockId--, type = BlockType.TEXT, content = "", sortOrder = 0)
     )
 
     private fun defaultContentFor(type: BlockType): String = when (type) {
@@ -659,6 +991,7 @@ class NoteViewModel @Inject constructor(
         BlockType.CODE -> ""
         BlockType.DIVIDER -> ""
         BlockType.TODO -> ""
+        BlockType.BRANCH -> ""
     }
 
     private suspend fun scheduleTodoReminder(todoId: Long, noteId: Long, dueAt: Long) {

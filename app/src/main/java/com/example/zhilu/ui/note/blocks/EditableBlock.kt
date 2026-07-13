@@ -57,7 +57,15 @@ fun EditableBlock(
     onUpdateTodo: ((TodoItem) -> Unit)? = null,
     onCompleteTodo: ((Long) -> Unit)? = null,
     onToggleCompletedTodos: (() -> Unit)? = null,
-    onImageClick: (() -> Unit)? = null
+    onImageClick: (() -> Unit)? = null,
+    branchChildBlocks: List<Block> = emptyList(),
+    isBranchExpanded: Boolean = false,
+    onBranchTitleChange: (String) -> Unit = {},
+    onToggleBranchExpanded: () -> Unit = {},
+    onBranchChildValueChange: (Long, String) -> Unit = { _, _ -> },
+    onBranchChildLanguageClick: (Long) -> Unit = {},
+    onRemoveBranchChild: (Long) -> Unit = {},
+    onAddBranchChild: (BlockType) -> Unit = {}
 ) {
     val currentOnRemove by rememberUpdatedState(onRemove)
     var removeRequested by remember(block.id, index) { mutableStateOf(false) }
@@ -121,31 +129,31 @@ fun EditableBlock(
             enableDismissFromEndToStart = true,
             backgroundContent = { DeleteBackground() }
         ) {
-            if (block.type == BlockType.DIVIDER) {
-                DividerBlockView(
-                    readOnly = false,
-                    isDragging = isDragging,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                BlockCard(
-                    block = block,
-                    isEditing = true,
-                    onValueChange = onValueChange,
-                    onLanguageClick = onLanguageClick,
-                    onDelete = onRemove,
-                    onMoveUp = onMoveUp.takeIf { index > 0 },
-                    onMoveDown = onMoveDown.takeIf { index < total - 1 },
-                    isDragging = isDragging,
-                    todoItems = todoItems,
-                    showCompletedTodos = showCompletedTodos,
-                    onCreateTodo = onCreateTodo,
-                    onUpdateTodo = onUpdateTodo,
-                    onCompleteTodo = onCompleteTodo,
-                    onToggleCompletedTodos = onToggleCompletedTodos,
-                    onImageClick = onImageClick
-                )
-            }
+            BlockCard(
+                block = block,
+                isEditing = true,
+                onValueChange = onValueChange,
+                onLanguageClick = onLanguageClick,
+                onDelete = onRemove,
+                onMoveUp = onMoveUp.takeIf { index > 0 },
+                onMoveDown = onMoveDown.takeIf { index < total - 1 },
+                isDragging = isDragging,
+                todoItems = todoItems,
+                showCompletedTodos = showCompletedTodos,
+                onCreateTodo = onCreateTodo,
+                onUpdateTodo = onUpdateTodo,
+                onCompleteTodo = onCompleteTodo,
+                onToggleCompletedTodos = onToggleCompletedTodos,
+                onImageClick = onImageClick,
+                branchChildBlocks = branchChildBlocks,
+                isBranchExpanded = isBranchExpanded,
+                onBranchTitleChange = onBranchTitleChange,
+                onToggleBranchExpanded = onToggleBranchExpanded,
+                onBranchChildValueChange = onBranchChildValueChange,
+                onBranchChildLanguageClick = onBranchChildLanguageClick,
+                onRemoveBranchChild = onRemoveBranchChild,
+                onAddBranchChild = onAddBranchChild
+            )
         }
     }
 }

@@ -2,6 +2,7 @@ package com.example.zhilu.ui.note
 
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.Tag
@@ -20,6 +21,8 @@ data class NoteUiState(
     val blocks: List<Block> = listOf(
         Block(type = BlockType.TEXT, content = "", sortOrder = 0)
     ),
+    val cards: List<KnowledgeCard> = emptyList(),
+    val activeCardId: Long? = null,
     val selectedTags: List<Tag> = emptyList(),
     val availableTags: List<Tag> = emptyList(),
     val todoItems: List<TodoItem> = emptyList(),
@@ -33,13 +36,35 @@ data class NoteUiState(
     val saveStatus: SaveStatus = SaveStatus.IDLE,
     val lastSavedAt: Long? = null,
     val isProcessingImage: Boolean = false,
+    val branchExpandedStates: Map<Long, Boolean> = emptyMap(),
     val error: String? = null
 ) {
-    fun toNote(): Note = Note(
-        id = noteId,
-        title = title,
-        updatedAt = System.currentTimeMillis(),
-        blocks = blocks.mapIndexed { index, block -> block.copy(sortOrder = index) },
-        tags = selectedTags
-    )
+    fun toNote(): Note {
+        val effectiveCards = cards.takeIf { it.isNotEmpty() }
+            ?: listOf(
+                KnowledgeCard(
+                    id = 0L,
+                    title = title,
+                    blocks = blocks,
+                    isExpanded = true,
+                    isFocused = false
+                )
+            )
+        val flattenedBlocks = effectiveCards.flatMapIndexed { cardIndex, card ->
+            card.blocks.mapIndexed { blockIndex, block ->
+                block.copy(
+                    cardId = card.id,
+                    sortOrder = cardIndex * 10_000 + blockIndex
+                )
+            }
+        }
+        return Note(
+            id = noteId,
+            title = title,
+            updatedAt = System.currentTimeMillis(),
+            blocks = flattenedBlocks,
+            cards = effectiveCards,
+            tags = selectedTags
+        )
+    }
 }

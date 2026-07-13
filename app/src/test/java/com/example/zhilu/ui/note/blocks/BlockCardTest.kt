@@ -20,7 +20,8 @@ class BlockCardTest {
                 BlockType.LATEX to "公式",
                 BlockType.CODE to "代码",
                 BlockType.DIVIDER to "分割线",
-                BlockType.TODO to "待办"
+                BlockType.TODO to "待办",
+                BlockType.BRANCH to "分支"
             ),
             labels
         )

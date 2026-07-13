@@ -8,5 +8,6 @@ data class Note(
     val isFavorite: Boolean = false,
     val deletedAt: Long? = null,
     val blocks: List<Block> = emptyList(),
+    val cards: List<KnowledgeCard> = emptyList(),
     val tags: List<Tag> = emptyList()
 )

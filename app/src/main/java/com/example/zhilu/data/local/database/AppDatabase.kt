@@ -5,6 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.example.zhilu.data.local.dao.MediaDao
 import com.example.zhilu.data.local.dao.NoteBlockDao
+import com.example.zhilu.data.local.dao.NoteCardDao
 import com.example.zhilu.data.local.dao.NoteDao
 import com.example.zhilu.data.local.dao.ReminderDao
 import com.example.zhilu.data.local.dao.ReviewDao
@@ -12,6 +13,7 @@ import com.example.zhilu.data.local.dao.TagDao
 import com.example.zhilu.data.local.dao.TodoDao
 import com.example.zhilu.data.local.entity.MediaEntity
 import com.example.zhilu.data.local.entity.NoteBlockEntity
+import com.example.zhilu.data.local.entity.NoteCardEntity
 import com.example.zhilu.data.local.entity.NoteEntity
 import com.example.zhilu.data.local.entity.NoteTagEntity
 import com.example.zhilu.data.local.entity.ReminderInstanceEntity
@@ -26,13 +28,14 @@ import com.example.zhilu.data.local.entity.TodoItemEntity
         TagEntity::class,
         NoteTagEntity::class,
         NoteBlockEntity::class,
+        NoteCardEntity::class,
         MediaEntity::class,
         ReviewPlanEntity::class,
         ReviewEventEntity::class,
         TodoItemEntity::class,
         ReminderInstanceEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -40,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun noteDao(): NoteDao
     abstract fun tagDao(): TagDao
     abstract fun noteBlockDao(): NoteBlockDao
+    abstract fun noteCardDao(): NoteCardDao
     abstract fun mediaDao(): MediaDao
     abstract fun reviewDao(): ReviewDao
     abstract fun todoDao(): TodoDao

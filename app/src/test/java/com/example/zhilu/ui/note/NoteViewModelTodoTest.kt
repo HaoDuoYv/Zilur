@@ -259,9 +259,9 @@ class NoteViewModelTodoTest {
         advanceUntilIdle()
         viewModel.addBlock(BlockType.TODO)
         advanceUntilIdle()
-        val todoBlockIndex = viewModel.uiState.value.blocks.indexOfFirst { it.type == BlockType.TODO }
+        val todoBlock = viewModel.uiState.value.blocks.first { it.type == BlockType.TODO }
 
-        viewModel.removeBlock(todoBlockIndex)
+        viewModel.removeBlock(todoBlock.id)
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.blocks.any { it.type == BlockType.TODO })
@@ -383,14 +383,14 @@ private class TodoTestNoteRepository(
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
-    override suspend fun insertNote(note: Note): RepositoryResult<Long> {
+    override suspend fun insertNote(note: Note): RepositoryResult<Note> {
         if (insertError) return RepositoryResult.Error("Insert failed")
         insertedNotes += note
-        return RepositoryResult.Success(insertedId)
+        return RepositoryResult.Success(note.copy(id = insertedId))
     }
 
-    override suspend fun updateNote(note: Note): RepositoryResult<Unit> =
-        RepositoryResult.Success(Unit)
+    override suspend fun updateNote(note: Note): RepositoryResult<Note> =
+        RepositoryResult.Success(note)
 
     override suspend fun deleteNote(note: Note): RepositoryResult<Unit> =
         RepositoryResult.Success(Unit)
