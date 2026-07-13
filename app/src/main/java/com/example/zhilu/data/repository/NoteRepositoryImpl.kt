@@ -116,9 +116,10 @@ class NoteRepositoryImpl(
         } else {
             val cardIds = cards.map { it.id }.toSet()
             val (matched, orphans) = blocks.partition { it.cardId in cardIds }
-            cards.map { card ->
-                val cardBlocks = matched.filter { it.cardId == card.id }.toMutableList()
-                if (card == cards.first()) {
+            val matchedByCardId = matched.groupBy { it.cardId }
+            cards.mapIndexed { index, card ->
+                val cardBlocks = matchedByCardId[card.id].orEmpty().toMutableList()
+                if (index == 0) {
                     cardBlocks.addAll(orphans)
                 }
                 CardMapper.toDomain(
