@@ -9,6 +9,7 @@ import com.example.zhilu.data.local.database.AppDatabase
 import com.example.zhilu.data.local.entity.NoteBlockEntity
 import com.example.zhilu.data.local.entity.NoteCardEntity
 import com.example.zhilu.data.local.entity.NoteEntity
+import com.example.zhilu.data.local.entity.TagEntity
 import com.example.zhilu.domain.model.BlockType
 import io.mockk.coEvery
 import io.mockk.mockk
@@ -33,18 +34,18 @@ class NoteRepositoryImplTest {
     )
 
     @Test
-    fun `hydrate merges orphan blocks into first card when cardId mismatch`() = runTest {
+    fun `hydrate appends orphan blocks after matched blocks with reassigned sortOrder`() = runTest {
         val noteId = 1L
         val noteEntity = noteEntity(noteId)
         val cardEntity = NoteCardEntity(id = 10L, noteId = noteId, title = "卡片", sortOrder = 0)
-        val orphanBlock = textBlock(id = 100L, cardId = null, content = "orphan", sortOrder = 0)
         val matchedBlock = textBlock(id = 101L, cardId = 10L, content = "matched", sortOrder = 1)
+        val orphanBlock = textBlock(id = 100L, cardId = null, content = "orphan", sortOrder = 0)
 
         mockHydrate(
             noteId = noteId,
             noteEntity = noteEntity,
             cards = listOf(cardEntity),
-            blocks = listOf(orphanBlock, matchedBlock),
+            blocks = listOf(matchedBlock, orphanBlock),
             tags = emptyList()
         )
 
@@ -53,7 +54,33 @@ class NoteRepositoryImplTest {
 
         assertEquals(1, note.cards.size)
         assertEquals(2, note.cards.first().blocks.size)
-        assertEquals("orphan", note.cards.first().blocks.first().content)
+        assertEquals(listOf("matched", "orphan"), note.cards.first().blocks.map { it.content })
+        assertEquals(listOf(1, 2), note.cards.first().blocks.map { it.sortOrder })
+    }
+
+    @Test
+    fun `hydrate treats stale cardId reference as orphan and appends to first card`() = runTest {
+        val noteId = 5L
+        val noteEntity = noteEntity(noteId)
+        val cardEntity = NoteCardEntity(id = 10L, noteId = noteId, title = "卡片", sortOrder = 0)
+        val matchedBlock = textBlock(id = 101L, cardId = 10L, content = "matched", sortOrder = 1)
+        val staleReferenceBlock = textBlock(id = 100L, cardId = 999L, content = "stale reference", sortOrder = 0)
+
+        mockHydrate(
+            noteId = noteId,
+            noteEntity = noteEntity,
+            cards = listOf(cardEntity),
+            blocks = listOf(matchedBlock, staleReferenceBlock),
+            tags = emptyList()
+        )
+
+        val result = repository.getNoteById(noteId)
+        val note = assertSuccess(result)
+
+        assertEquals(1, note.cards.size)
+        assertEquals(2, note.cards.first().blocks.size)
+        assertEquals(listOf("matched", "stale reference"), note.cards.first().blocks.map { it.content })
+        assertEquals(listOf(1, 2), note.cards.first().blocks.map { it.sortOrder })
     }
 
     @Test
@@ -161,7 +188,7 @@ class NoteRepositoryImplTest {
         noteEntity: NoteEntity,
         cards: List<NoteCardEntity>,
         blocks: List<NoteBlockEntity>,
-        tags: List<com.example.zhilu.data.local.entity.TagEntity>
+        tags: List<TagEntity>
     ) {
         coEvery { noteDao.getById(noteId) } returns noteEntity
         coEvery { noteCardDao.getByNoteIdOnce(noteId) } returns cards

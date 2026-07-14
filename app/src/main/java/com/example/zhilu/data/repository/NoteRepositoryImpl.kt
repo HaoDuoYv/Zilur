@@ -119,8 +119,13 @@ class NoteRepositoryImpl(
             val matchedByCardId = matched.groupBy { it.cardId }
             cards.mapIndexed { index, card ->
                 val cardBlocks = matchedByCardId[card.id].orEmpty().toMutableList()
-                if (index == 0) {
-                    cardBlocks.addAll(orphans)
+                if (index == 0 && orphans.isNotEmpty()) {
+                    val nextSortOrder = (cardBlocks.maxOfOrNull { it.sortOrder } ?: -1) + 1
+                    val sortedOrphans = orphans.sortedBy { it.sortOrder }
+                    val reassignedOrphans = sortedOrphans.mapIndexed { orphanIndex, block ->
+                        block.copy(sortOrder = nextSortOrder + orphanIndex)
+                    }
+                    cardBlocks.addAll(reassignedOrphans)
                 }
                 CardMapper.toDomain(
                     entity = card,
