@@ -206,6 +206,7 @@ class NoteViewModel @Inject constructor(
 
     fun addKnowledgeCard() {
         val previousBlocks = blocksForState()
+        ensureCurrentCardExists(previousBlocks)
         val newCardId = nextCardId--
         val newCard = KnowledgeCard(
             id = newCardId,
@@ -232,6 +233,19 @@ class NoteViewModel @Inject constructor(
         replaceBlocks(defaultBlocks())
         syncBlocksToState()
         scheduleSave()
+    }
+
+    private fun ensureCurrentCardExists(currentBlocks: List<Block>) {
+        val state = _uiState.value
+        if (state.cards.any { it.id == currentCardId }) return
+        val fallbackCard = KnowledgeCard(
+            id = currentCardId,
+            title = state.title,
+            blocks = currentBlocks,
+            isExpanded = true,
+            isFocused = false
+        )
+        _uiState.update { it.copy(cards = it.cards + fallbackCard) }
     }
 
     fun removeKnowledgeCard(cardId: Long) {
@@ -763,14 +777,12 @@ class NoteViewModel @Inject constructor(
     private fun syncBlocksToState() {
         val blocks = blocksForState()
         _uiState.update { state ->
+            val cards = state.cards.takeIf { it.isNotEmpty() }
+                ?: knowledgeCardsFromBlocks(state.title, blocks)
             state.copy(
                 blocks = blocks,
-                cards = if (state.cards.isEmpty()) {
-                    knowledgeCardsFromBlocks(state.title, blocks)
-                } else {
-                    state.cards.map { card ->
-                        if (card.id == currentCardId) card.copy(blocks = blocks) else card
-                    }
+                cards = cards.map { card ->
+                    if (card.id == currentCardId) card.copy(blocks = blocks) else card
                 },
                 branchExpandedStates = _branchExpandedStates.toMap()
             )
