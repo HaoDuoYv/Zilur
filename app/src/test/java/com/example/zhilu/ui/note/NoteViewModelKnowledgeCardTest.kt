@@ -129,7 +129,7 @@ class NoteViewModelKnowledgeCardTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("应存在两张卡片", 2, state.cards.size)
+        assertEquals("应存在三张卡片（原卡片、兜底卡片、新卡片）", 3, state.cards.size)
         assertNotNull("新建卡片后应有活跃卡片", state.activeCardId)
 
         val newCard = state.cards.last()
@@ -282,14 +282,14 @@ class NoteViewModelKnowledgeCardTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("应只剩一张卡片", 1, state.cards.size)
-        assertEquals("剩余卡片应为第一张", firstCard.id, state.cards[0].id)
+        assertEquals("应剩两张卡片（原卡片 + 兜底卡片）", 2, state.cards.size)
+        assertEquals("剩余第一张应为第一张", firstCard.id, state.cards[0].id)
         assertEquals("活跃卡片应切换到剩余第一张", firstCard.id, state.activeCardId)
         assertTrue("剩余卡片应处于聚焦状态", state.cards[0].isFocused)
     }
 
     @Test
-    fun removeLastKnowledgeCardIsIgnored() = runTest(dispatcher) {
+    fun removeLastKnowledgeCardFallsBackToPreservedBlocks() = runTest(dispatcher) {
         val note = noteWithSingleCard()
         val viewModel = createViewModel(note)
         advanceUntilIdle()
@@ -302,8 +302,8 @@ class NoteViewModelKnowledgeCardTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("仅剩一张卡片时不应被删除", 1, state.cards.size)
-        assertEquals("活跃卡片应保持不变", firstCard.id, state.activeCardId)
+        assertEquals("原卡片删除后应只剩兜底卡片", 1, state.cards.size)
+        assertTrue("兜底卡片应处于聚焦状态", state.cards[0].isFocused)
     }
 
     private fun createViewModel(note: Note): NoteViewModel = NoteViewModel(

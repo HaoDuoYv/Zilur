@@ -112,6 +112,59 @@ class NoteViewModelBlockOpsTest {
             state.blocks.map { it.content }
         )
     }
+
+    @Test
+    fun `focusCard creates fallback card when currentCardId is not in state cards`() = runTest(dispatcher) {
+        // 旧笔记加载后 currentCardId 是 ViewModel 新生成的 ID，不在 state.cards 中；
+        // 直接聚焦到已有卡片时，应通过 ensureCurrentCardExists 创建兜底卡片，
+        // 保留当前编辑器中的内容，避免旧块丢失。
+        val note = Note(
+            id = 99L,
+            title = "损坏的旧笔记",
+            blocks = listOf(
+                Block(id = 10L, type = BlockType.TEXT, content = "旧内容", sortOrder = 0)
+            ),
+            cards = listOf(
+                KnowledgeCard(
+                    id = 1L,
+                    title = "卡片1",
+                    blocks = listOf(
+                        Block(id = 10L, type = BlockType.TEXT, content = "旧内容", sortOrder = 0)
+                    )
+                )
+            )
+        )
+        val viewModel = NoteViewModel(
+            noteRepository = BlockOpsTestNoteRepository(note),
+            tagRepository = BlockOpsTestTagRepository(),
+            reviewRepository = BlockOpsTestReviewRepository(),
+            todoRepository = BlockOpsTestTodoRepository(),
+            reminderRepository = BlockOpsTestReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            context = mockk(relaxed = true),
+            savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
+        )
+        advanceUntilIdle()
+
+        viewModel.focusCard(1L)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("应为原卡片和兜底卡片共 2 张", 2, state.cards.size)
+        assertEquals("活跃卡片应切换到目标卡片", 1L, state.activeCardId)
+
+        val targetCard = state.cards.find { it.id == 1L }
+        assertNotNull("目标卡片应存在", targetCard)
+        assertTrue("目标卡片应处于聚焦状态", targetCard!!.isFocused)
+
+        val fallbackCard = state.cards.first { it.id != 1L }
+        assertEquals(
+            "兜底卡片应保留编辑器切换前的旧内容",
+            listOf("旧内容"),
+            fallbackCard.blocks.map { it.content }
+        )
+        assertTrue("兜底卡片不应处于聚焦状态", !fallbackCard.isFocused)
+    }
 }
 
 private class BlockOpsTestNoteRepository(

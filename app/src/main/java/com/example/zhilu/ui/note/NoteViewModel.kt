@@ -184,6 +184,7 @@ class NoteViewModel @Inject constructor(
         }
 
         val previousBlocks = blocksForState()
+        ensureCurrentCardExists(previousBlocks)
         val targetCard = _uiState.value.cards.find { it.id == cardId }
 
         _uiState.update { state ->
