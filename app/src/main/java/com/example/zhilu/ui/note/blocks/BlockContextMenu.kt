@@ -4,11 +4,13 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.DpOffset
 
 @Composable
 fun BlockContextMenu(
     expanded: Boolean,
     onDismiss: () -> Unit,
+    offset: DpOffset = DpOffset.Zero,
     canMoveUp: Boolean,
     canMoveDown: Boolean,
     onInsertAbove: () -> Unit,
@@ -20,6 +22,7 @@ fun BlockContextMenu(
 ) {
     DropdownMenu(
         expanded = expanded,
+        offset = offset,
         onDismissRequest = onDismiss
     ) {
         DropdownMenuItem(

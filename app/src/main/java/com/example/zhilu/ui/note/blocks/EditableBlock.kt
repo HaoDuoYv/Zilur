@@ -27,9 +27,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.example.zhilu.domain.model.Block
@@ -96,6 +100,24 @@ fun EditableBlock(
     var showTopIndicator by remember(block.id, index) { mutableStateOf(false) }
     var showBottomIndicator by remember(block.id, index) { mutableStateOf(false) }
     var showMenu by remember(block.id, index) { mutableStateOf(false) }
+    var menuOffset by remember(block.id, index) { mutableStateOf(DpOffset.Zero) }
+    val density = LocalDensity.current
+
+    val tapModifier = if (onDrag == null) {
+        Modifier.pointerInput(block.id) {
+            detectTapGestures(
+                onLongPress = { offsetPx ->
+                    menuOffset = with(density) {
+                        DpOffset(offsetPx.x.toDp(), offsetPx.y.toDp())
+                    }
+                    showMenu = true
+                    onLongClick?.invoke()
+                }
+            )
+        }
+    } else {
+        Modifier
+    }
 
     val dragModifier = if (onDrag != null) {
         Modifier
@@ -104,7 +126,7 @@ fun EditableBlock(
                     onDragStart = { onDragStart?.invoke() },
                     onDragEnd = { onDragEnd?.invoke() },
                     onDragCancel = { onDragEnd?.invoke() },
-                    onDrag = { change: androidx.compose.ui.input.pointer.PointerInputChange, dragAmount: androidx.compose.ui.geometry.Offset ->
+                    onDrag = { change: PointerInputChange, dragAmount: Offset ->
                         change.consume()
                         onDrag(dragAmount.y)
                     }
@@ -120,7 +142,7 @@ fun EditableBlock(
     }
 
     Column(
-        modifier = modifier.then(dragModifier)
+        modifier = modifier.then(dragModifier).then(tapModifier)
     ) {
         Box(
             modifier = Modifier
@@ -148,22 +170,7 @@ fun EditableBlock(
         }
 
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (onDrag == null) {
-                        Modifier.pointerInput(block.id) {
-                            detectTapGestures(
-                                onLongPress = {
-                                    showMenu = true
-                                    onLongClick?.invoke()
-                                }
-                            )
-                        }
-                    } else {
-                        Modifier
-                    }
-                )
+            modifier = Modifier.fillMaxWidth()
         ) {
             SwipeToDismissBox(
                 state = dismissState,
@@ -202,6 +209,7 @@ fun EditableBlock(
             BlockContextMenu(
                 expanded = showMenu,
                 onDismiss = { showMenu = false },
+                offset = menuOffset,
                 canMoveUp = index > 0,
                 canMoveDown = index < total - 1,
                 onInsertAbove = onInsertAbove,
