@@ -19,14 +19,19 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -39,6 +44,7 @@ import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.note.blocks.EditableBlock
 import com.example.zhilu.ui.note.blocks.ReadOnlyBlock
+import com.example.zhilu.ui.note.blocks.blockTypeLabel
 
 private const val FocusAnimationDurationMillis = 200
 
@@ -60,6 +66,8 @@ fun KnowledgeCardItem(
     onRemoveBlock: (Long) -> Unit,
     onMoveBlockUp: (Long) -> Unit,
     onMoveBlockDown: (Long) -> Unit,
+    onInsertBlockAt: (Int, BlockType) -> Unit = { _, _ -> },
+    onCopyBlock: (Long) -> Unit = { },
     onImageClick: (Block) -> Unit,
     onToggleBranchExpanded: (Long) -> Unit,
     onBranchTitleChange: (Long, String) -> Unit,
@@ -133,6 +141,8 @@ fun KnowledgeCardItem(
                 onRemoveBlock = onRemoveBlock,
                 onMoveBlockUp = onMoveBlockUp,
                 onMoveBlockDown = onMoveBlockDown,
+                onInsertBlockAt = onInsertBlockAt,
+                onCopyBlock = onCopyBlock,
                 onImageClick = onImageClick,
                 onToggleBranchExpanded = onToggleBranchExpanded,
                 onBranchTitleChange = onBranchTitleChange,
@@ -232,6 +242,8 @@ private fun CardBlockList(
     onRemoveBlock: (Long) -> Unit,
     onMoveBlockUp: (Long) -> Unit,
     onMoveBlockDown: (Long) -> Unit,
+    onInsertBlockAt: (Int, BlockType) -> Unit,
+    onCopyBlock: (Long) -> Unit,
     onImageClick: (Block) -> Unit,
     onToggleBranchExpanded: (Long) -> Unit,
     onBranchTitleChange: (Long, String) -> Unit,
@@ -250,6 +262,7 @@ private fun CardBlockList(
     modifier: Modifier = Modifier
 ) {
     val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
+    var pendingInsertIndex by remember { mutableIntStateOf(-1) }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -293,6 +306,9 @@ private fun CardBlockList(
                         onRemove = { onRemoveBlock(block.id) },
                         onMoveUp = { topLevelBlocks.getOrNull(index - 1)?.id?.let { onMoveBlockUp(block.id) } },
                         onMoveDown = { topLevelBlocks.getOrNull(index + 1)?.id?.let { onMoveBlockDown(block.id) } },
+                        onInsertAbove = { pendingInsertIndex = index },
+                        onInsertBelow = { pendingInsertIndex = index + 1 },
+                        onCopy = { onCopyBlock(block.id) },
                         onImageClick = if (block.type == BlockType.IMAGE) {
                             { onImageClick(block) }
                         } else {
@@ -346,5 +362,38 @@ private fun CardBlockList(
                 }
             }
         }
+    }
+
+    if (pendingInsertIndex >= 0) {
+        AlertDialog(
+            onDismissRequest = { pendingInsertIndex = -1 },
+            title = { Text("选择块类型") },
+            text = {
+                Column {
+                    listOf(
+                        BlockType.TEXT,
+                        BlockType.CODE,
+                        BlockType.LINK,
+                        BlockType.LATEX,
+                        BlockType.BRANCH
+                    ).forEach { type ->
+                        TextButton(
+                            onClick = {
+                                onInsertBlockAt(pendingInsertIndex, type)
+                                pendingInsertIndex = -1
+                            }
+                        ) {
+                            Text(blockTypeLabel(type))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { pendingInsertIndex = -1 }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
