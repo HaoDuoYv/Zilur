@@ -21,14 +21,15 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -48,19 +49,10 @@ class NoteViewModelBlockOpsTest {
     }
 
     @Test
-    fun `addKnowledgeCard does not crash when currentCardId not in cards`() = runTest(dispatcher) {
-        // 模拟旧记录加载后 state.cards 不包含 currentCardId 的场景
-        val viewModel = createViewModelWithMalformedOldNote()
-
-        viewModel.startEditing()
-        viewModel.addKnowledgeCard()
-
-        val state = viewModel.uiState.value
-        assertEquals(2, state.cards.size)
-        assertTrue(state.cards.any { it.id == state.activeCardId })
-    }
-
-    private fun createViewModelWithMalformedOldNote(): NoteViewModel {
+    fun `addKnowledgeCard creates fallback card when currentCardId is not in state cards`() = runTest(dispatcher) {
+        // 加载已存在卡片的旧笔记后，ViewModel 会生成一个全新的 currentCardId，
+        // 该 ID 不会出现在 state.cards 中；此时直接添加知识卡片会触发 ensureCurrentCardExists，
+        // 从而将当前编辑器中的内容保留为兜底卡片，避免旧块丢失。
         val note = Note(
             id = 99L,
             title = "损坏的旧笔记",
@@ -87,21 +79,38 @@ class NoteViewModelBlockOpsTest {
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
         )
+        advanceUntilIdle()
 
-        // 模拟旧记录加载后 state.cards 不包含 currentCardId 的损坏场景
-        val currentCardIdField = NoteViewModel::class.java.getDeclaredField("currentCardId").apply {
-            isAccessible = true
+        viewModel.addKnowledgeCard()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("应为原卡片、兜底卡片、新卡片共 3 张", 3, state.cards.size)
+        assertNotNull("新建卡片后应有活跃卡片", state.activeCardId)
+        assertTrue("活跃卡片 ID 必须存在于 cards 中", state.cards.any { it.id == state.activeCardId })
+
+        val originalCardId = 1L
+        val newCardId = state.activeCardId!!
+        val fallbackCard = state.cards.first {
+            it.id != originalCardId && it.id != newCardId
         }
-        currentCardIdField.setLong(viewModel, 999L)
+        assertEquals(
+            "兜底卡片应保留编辑器切换前的旧内容",
+            listOf("旧内容"),
+            fallbackCard.blocks.map { it.content }
+        )
 
-        val uiStateField = NoteViewModel::class.java.getDeclaredField("_uiState").apply {
-            isAccessible = true
-        }
-        @Suppress("UNCHECKED_CAST")
-        val uiState = uiStateField.get(viewModel) as MutableStateFlow<NoteUiState>
-        uiState.value = uiState.value.copy(cards = emptyList())
+        val newCard = state.cards.find { it.id == newCardId }
+        assertNotNull("应存在与新活跃 ID 对应的新卡片", newCard)
+        assertEquals("新卡片应只包含默认空白文本块", 1, newCard!!.blocks.size)
+        assertEquals(BlockType.TEXT, newCard.blocks.single().type)
+        assertEquals("", newCard.blocks.single().content)
 
-        return viewModel
+        assertEquals(
+            "当前编辑状态应同步为新卡片的块",
+            listOf(""),
+            state.blocks.map { it.content }
+        )
     }
 }
 
