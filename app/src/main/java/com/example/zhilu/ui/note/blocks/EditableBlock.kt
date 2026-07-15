@@ -1,6 +1,8 @@
 package com.example.zhilu.ui.note.blocks
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -29,7 +31,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.ui.zIndex
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
@@ -65,7 +66,11 @@ fun EditableBlock(
     onBranchChildValueChange: (Long, String) -> Unit = { _, _ -> },
     onBranchChildLanguageClick: (Long) -> Unit = {},
     onRemoveBranchChild: (Long) -> Unit = {},
-    onAddBranchChild: (BlockType) -> Unit = {}
+    onAddBranchChild: (BlockType) -> Unit = {},
+    onInsertAbove: () -> Unit = {},
+    onInsertBelow: () -> Unit = {},
+    onCopy: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null
 ) {
     val currentOnRemove by rememberUpdatedState(onRemove)
     var removeRequested by remember(block.id, index) { mutableStateOf(false) }
@@ -87,6 +92,10 @@ fun EditableBlock(
             removeRequested = false
         }
     }
+
+    var showTopIndicator by remember(block.id, index) { mutableStateOf(false) }
+    var showBottomIndicator by remember(block.id, index) { mutableStateOf(false) }
+    var showMenu by remember(block.id, index) { mutableStateOf(false) }
 
     val dragModifier = if (onDrag != null) {
         Modifier
@@ -113,6 +122,22 @@ fun EditableBlock(
     Column(
         modifier = modifier.then(dragModifier)
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .padding(top = if (index == 0) 0.dp else (-8).dp)
+                .pointerInput(Unit) {
+                    detectTapGestures { showTopIndicator = !showTopIndicator }
+                }
+        ) {
+            BlockInsertIndicator(
+                visible = showTopIndicator,
+                onClick = onInsertAbove,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
         if (showTopDivider) {
             Box(
                 modifier = Modifier
@@ -122,40 +147,83 @@ fun EditableBlock(
                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
             )
         }
-        SwipeToDismissBox(
-            state = dismissState,
-            modifier = Modifier.fillMaxWidth(),
-            enableDismissFromStartToEnd = false,
-            enableDismissFromEndToStart = true,
-            backgroundContent = { DeleteBackground() }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(block.id) {
+                    detectTapGestures(
+                        onLongPress = {
+                            showMenu = true
+                            onLongClick?.invoke()
+                        }
+                    )
+                }
         ) {
-            BlockCard(
-                block = block,
-                isEditing = true,
-                onValueChange = onValueChange,
-                onLanguageClick = onLanguageClick,
-                onDelete = onRemove,
-                onMoveUp = onMoveUp.takeIf { index > 0 },
-                onMoveDown = onMoveDown.takeIf { index < total - 1 },
-                isDragging = isDragging,
-                todoItems = todoItems,
-                showCompletedTodos = showCompletedTodos,
-                onCreateTodo = onCreateTodo,
-                onUpdateTodo = onUpdateTodo,
-                onCompleteTodo = onCompleteTodo,
-                onToggleCompletedTodos = onToggleCompletedTodos,
-                onImageClick = onImageClick,
-                branchChildBlocks = branchChildBlocks,
-                isBranchExpanded = isBranchExpanded,
-                onBranchTitleChange = onBranchTitleChange,
-                onToggleBranchExpanded = onToggleBranchExpanded,
-                onBranchChildValueChange = onBranchChildValueChange,
-                onBranchChildLanguageClick = onBranchChildLanguageClick,
-                onRemoveBranchChild = onRemoveBranchChild,
-                onAddBranchChild = onAddBranchChild
+            SwipeToDismissBox(
+                state = dismissState,
+                modifier = Modifier.fillMaxWidth(),
+                enableDismissFromStartToEnd = false,
+                enableDismissFromEndToStart = true,
+                backgroundContent = { DeleteBackground() }
+            ) {
+                BlockCard(
+                    block = block,
+                    isEditing = true,
+                    onValueChange = onValueChange,
+                    onLanguageClick = onLanguageClick,
+                    onDelete = onRemove,
+                    onMoveUp = onMoveUp.takeIf { index > 0 },
+                    onMoveDown = onMoveDown.takeIf { index < total - 1 },
+                    isDragging = isDragging,
+                    todoItems = todoItems,
+                    showCompletedTodos = showCompletedTodos,
+                    onCreateTodo = onCreateTodo,
+                    onUpdateTodo = onUpdateTodo,
+                    onCompleteTodo = onCompleteTodo,
+                    onToggleCompletedTodos = onToggleCompletedTodos,
+                    onImageClick = onImageClick,
+                    branchChildBlocks = branchChildBlocks,
+                    isBranchExpanded = isBranchExpanded,
+                    onBranchTitleChange = onBranchTitleChange,
+                    onToggleBranchExpanded = onToggleBranchExpanded,
+                    onBranchChildValueChange = onBranchChildValueChange,
+                    onBranchChildLanguageClick = onBranchChildLanguageClick,
+                    onRemoveBranchChild = onRemoveBranchChild,
+                    onAddBranchChild = onAddBranchChild
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .padding(bottom = if (index == total - 1) 0.dp else (-8).dp)
+                .pointerInput(Unit) {
+                    detectTapGestures { showBottomIndicator = !showBottomIndicator }
+                }
+        ) {
+            BlockInsertIndicator(
+                visible = showBottomIndicator,
+                onClick = onInsertBelow,
+                modifier = Modifier.fillMaxSize()
             )
         }
     }
+
+    BlockContextMenu(
+        expanded = showMenu,
+        onDismiss = { showMenu = false },
+        canMoveUp = index > 0,
+        canMoveDown = index < total - 1,
+        onInsertAbove = onInsertAbove,
+        onInsertBelow = onInsertBelow,
+        onCopy = onCopy,
+        onDelete = onRemove,
+        onMoveUp = { onMoveUp?.invoke() },
+        onMoveDown = { onMoveDown?.invoke() }
+    )
 }
 
 fun shouldRequestSwipeDelete(direction: SwipeToDismissBoxValue): Boolean =
