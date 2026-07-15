@@ -20,7 +20,10 @@ class BlockClipboardManager @Inject constructor(
     }
 
     fun hasBlock(): Boolean {
-        return readBlock() != null
+        val clip = clipboard.primaryClip ?: return false
+        if (clip.itemCount == 0) return false
+        val text = clip.getItemAt(0).text?.toString() ?: return false
+        return text.startsWith(BlockClipboardSerializer.CLIPBOARD_PREFIX)
     }
 
     fun readBlock(): BlockClipboardData? {

@@ -18,11 +18,6 @@ data class BlockClipboardData(
     val type: BlockType get() = block.type
     val content: String get() = block.content
     val language: String get() = block.language
-    val id: Long get() = block.id
-    val noteId: Long get() = block.noteId
-    val cardId: Long? get() = block.cardId
-    val sortOrder: Int get() = block.sortOrder
-    val parentBranchId: Long? get() = block.parentBranchId
 }
 
 @Serializable
@@ -35,7 +30,7 @@ private data class ClipboardBlockDto(
 )
 
 object BlockClipboardSerializer {
-    private const val CLIPBOARD_PREFIX = "zhilu-block:"
+    const val CLIPBOARD_PREFIX = "zhilu-block:"
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -56,12 +51,11 @@ object BlockClipboardSerializer {
         )
     }
 
+    fun isBlockClipboardData(raw: String): Boolean = raw.startsWith(CLIPBOARD_PREFIX)
+
     fun fromJson(jsonString: String): BlockClipboardData? {
-        val payload = if (jsonString.startsWith(CLIPBOARD_PREFIX)) {
-            jsonString.removePrefix(CLIPBOARD_PREFIX)
-        } else {
-            jsonString
-        }
+        if (!jsonString.startsWith(CLIPBOARD_PREFIX)) return null
+        val payload = jsonString.removePrefix(CLIPBOARD_PREFIX)
         return try {
             json.decodeFromString(ClipboardBlockDto.serializer(), payload).toDomain()
         } catch (_: Exception) {

@@ -23,8 +23,8 @@ class BlockClipboardSerializerTest {
         val restored = BlockClipboardSerializer.fromJson(json)
         assertEquals(BlockType.TEXT, restored?.type)
         assertEquals("hello", restored?.content)
-        assertEquals(0L, restored?.id)
-        assertEquals(0L, restored?.noteId)
+        assertEquals(0L, restored?.block?.id)
+        assertEquals(0L, restored?.block?.noteId)
     }
 
     @Test
