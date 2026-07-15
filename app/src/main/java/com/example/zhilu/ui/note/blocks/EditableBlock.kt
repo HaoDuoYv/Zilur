@@ -126,7 +126,6 @@ fun EditableBlock(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(24.dp)
-                .padding(top = if (index == 0) 0.dp else (-8).dp)
                 .pointerInput(Unit) {
                     detectTapGestures { showTopIndicator = !showTopIndicator }
                 }
@@ -151,14 +150,20 @@ fun EditableBlock(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .pointerInput(block.id) {
-                    detectTapGestures(
-                        onLongPress = {
-                            showMenu = true
-                            onLongClick?.invoke()
+                .then(
+                    if (onDrag == null) {
+                        Modifier.pointerInput(block.id) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    showMenu = true
+                                    onLongClick?.invoke()
+                                }
+                            )
                         }
-                    )
-                }
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
             SwipeToDismissBox(
                 state = dismissState,
@@ -193,13 +198,25 @@ fun EditableBlock(
                     onAddBranchChild = onAddBranchChild
                 )
             }
+
+            BlockContextMenu(
+                expanded = showMenu,
+                onDismiss = { showMenu = false },
+                canMoveUp = index > 0,
+                canMoveDown = index < total - 1,
+                onInsertAbove = onInsertAbove,
+                onInsertBelow = onInsertBelow,
+                onCopy = onCopy,
+                onDelete = onRemove,
+                onMoveUp = { onMoveUp?.invoke() },
+                onMoveDown = { onMoveDown?.invoke() }
+            )
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(24.dp)
-                .padding(bottom = if (index == total - 1) 0.dp else (-8).dp)
                 .pointerInput(Unit) {
                     detectTapGestures { showBottomIndicator = !showBottomIndicator }
                 }
@@ -211,19 +228,6 @@ fun EditableBlock(
             )
         }
     }
-
-    BlockContextMenu(
-        expanded = showMenu,
-        onDismiss = { showMenu = false },
-        canMoveUp = index > 0,
-        canMoveDown = index < total - 1,
-        onInsertAbove = onInsertAbove,
-        onInsertBelow = onInsertBelow,
-        onCopy = onCopy,
-        onDelete = onRemove,
-        onMoveUp = { onMoveUp?.invoke() },
-        onMoveDown = { onMoveDown?.invoke() }
-    )
 }
 
 fun shouldRequestSwipeDelete(direction: SwipeToDismissBoxValue): Boolean =
