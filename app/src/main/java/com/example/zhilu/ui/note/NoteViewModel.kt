@@ -412,6 +412,8 @@ class NoteViewModel @Inject constructor(
         blockClipboardManager.copyBlock(data)
     }
 
+    fun hasBlockInClipboard(): Boolean = blockClipboardManager.hasBlock()
+
     fun pasteBlock(targetIndex: Int?) {
         val template = blockClipboardManager.readBlock() ?: return
         val clampedIndex = targetIndex?.coerceIn(0, _blocks.size) ?: _blocks.size

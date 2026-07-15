@@ -15,7 +15,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -50,6 +52,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -66,6 +69,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -295,48 +299,98 @@ fun NoteEditScreen(
                     items = state.cards,
                     key = { _, card -> card.id }
                 ) { _, card ->
-                    KnowledgeCardItem(
-                        card = card,
-                        isEditing = state.isEditing,
-                        canDelete = state.cards.size > 1,
-                        onFocus = { viewModel.focusCard(card.id) },
-                        onTitleChange = { viewModel.onCardTitleChange(card.id, it) },
-                        onDelete = { viewModel.removeKnowledgeCard(card.id) },
-                        onBlockContentChange = viewModel::onBlockContentChange,
-                        onBlockLanguageClick = { },
-                        onRemoveBlock = viewModel::removeBlock,
-                        onMoveBlockUp = { blockId -> moveBlockUp(card, blockId, viewModel) },
-                        onMoveBlockDown = { blockId -> moveBlockDown(card, blockId, viewModel) },
-                        onImageClick = { block ->
-                            viewingImageUri = ImageBlockContent.displayUri(block.content)
-                        },
-                        onToggleBranchExpanded = viewModel::toggleBranchExpanded,
-                        onBranchTitleChange = viewModel::onBlockContentChange,
-                        onBranchChildValueChange = viewModel::onBlockContentChange,
-                        onBranchChildLanguageClick = { },
-                        onRemoveBranchChild = viewModel::removeBlock,
-                        onAddBranchChild = viewModel::addBranchChildBlock,
-                        onAddBranchChildImage = { branchId ->
-                            pendingBranchImageBlockId = branchId
-                            launchGalleryPicker()
-                        },
-                        branchExpandedStates = state.branchExpandedStates,
-                        todoItems = state.todoItems,
-                        showCompletedTodos = state.showCompletedTodos,
-                        onCreateTodo = if (state.isEditing) {
-                            { content, remindAt ->
-                                val created = viewModel.createTodo(content, remindAt)
-                                if (created && remindAt != null) {
-                                    requestNotificationPermissionIfNeeded()
-                                }
-                                created
+                    var showPasteDialog by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .pointerInput(state.isEditing, card.id) {
+                                detectTapGestures(
+                                    onLongPress = {
+                                        if (state.isEditing && viewModel.hasBlockInClipboard()) {
+                                            viewModel.focusCard(card.id)
+                                            showPasteDialog = true
+                                        }
+                                    }
+                                )
                             }
-                        } else null,
-                        onUpdateTodo = if (state.isEditing) viewModel::updateTodo else null,
-                        onCompleteTodo = if (state.isEditing) viewModel::completeTodo else null,
-                        onToggleCompletedTodos = viewModel::toggleCompletedTodos,
-                        modifier = Modifier.padding(horizontal = 16.dp)
-                    )
+                    ) {
+                        KnowledgeCardItem(
+                            card = card,
+                            isEditing = state.isEditing,
+                            canDelete = state.cards.size > 1,
+                            onFocus = { viewModel.focusCard(card.id) },
+                            onTitleChange = { viewModel.onCardTitleChange(card.id, it) },
+                            onDelete = { viewModel.removeKnowledgeCard(card.id) },
+                            onBlockContentChange = viewModel::onBlockContentChange,
+                            onBlockLanguageClick = { },
+                            onRemoveBlock = viewModel::removeBlock,
+                            onMoveBlockUp = { blockId -> moveBlockUp(card, blockId, viewModel) },
+                            onMoveBlockDown = { blockId -> moveBlockDown(card, blockId, viewModel) },
+                            onInsertBlockAt = { index, type -> viewModel.insertBlockAt(index, type) },
+                            onCopyBlock = { blockId -> viewModel.copyBlock(blockId) },
+                            onImageClick = { block ->
+                                viewingImageUri = ImageBlockContent.displayUri(block.content)
+                            },
+                            onToggleBranchExpanded = viewModel::toggleBranchExpanded,
+                            onBranchTitleChange = viewModel::onBlockContentChange,
+                            onBranchChildValueChange = viewModel::onBlockContentChange,
+                            onBranchChildLanguageClick = { },
+                            onRemoveBranchChild = viewModel::removeBlock,
+                            onAddBranchChild = viewModel::addBranchChildBlock,
+                            onAddBranchChildImage = { branchId ->
+                                pendingBranchImageBlockId = branchId
+                                launchGalleryPicker()
+                            },
+                            branchExpandedStates = state.branchExpandedStates,
+                            todoItems = state.todoItems,
+                            showCompletedTodos = state.showCompletedTodos,
+                            onCreateTodo = if (state.isEditing) {
+                                { content, remindAt ->
+                                    val created = viewModel.createTodo(content, remindAt)
+                                    if (created && remindAt != null) {
+                                        requestNotificationPermissionIfNeeded()
+                                    }
+                                    created
+                                }
+                            } else null,
+                            onUpdateTodo = if (state.isEditing) viewModel::updateTodo else null,
+                            onCompleteTodo = if (state.isEditing) viewModel::completeTodo else null,
+                            onToggleCompletedTodos = viewModel::toggleCompletedTodos,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+
+                    if (showPasteDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showPasteDialog = false },
+                            title = { Text("粘贴位置") },
+                            text = { Text("选择粘贴位置") },
+                            confirmButton = {
+                                Column {
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.pasteBlock(null)
+                                            showPasteDialog = false
+                                        }
+                                    ) { Text("粘贴到末尾") }
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.pasteBlock(0)
+                                            showPasteDialog = false
+                                        }
+                                    ) { Text("粘贴到上方") }
+                                    TextButton(
+                                        onClick = {
+                                            viewModel.pasteBlock(card.blocks.size)
+                                            showPasteDialog = false
+                                        }
+                                    ) { Text("粘贴到下方") }
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showPasteDialog = false }) { Text("取消") }
+                            }
+                        )
+                    }
                 }
 
                 if (state.isEditing) {
