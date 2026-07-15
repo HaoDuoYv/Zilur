@@ -141,100 +141,104 @@ fun EditableBlock(
             .shadow(if (isDragging) 8.dp else 0.dp, MaterialTheme.shapes.medium)
     }
 
-    Column(
-        modifier = modifier.then(dragModifier).then(tapModifier)
-    ) {
-        Box(
+    Box(modifier = modifier.then(dragModifier)) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(24.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures { showTopIndicator = !showTopIndicator }
-                }
+                .then(tapModifier)
         ) {
-            BlockInsertIndicator(
-                visible = showTopIndicator,
-                onClick = onInsertAbove,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-
-        if (showTopDivider) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .height(1.dp)
-                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
-            )
-        }
-
-        Box(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            SwipeToDismissBox(
-                state = dismissState,
-                modifier = Modifier.fillMaxWidth(),
-                enableDismissFromStartToEnd = false,
-                enableDismissFromEndToStart = true,
-                backgroundContent = { DeleteBackground() }
+                    .height(24.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures { showTopIndicator = !showTopIndicator }
+                    }
             ) {
-                BlockCard(
-                    block = block,
-                    isEditing = true,
-                    onValueChange = onValueChange,
-                    onLanguageClick = onLanguageClick,
-                    onDelete = onRemove,
-                    onMoveUp = onMoveUp.takeIf { index > 0 },
-                    onMoveDown = onMoveDown.takeIf { index < total - 1 },
-                    isDragging = isDragging,
-                    todoItems = todoItems,
-                    showCompletedTodos = showCompletedTodos,
-                    onCreateTodo = onCreateTodo,
-                    onUpdateTodo = onUpdateTodo,
-                    onCompleteTodo = onCompleteTodo,
-                    onToggleCompletedTodos = onToggleCompletedTodos,
-                    onImageClick = onImageClick,
-                    branchChildBlocks = branchChildBlocks,
-                    isBranchExpanded = isBranchExpanded,
-                    onBranchTitleChange = onBranchTitleChange,
-                    onToggleBranchExpanded = onToggleBranchExpanded,
-                    onBranchChildValueChange = onBranchChildValueChange,
-                    onBranchChildLanguageClick = onBranchChildLanguageClick,
-                    onRemoveBranchChild = onRemoveBranchChild,
-                    onAddBranchChild = onAddBranchChild
+                BlockInsertIndicator(
+                    visible = showTopIndicator,
+                    onClick = onInsertAbove,
+                    modifier = Modifier.fillMaxSize()
                 )
             }
 
-            BlockContextMenu(
-                expanded = showMenu,
-                onDismiss = { showMenu = false },
-                offset = menuOffset,
-                canMoveUp = index > 0,
-                canMoveDown = index < total - 1,
-                onInsertAbove = onInsertAbove,
-                onInsertBelow = onInsertBelow,
-                onCopy = onCopy,
-                onDelete = onRemove,
-                onMoveUp = { onMoveUp?.invoke() },
-                onMoveDown = { onMoveDown?.invoke() }
-            )
+            if (showTopDivider) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+                )
+            }
+
+            Box(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                SwipeToDismissBox(
+                    state = dismissState,
+                    modifier = Modifier.fillMaxWidth(),
+                    enableDismissFromStartToEnd = false,
+                    enableDismissFromEndToStart = true,
+                    backgroundContent = { DeleteBackground() }
+                ) {
+                    BlockCard(
+                        block = block,
+                        isEditing = true,
+                        onValueChange = onValueChange,
+                        onLanguageClick = onLanguageClick,
+                        onDelete = onRemove,
+                        onMoveUp = onMoveUp.takeIf { index > 0 },
+                        onMoveDown = onMoveDown.takeIf { index < total - 1 },
+                        isDragging = isDragging,
+                        todoItems = todoItems,
+                        showCompletedTodos = showCompletedTodos,
+                        onCreateTodo = onCreateTodo,
+                        onUpdateTodo = onUpdateTodo,
+                        onCompleteTodo = onCompleteTodo,
+                        onToggleCompletedTodos = onToggleCompletedTodos,
+                        onImageClick = onImageClick,
+                        branchChildBlocks = branchChildBlocks,
+                        isBranchExpanded = isBranchExpanded,
+                        onBranchTitleChange = onBranchTitleChange,
+                        onToggleBranchExpanded = onToggleBranchExpanded,
+                        onBranchChildValueChange = onBranchChildValueChange,
+                        onBranchChildLanguageClick = onBranchChildLanguageClick,
+                        onRemoveBranchChild = onRemoveBranchChild,
+                        onAddBranchChild = onAddBranchChild
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .pointerInput(Unit) {
+                        detectTapGestures { showBottomIndicator = !showBottomIndicator }
+                    }
+            ) {
+                BlockInsertIndicator(
+                    visible = showBottomIndicator,
+                    onClick = onInsertBelow,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures { showBottomIndicator = !showBottomIndicator }
-                }
-        ) {
-            BlockInsertIndicator(
-                visible = showBottomIndicator,
-                onClick = onInsertBelow,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+        BlockContextMenu(
+            expanded = showMenu,
+            onDismiss = { showMenu = false },
+            offset = menuOffset,
+            canMoveUp = index > 0,
+            canMoveDown = index < total - 1,
+            onInsertAbove = onInsertAbove,
+            onInsertBelow = onInsertBelow,
+            onCopy = onCopy,
+            onDelete = onRemove,
+            onMoveUp = { onMoveUp?.invoke() },
+            onMoveDown = { onMoveDown?.invoke() }
+        )
     }
 }
 
