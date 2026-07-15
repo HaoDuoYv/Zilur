@@ -25,6 +25,8 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
+import com.example.zhilu.domain.usecase.clipboard.BlockClipboardData
+import com.example.zhilu.domain.usecase.clipboard.BlockClipboardManager
 import com.example.zhilu.export.DtkExporter
 import com.example.zhilu.export.HtmlExporter
 import com.example.zhilu.export.MarkdownExporter
@@ -62,6 +64,7 @@ class NoteViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
     private val reminderRepository: ReminderRepository,
     private val mediaRepository: MediaRepository,
+    private val blockClipboardManager: BlockClipboardManager,
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -377,6 +380,89 @@ class NoteViewModel @Inject constructor(
         val activeCardId = _uiState.value.activeCardId ?: return
         focusCard(activeCardId)
         addImageBlock(uri)
+    }
+
+    fun insertBlockAt(index: Int, type: BlockType) {
+        val clampedIndex = index.coerceIn(0, _blocks.size)
+        val newBlock = Block(
+            id = nextBlockId--,
+            type = type,
+            content = defaultContentFor(type),
+            sortOrder = clampedIndex,
+            parentBranchId = null
+        )
+        if (type == BlockType.BRANCH) {
+            _branchExpandedStates[newBlock.id] = false
+        }
+        _blocks.add(clampedIndex, newBlock)
+        recalculateSortOrders()
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    fun copyBlock(blockId: Long) {
+        val block = _blocks.find { it.id == blockId } ?: return
+        val children = if (block.type == BlockType.BRANCH) {
+            _blocks.filter { it.parentBranchId == blockId }
+        } else emptyList()
+        val data = BlockClipboardData(
+            block = block,
+            children = children.map { BlockClipboardData(it) }
+        )
+        blockClipboardManager.copyBlock(data)
+    }
+
+    fun pasteBlock(targetIndex: Int?) {
+        val template = blockClipboardManager.readBlock() ?: return
+        val clampedIndex = targetIndex?.coerceIn(0, _blocks.size) ?: _blocks.size
+
+        val flatTemplate = flattenBlockTemplate(template)
+        if (flatTemplate.isEmpty()) return
+
+        val pastedCount = flatTemplate.size
+        val newIds = List(pastedCount) { nextBlockId-- }
+
+        flatTemplate.forEachIndexed { index, (source, parentIndex) ->
+            val newId = newIds[index]
+            val newBlock = source.copyWithFreshId(newId).copy(
+                parentBranchId = parentIndex?.let { newIds[it] },
+                sortOrder = 0
+            )
+            if (newBlock.type == BlockType.BRANCH) {
+                _branchExpandedStates[newBlock.id] = false
+            }
+            _blocks.add(newBlock)
+        }
+
+        // Move pasted blocks to target position
+        val startIndex = _blocks.size - pastedCount
+        if (clampedIndex < startIndex) {
+            repeat(pastedCount) {
+                val block = _blocks.removeAt(startIndex)
+                _blocks.add(clampedIndex, block)
+            }
+        }
+
+        recalculateSortOrders()
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    private fun flattenBlockTemplate(root: BlockClipboardData): List<Pair<Block, Int?>> {
+        val result = mutableListOf<Pair<Block, Int?>>()
+        fun traverse(data: BlockClipboardData, parentIndex: Int?) {
+            val currentIndex = result.size
+            result.add(data.block to parentIndex)
+            data.children.forEach { traverse(it, currentIndex) }
+        }
+        traverse(root, null)
+        return result
+    }
+
+    private fun recalculateSortOrders() {
+        _blocks.forEachIndexed { i, block ->
+            _blocks[i] = block.copy(sortOrder = i)
+        }
     }
 
     private fun resolveImageExtension(uri: Uri): String {

@@ -58,6 +58,7 @@ class NoteViewModelTodoTest {
             todoRepository = todoRepository,
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -88,6 +89,7 @@ class NoteViewModelTodoTest {
             todoRepository = todoRepository,
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -109,6 +111,7 @@ class NoteViewModelTodoTest {
             todoRepository = TodoTestTodoRepository(),
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -131,6 +134,7 @@ class NoteViewModelTodoTest {
             todoRepository = TodoTestTodoRepository(),
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -157,6 +161,7 @@ class NoteViewModelTodoTest {
             todoRepository = TodoTestTodoRepository(),
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -178,6 +183,7 @@ class NoteViewModelTodoTest {
             todoRepository = TodoTestTodoRepository(),
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -200,6 +206,7 @@ class NoteViewModelTodoTest {
             todoRepository = todoRepository,
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
@@ -226,6 +233,7 @@ class NoteViewModelTodoTest {
             todoRepository = todoRepository,
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
@@ -252,6 +260,7 @@ class NoteViewModelTodoTest {
             ),
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )

@@ -53,6 +53,7 @@ class NoteViewModelTagSelectionTest {
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
@@ -76,6 +77,7 @@ class NoteViewModelTagSelectionTest {
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
@@ -95,6 +97,7 @@ class NoteViewModelTagSelectionTest {
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
         )
@@ -117,6 +120,7 @@ class NoteViewModelTagSelectionTest {
             todoRepository = EmptyTodoRepository(),
             reminderRepository = EmptyReminderRepository(),
             mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
         )

@@ -135,6 +135,7 @@ class NoteViewModelReadOnlyTest {
         todoRepository = ReadOnlyFakeTodoRepository(),
         reminderRepository = ReadOnlyFakeReminderRepository(),
         mediaRepository = mockk(relaxed = true),
+        blockClipboardManager = mockk(relaxed = true),
         context = mockk(relaxed = true),
         savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
     )

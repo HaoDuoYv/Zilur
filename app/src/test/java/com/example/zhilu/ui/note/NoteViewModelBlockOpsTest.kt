@@ -17,7 +17,12 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
+import com.example.zhilu.domain.usecase.clipboard.BlockClipboardData
+import com.example.zhilu.domain.usecase.clipboard.BlockClipboardManager
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -69,16 +74,7 @@ class NoteViewModelBlockOpsTest {
                 )
             )
         )
-        val viewModel = NoteViewModel(
-            noteRepository = BlockOpsTestNoteRepository(note),
-            tagRepository = BlockOpsTestTagRepository(),
-            reviewRepository = BlockOpsTestReviewRepository(),
-            todoRepository = BlockOpsTestTodoRepository(),
-            reminderRepository = BlockOpsTestReminderRepository(),
-            mediaRepository = mockk(relaxed = true),
-            context = mockk(relaxed = true),
-            savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
-        )
+        val viewModel = createViewModel(note)
         advanceUntilIdle()
 
         viewModel.addKnowledgeCard()
@@ -134,16 +130,7 @@ class NoteViewModelBlockOpsTest {
                 )
             )
         )
-        val viewModel = NoteViewModel(
-            noteRepository = BlockOpsTestNoteRepository(note),
-            tagRepository = BlockOpsTestTagRepository(),
-            reviewRepository = BlockOpsTestReviewRepository(),
-            todoRepository = BlockOpsTestTodoRepository(),
-            reminderRepository = BlockOpsTestReminderRepository(),
-            mediaRepository = mockk(relaxed = true),
-            context = mockk(relaxed = true),
-            savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
-        )
+        val viewModel = createViewModel(note)
         advanceUntilIdle()
 
         viewModel.focusCard(1L)
@@ -165,6 +152,121 @@ class NoteViewModelBlockOpsTest {
         )
         assertTrue("兜底卡片不应处于聚焦状态", !fallbackCard.isFocused)
     }
+
+    @Test
+    fun `insertBlockAt inserts at correct position`() = runTest(dispatcher) {
+        val note = Note(
+            id = 7L,
+            title = "Ordered",
+            blocks = listOf(
+                Block(id = 1L, type = BlockType.TEXT, content = "A", sortOrder = 0),
+                Block(id = 2L, type = BlockType.TEXT, content = "B", sortOrder = 1)
+            )
+        )
+        val viewModel = createViewModel(note)
+        advanceUntilIdle()
+
+        viewModel.insertBlockAt(1, BlockType.CODE)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals("应在索引 1 处插入新块", 3, blocks.size)
+        assertEquals("A", blocks[0].content)
+        assertEquals(BlockType.CODE, blocks[1].type)
+        assertEquals("B", blocks[2].content)
+        assertEquals("sortOrder 应按新顺序重算", listOf(0, 1, 2), blocks.map { it.sortOrder })
+    }
+
+    @Test
+    fun `copyBlock writes block to clipboard`() = runTest(dispatcher) {
+        val note = Note(
+            id = 7L,
+            title = "Test",
+            blocks = listOf(Block(id = 10L, type = BlockType.TEXT, content = "copy me", sortOrder = 0))
+        )
+        val clipboardManager = mockk<BlockClipboardManager>(relaxed = true)
+        val viewModel = createViewModel(note, clipboardManager)
+        advanceUntilIdle()
+
+        viewModel.copyBlock(10L)
+
+        val slot = slot<BlockClipboardData>()
+        verify { clipboardManager.copyBlock(capture(slot)) }
+        assertEquals(BlockType.TEXT, slot.captured.type)
+        assertEquals("copy me", slot.captured.content)
+        assertEquals(emptyList<BlockClipboardData>(), slot.captured.children)
+    }
+
+    @Test
+    fun `pasteBlock generates new ids and preserves content`() = runTest(dispatcher) {
+        val note = Note(
+            id = 7L,
+            title = "Paste",
+            blocks = listOf(Block(id = 1L, type = BlockType.TEXT, content = "A", sortOrder = 0))
+        )
+        val clipboardManager = mockk<BlockClipboardManager>(relaxed = true)
+        every { clipboardManager.readBlock() } returns BlockClipboardData(
+            block = Block(type = BlockType.TEXT, content = "copied"),
+            children = emptyList()
+        )
+        val viewModel = createViewModel(note, clipboardManager)
+        advanceUntilIdle()
+
+        viewModel.pasteBlock(1)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals("应插入剪贴板块", 2, blocks.size)
+        assertEquals("A", blocks[0].content)
+        assertEquals("copied", blocks[1].content)
+        assertTrue("粘贴后的块应生成新 ID", blocks[1].id != 0L)
+        assertEquals("sortOrder 应按新顺序重算", listOf(0, 1), blocks.map { it.sortOrder })
+    }
+
+    @Test
+    fun `pasteBlock recreates branch children with new parent ids`() = runTest(dispatcher) {
+        val note = Note(
+            id = 7L,
+            title = "Paste branch",
+            blocks = listOf(Block(id = 1L, type = BlockType.TEXT, content = "A", sortOrder = 0))
+        )
+        val clipboardManager = mockk<BlockClipboardManager>(relaxed = true)
+        every { clipboardManager.readBlock() } returns BlockClipboardData(
+            block = Block(type = BlockType.BRANCH, content = "branch"),
+            children = listOf(
+                BlockClipboardData(block = Block(type = BlockType.TEXT, content = "child"))
+            )
+        )
+        val viewModel = createViewModel(note, clipboardManager)
+        advanceUntilIdle()
+
+        viewModel.pasteBlock(1)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals("应粘贴分支块及其子块", 3, blocks.size)
+        val pastedBranch = blocks.first { it.type == BlockType.BRANCH }
+        val pastedChild = blocks.first { it.type == BlockType.TEXT && it.content == "child" }
+        assertTrue("分支块应生成新 ID", pastedBranch.id != 0L)
+        assertTrue("子块应生成与分支不同的新 ID", pastedChild.id != 0L && pastedChild.id != pastedBranch.id)
+        assertEquals("子块的 parentBranchId 应指向新分支 ID", pastedBranch.id, pastedChild.parentBranchId)
+        assertEquals(listOf("A", "branch", "child"), blocks.map { it.content })
+    }
+
+    private fun createViewModel(
+        note: Note,
+        clipboardManager: BlockClipboardManager = mockk(relaxed = true)
+    ): NoteViewModel = NoteViewModel(
+        noteRepository = BlockOpsTestNoteRepository(note),
+        tagRepository = BlockOpsTestTagRepository(),
+        reviewRepository = BlockOpsTestReviewRepository(),
+        todoRepository = BlockOpsTestTodoRepository(),
+        reminderRepository = BlockOpsTestReminderRepository(),
+        mediaRepository = mockk(relaxed = true),
+        blockClipboardManager = clipboardManager,
+        context = mockk(relaxed = true),
+        savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
+    )
 }
 
 private class BlockOpsTestNoteRepository(
