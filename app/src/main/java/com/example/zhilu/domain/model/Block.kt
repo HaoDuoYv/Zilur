@@ -24,4 +24,12 @@ data class Block(
     val language: String = "",
     val sortOrder: Int = 0,
     val parentBranchId: Long? = null
-)
+) {
+    fun copyWithFreshId(newId: Long): Block = copy(
+        id = newId,
+        noteId = 0,
+        cardId = 0,
+        sortOrder = 0,
+        parentBranchId = null
+    )
+}
