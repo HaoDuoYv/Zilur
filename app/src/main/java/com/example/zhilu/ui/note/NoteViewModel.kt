@@ -424,7 +424,7 @@ class NoteViewModel @Inject constructor(
         val pastedCount = flatTemplate.size
         val newIds = List(pastedCount) { nextBlockId-- }
 
-        flatTemplate.forEachIndexed { index, (source, parentIndex) ->
+        val newBlocks = flatTemplate.mapIndexed { index, (source, parentIndex) ->
             val newId = newIds[index]
             val newBlock = source.copyWithFreshId(newId).copy(
                 parentBranchId = parentIndex?.let { newIds[it] },
@@ -433,17 +433,10 @@ class NoteViewModel @Inject constructor(
             if (newBlock.type == BlockType.BRANCH) {
                 _branchExpandedStates[newBlock.id] = false
             }
-            _blocks.add(newBlock)
+            newBlock
         }
 
-        // Move pasted blocks to target position
-        val startIndex = _blocks.size - pastedCount
-        if (clampedIndex < startIndex) {
-            repeat(pastedCount) {
-                val block = _blocks.removeAt(startIndex)
-                _blocks.add(clampedIndex, block)
-            }
-        }
+        _blocks.addAll(clampedIndex, newBlocks)
 
         recalculateSortOrders()
         syncBlocksToState()

@@ -294,6 +294,8 @@ private fun CardBlockList(
                 } else {
                     true
                 }
+                val blockIndexInAll = card.blocks.indexOfFirst { it.id == block.id }
+                val childCount = card.blocks.count { it.parentBranchId == block.id }
 
                 val canEditBlock = isEditing && card.isFocused
                 if (canEditBlock) {
@@ -306,8 +308,8 @@ private fun CardBlockList(
                         onRemove = { onRemoveBlock(block.id) },
                         onMoveUp = { topLevelBlocks.getOrNull(index - 1)?.id?.let { onMoveBlockUp(block.id) } },
                         onMoveDown = { topLevelBlocks.getOrNull(index + 1)?.id?.let { onMoveBlockDown(block.id) } },
-                        onInsertAbove = { pendingInsertIndex = index },
-                        onInsertBelow = { pendingInsertIndex = index + 1 },
+                        onInsertAbove = { pendingInsertIndex = blockIndexInAll },
+                        onInsertBelow = { pendingInsertIndex = blockIndexInAll + 1 + childCount },
                         onCopy = { onCopyBlock(block.id) },
                         onImageClick = if (block.type == BlockType.IMAGE) {
                             { onImageClick(block) }

@@ -253,6 +253,36 @@ class NoteViewModelBlockOpsTest {
         assertEquals(listOf("A", "branch", "child"), blocks.map { it.content })
     }
 
+    @Test
+    fun `pasteBlock preserves order when pasting multiple blocks at non end index`() = runTest(dispatcher) {
+        val note = Note(
+            id = 7L,
+            title = "Paste multiple",
+            blocks = listOf(
+                Block(id = 1L, type = BlockType.TEXT, content = "A", sortOrder = 0),
+                Block(id = 2L, type = BlockType.TEXT, content = "B", sortOrder = 1)
+            )
+        )
+        val clipboardManager = mockk<BlockClipboardManager>(relaxed = true)
+        every { clipboardManager.readBlock() } returns BlockClipboardData(
+            block = Block(type = BlockType.TEXT, content = "X"),
+            children = listOf(
+                BlockClipboardData(block = Block(type = BlockType.TEXT, content = "Y")),
+                BlockClipboardData(block = Block(type = BlockType.TEXT, content = "Z"))
+            )
+        )
+        val viewModel = createViewModel(note, clipboardManager)
+        advanceUntilIdle()
+
+        viewModel.pasteBlock(1)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals("应粘贴顶层块及其两个子块", 5, blocks.size)
+        assertEquals("粘贴到中间位置时应保持顺序", listOf("A", "X", "Y", "Z", "B"), blocks.map { it.content })
+        assertEquals("sortOrder 应按新顺序重算", listOf(0, 1, 2, 3, 4), blocks.map { it.sortOrder })
+    }
+
     private fun createViewModel(
         note: Note,
         clipboardManager: BlockClipboardManager = mockk(relaxed = true)
