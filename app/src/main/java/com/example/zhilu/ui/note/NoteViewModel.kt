@@ -109,7 +109,7 @@ class NoteViewModel @Inject constructor(
                     val isEditing = note == null
                     currentCardId = nextCardId--
                     replaceBlocks(note?.blocks?.ifEmpty { defaultBlocks() } ?: defaultBlocks())
-                    initBranchExpandedStates(isEditing)
+                    initBranchExpandedStates()
                     val loadedBlocks = blocksForState()
                     val cards = note?.cards?.takeIf { it.isNotEmpty() }
                         ?: knowledgeCardsFromBlocks(note?.title.orEmpty(), loadedBlocks)
@@ -307,7 +307,7 @@ class NoteViewModel @Inject constructor(
             parentBranchId = parentBranchId
         )
         if (type == BlockType.BRANCH) {
-            _branchExpandedStates[blockId] = false
+            _branchExpandedStates[blockId] = true
         }
         syncBlocksToState()
         if (content.isNotBlank() || type == BlockType.DIVIDER || type == BlockType.TODO) {
@@ -392,7 +392,7 @@ class NoteViewModel @Inject constructor(
             parentBranchId = null
         )
         if (type == BlockType.BRANCH) {
-            _branchExpandedStates[newBlock.id] = false
+            _branchExpandedStates[newBlock.id] = true
         }
         _blocks.add(clampedIndex, newBlock)
         recalculateSortOrders()
@@ -431,7 +431,7 @@ class NoteViewModel @Inject constructor(
                 sortOrder = 0
             )
             if (newBlock.type == BlockType.BRANCH) {
-                _branchExpandedStates[newBlock.id] = false
+                _branchExpandedStates[newBlock.id] = true
             }
             newBlock
         }
@@ -576,7 +576,7 @@ class NoteViewModel @Inject constructor(
     }
 
     fun isBranchExpanded(branchId: Long): Boolean =
-        _branchExpandedStates[branchId] ?: false
+        _branchExpandedStates[branchId] ?: true
 
     fun toggleBranchExpanded(branchId: Long) {
         _branchExpandedStates[branchId] = !isBranchExpanded(branchId)
@@ -621,11 +621,11 @@ class NoteViewModel @Inject constructor(
         scheduleSave()
     }
 
-    private fun initBranchExpandedStates(isEditing: Boolean) {
+    private fun initBranchExpandedStates() {
         _branchExpandedStates.clear()
         _blocks.forEach { block ->
             if (block.type == BlockType.BRANCH) {
-                _branchExpandedStates[block.id] = !isEditing
+                _branchExpandedStates[block.id] = true
             }
         }
     }

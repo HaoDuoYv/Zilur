@@ -5,9 +5,11 @@ import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,8 +23,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -257,10 +261,26 @@ fun LatexImage(
             }
 
             is LatexRenderState.Success -> {
-                Image(
-                    bitmap = state.image,
-                    contentDescription = contentDescription
-                )
+                BoxWithConstraints(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val image = state.image
+                    val maxPx = constraints.maxWidth
+                    val scale = if (maxPx != Constraints.Infinity && image.width > maxPx) {
+                        maxPx.toFloat() / image.width.toFloat()
+                    } else {
+                        1f
+                    }
+                    val density = LocalDensity.current
+                    val targetWidth = with(density) { (image.width * scale).toDp() }
+                    Image(
+                        bitmap = image,
+                        contentDescription = contentDescription,
+                        modifier = Modifier.width(targetWidth),
+                        contentScale = ContentScale.Fit
+                    )
+                }
             }
 
             is LatexRenderState.Error -> {

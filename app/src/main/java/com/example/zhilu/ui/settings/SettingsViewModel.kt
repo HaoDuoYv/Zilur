@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.data.datastore.ThemeMode
+import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.Media
@@ -16,13 +18,14 @@ import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
 import com.example.zhilu.export.JsonExporter
 import com.example.zhilu.export.MarkdownExporter
+import com.example.zhilu.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -32,7 +35,9 @@ class SettingsViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
     private val tagRepository: TagRepository,
     private val mediaRepository: MediaRepository,
-    private val todoRepository: TodoRepository
+    private val todoRepository: TodoRepository,
+    private val userPreferences: UserPreferences,
+    private val reminderScheduler: ReminderScheduler
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -40,6 +45,33 @@ class SettingsViewModel @Inject constructor(
     init {
         refreshStats()
         observeStats()
+        observePreferences()
+    }
+
+    private fun observePreferences() {
+        viewModelScope.launch {
+            userPreferences.themeMode.collect { mode ->
+                _uiState.update { it.copy(themeMode = mode) }
+            }
+        }
+        viewModelScope.launch {
+            userPreferences.remindersEnabled.collect { enabled ->
+                _uiState.update { it.copy(remindersEnabled = enabled) }
+            }
+        }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch {
+            userPreferences.setThemeMode(mode)
+        }
+    }
+
+    fun setRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setRemindersEnabled(enabled)
+            reminderScheduler.setEnabled(enabled)
+        }
     }
 
     fun refreshStats() {

@@ -60,6 +60,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var pendingDeleteNoteId by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -165,23 +166,85 @@ fun HomeScreen(
                     navController.navigate(Destination.NoteEdit.createRoute())
                 }
 
-                else -> LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp)
-                ) {
-                    itemsIndexed(uiState.notes, key = { _, note -> note.id }) { index, note ->
-                        AnimatedListItem(index = index) {
-                            NoteCard(
-                                note = note,
-                                onClick = { navController.navigate(Destination.NoteEdit.createRoute(note.id)) },
-                                onToggleFavorite = { viewModel.toggleFavorite(note) },
-                                onDelete = { viewModel.softDeleteNote(note.id) }
-                            )
+                else -> {
+                    val timelineGroups = remember(uiState.notes) {
+                        if (uiState.viewMode == ViewMode.TIMELINE) {
+                            groupNotesByTimeline(uiState.notes)
+                        } else {
+                            emptyList()
+                        }
+                    }
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp)
+                    ) {
+                        if (uiState.viewMode == ViewMode.TIMELINE) {
+                            timelineGroups.forEach { group ->
+                                item(key = "header-${group.label}") {
+                                    Text(
+                                        text = group.label,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                                    )
+                                }
+                                itemsIndexed(
+                                    group.notes,
+                                    key = { _, note -> note.id }
+                                ) { index, note ->
+                                    AnimatedListItem(index = index) {
+                                        NoteCard(
+                                            note = note,
+                                            onClick = {
+                                                navController.navigate(Destination.NoteEdit.createRoute(note.id))
+                                            },
+                                            onToggleFavorite = { viewModel.toggleFavorite(note) },
+                                            onDelete = { pendingDeleteNoteId = note.id }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            itemsIndexed(uiState.notes, key = { _, note -> note.id }) { index, note ->
+                                AnimatedListItem(index = index) {
+                                    NoteCard(
+                                        note = note,
+                                        onClick = {
+                                            navController.navigate(Destination.NoteEdit.createRoute(note.id))
+                                        },
+                                        onToggleFavorite = { viewModel.toggleFavorite(note) },
+                                        onDelete = { pendingDeleteNoteId = note.id }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    pendingDeleteNoteId?.let { noteId ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteNoteId = null },
+            title = { Text("移入回收站？") },
+            text = { Text("删除后可在回收站恢复，30 天后自动清空。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.softDeleteNote(noteId)
+                        pendingDeleteNoteId = null
+                    }
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteNoteId = null }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 
     val preview = uiState.importPreview

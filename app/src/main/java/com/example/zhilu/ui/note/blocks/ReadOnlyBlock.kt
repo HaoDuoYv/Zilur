@@ -100,4 +100,15 @@ fun ReadOnlyBlock(
 
 fun readOnlyBlockCopyMenuLabel(): String = "复制此块"
 
-fun readOnlyBlockClipboardText(block: Block): AnnotatedString = AnnotatedString(block.content)
+fun readOnlyBlockClipboardText(block: Block): AnnotatedString {
+    val text = when (block.type) {
+        com.example.zhilu.domain.model.BlockType.IMAGE -> "[图片]"
+        com.example.zhilu.domain.model.BlockType.DIVIDER -> "----"
+        com.example.zhilu.domain.model.BlockType.BRANCH ->
+            block.content.ifBlank { "[分支]" }
+        com.example.zhilu.domain.model.BlockType.LATEX ->
+            block.content.ifBlank { "[公式]" }
+        else -> block.content
+    }
+    return AnnotatedString(text)
+}

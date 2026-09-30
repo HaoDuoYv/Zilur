@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
@@ -40,7 +39,6 @@ import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.ImageViewer
 
-private val BranchBackgroundColor = Color(0xFFF1F5F9)
 private val BranchCornerRadius = 8.dp
 private val BranchContentIndent = 24.dp
 private val BranchChildSpacing = 6.dp
@@ -71,7 +69,7 @@ fun BranchBlockEditor(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(BranchCornerRadius),
-        color = BranchBackgroundColor,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -141,7 +139,7 @@ fun BranchBlockView(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(BranchCornerRadius),
-        color = BranchBackgroundColor,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {

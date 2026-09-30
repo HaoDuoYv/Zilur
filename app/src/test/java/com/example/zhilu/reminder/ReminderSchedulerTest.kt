@@ -32,6 +32,13 @@ class ReminderSchedulerTest {
         )
     }
 
+    @Test
+    fun setEnabledFalseCancelsAllReminderWork() {
+        scheduler.setEnabled(false)
+
+        assertEquals(listOf(RecordedWork.CancelAll), enqueuer.recorded)
+    }
+
     private class RecordingWorkEnqueuer : ReminderScheduler.WorkEnqueuer {
         val recorded = mutableListOf<RecordedWork>()
 
@@ -45,6 +52,10 @@ class ReminderSchedulerTest {
         override fun enqueueUniqueOneTimeWork(name: String) {
             recorded += RecordedWork.OneTime(name)
         }
+
+        override fun cancelAll() {
+            recorded += RecordedWork.CancelAll
+        }
     }
 
     private sealed class RecordedWork {
@@ -54,5 +65,7 @@ class ReminderSchedulerTest {
         ) : RecordedWork()
 
         data class OneTime(val name: String) : RecordedWork()
+
+        data object CancelAll : RecordedWork()
     }
 }

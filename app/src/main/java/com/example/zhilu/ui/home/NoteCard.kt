@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.ui.component.AppCardStyle
 import com.example.zhilu.ui.component.TagChip
 import com.example.zhilu.ui.theme.MotionDuration
 import java.text.SimpleDateFormat
@@ -66,8 +67,11 @@ fun NoteCard(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        border = BorderStroke(
+            width = AppCardStyle.borderWidth,
+            color = MaterialTheme.colorScheme.outlineVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = AppCardStyle.elevation)
     ) {
         Column(
             modifier = Modifier
@@ -98,17 +102,15 @@ fun NoteCard(
                 )
             }
 
-            note.blocks.firstOrNull { it.type == BlockType.TEXT }?.let { block ->
-                if (block.content.isNotBlank()) {
-                    Text(
-                        text = block.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
-                    )
-                }
+            notePreviewText(note)?.let { preview ->
+                Text(
+                    text = preview,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
+                )
             }
 
             if (note.tags.isNotEmpty()) {
@@ -195,6 +197,59 @@ fun formatTime(timestamp: Long): String {
         minutes < 60 -> "${minutes}分钟前"
         hours < 24 -> "${hours}小时前"
         days < 7 -> "${days}天前"
-        else -> SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(timestamp))
+        days < 365 -> SimpleDateFormat("MM-dd", Locale.getDefault()).format(Date(timestamp))
+        else -> SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(timestamp))
     }
+}
+
+fun notePreviewText(note: Note): String? {
+    note.blocks.firstOrNull { it.type == BlockType.TEXT && it.content.isNotBlank() }?.let {
+        return it.content.trim()
+    }
+    note.blocks.firstOrNull { it.type == BlockType.BRANCH && it.content.isNotBlank() }?.let {
+        return it.content.trim()
+    }
+    note.blocks.firstOrNull { it.type == BlockType.CODE && it.content.isNotBlank() }?.let {
+        return it.content.trim().lineSequence().first().take(80)
+    }
+    note.blocks.firstOrNull { it.type == BlockType.LINK && it.content.isNotBlank() }?.let {
+        return it.content.trim()
+    }
+    note.blocks.firstOrNull { it.type == BlockType.LATEX && it.content.isNotBlank() }?.let {
+        return it.content.trim()
+    }
+    return null
+}
+
+data class TimelineGroup(
+    val label: String,
+    val notes: List<Note>
+)
+
+fun groupNotesByTimeline(notes: List<Note>): List<TimelineGroup> {
+    if (notes.isEmpty()) return emptyList()
+    val sorted = notes.sortedByDescending { it.updatedAt }
+    val now = System.currentTimeMillis()
+    val dayMs = 86_400_000L
+    return sorted.groupBy { note ->
+        val days = (now - note.updatedAt) / dayMs
+        when {
+            days < 1 -> "今天"
+            days < 2 -> "昨天"
+            days < 7 -> "本周"
+            days < 30 -> "本月"
+            days < 365 -> "今年"
+            else -> "更早"
+        }
+    }.map { (label, groupNotes) -> TimelineGroup(label, groupNotes) }
+        .sortedBy { groupOrder(it.label) }
+}
+
+private fun groupOrder(label: String): Int = when (label) {
+    "今天" -> 0
+    "昨天" -> 1
+    "本周" -> 2
+    "本月" -> 3
+    "今年" -> 4
+    else -> 5
 }

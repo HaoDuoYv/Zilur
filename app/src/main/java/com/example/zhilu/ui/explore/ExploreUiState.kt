@@ -6,6 +6,7 @@ import com.example.zhilu.domain.model.Tag
 data class ExploreUiState(
     val query: String = "",
     val results: List<Note> = emptyList(),
+    val recentNotes: List<Note> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val recentQueries: List<String> = emptyList(),
     val isSearching: Boolean = false,

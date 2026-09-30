@@ -13,19 +13,26 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.ui.home.notePreviewText
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NoteListItem(
     note: Note,
     modifier: Modifier = Modifier,
+    highlightQuery: String = "",
     trailing: @Composable (() -> Unit)? = null,
     onClick: () -> Unit = {}
 ) {
@@ -33,19 +40,19 @@ fun NoteListItem(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = note.title.ifBlank { "Untitled note" },
+                    HighlightedText(
+                        text = note.title.ifBlank { "未命名知识" },
+                        query = highlightQuery,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 1
                     )
-                    Text(
-                        text = note.blocks.firstOrNull { it.type == BlockType.TEXT }?.content.orEmpty(),
+                    HighlightedText(
+                        text = notePreviewText(note).orEmpty(),
+                        query = highlightQuery,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -68,3 +75,49 @@ fun NoteListItem(
         }
     }
 }
+
+@Composable
+private fun HighlightedText(
+    text: String,
+    query: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    fontWeight: FontWeight? = null,
+    color: Color = Color.Unspecified,
+    maxLines: Int = Int.MAX_VALUE
+) {
+    val annotated = remember(text, query) { highlightMatches(text, query) }
+    Text(
+        text = annotated,
+        style = style,
+        fontWeight = fontWeight,
+        color = color,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+    )
+}
+
+fun highlightMatches(text: String, query: String): AnnotatedString {
+    val trimmed = query.trim().removePrefix("#")
+    if (trimmed.isEmpty()) return AnnotatedString(text)
+    return buildAnnotatedString {
+        var start = 0
+        val lowerText = text.lowercase()
+        val lowerQuery = trimmed.lowercase()
+        while (true) {
+            val index = lowerText.indexOf(lowerQuery, start)
+            if (index < 0) {
+                append(text.substring(start))
+                break
+            }
+            append(text.substring(start, index))
+            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = HighlightColor))
+            append(text.substring(index, index + trimmed.length))
+            pop()
+            start = index + trimmed.length
+        }
+    }
+}
+
+private val HighlightColor = Color(0xFF1D4ED8)

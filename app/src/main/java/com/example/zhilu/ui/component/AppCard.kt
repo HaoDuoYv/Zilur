@@ -1,5 +1,6 @@
 package com.example.zhilu.ui.component
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,6 +11,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+
+/**
+ * 全站卡片视觉规范：统一圆角、描边与阴影。
+ */
+object AppCardStyle {
+    val elevation = 0.5.dp
+    val borderWidth = 1.dp
+}
 
 @Composable
 fun AppCard(
@@ -24,7 +33,8 @@ fun AppCard(
     val colors = CardDefaults.cardColors(
         containerColor = MaterialTheme.colorScheme.surface
     )
-    val elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
+    val elevation = CardDefaults.cardElevation(defaultElevation = AppCardStyle.elevation)
+    val border = BorderStroke(AppCardStyle.borderWidth, MaterialTheme.colorScheme.outlineVariant)
 
     if (onClick != null) {
         Card(
@@ -32,7 +42,8 @@ fun AppCard(
             onClick = onClick,
             shape = shape,
             colors = colors,
-            elevation = elevation
+            elevation = elevation,
+            border = border
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 content()
@@ -43,7 +54,8 @@ fun AppCard(
             modifier = cardModifier,
             shape = shape,
             colors = colors,
-            elevation = elevation
+            elevation = elevation,
+            border = border
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 content()

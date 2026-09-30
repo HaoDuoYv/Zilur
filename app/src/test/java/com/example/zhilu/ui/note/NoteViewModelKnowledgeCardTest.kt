@@ -169,15 +169,15 @@ class NoteViewModelKnowledgeCardTest {
         val branchId = branchBlock!!.id
         assertNull("分支块本身不应有 parentBranchId", branchBlock.parentBranchId)
         assertTrue(
-            "分支块默认应收起",
-            viewModel.uiState.value.branchExpandedStates[branchId] == false
+            "编辑模式下分支块默认展开",
+            viewModel.uiState.value.branchExpandedStates[branchId] == true
         )
 
         viewModel.toggleBranchExpanded(branchId)
         advanceUntilIdle()
         assertTrue(
-            "点击后分支应展开",
-            viewModel.uiState.value.branchExpandedStates[branchId] == true
+            "点击后分支应收起",
+            viewModel.uiState.value.branchExpandedStates[branchId] == false
         )
 
         viewModel.addBranchChildBlock(branchId, BlockType.TEXT)

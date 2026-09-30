@@ -68,7 +68,7 @@ fun ExploreScreen(
                 .fillMaxSize()
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 16.dp)
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 88.dp)
         ) {
             item {
                 AppCard {
@@ -122,36 +122,70 @@ fun ExploreScreen(
                 item {
                     ChipSection(title = "标签") {
                         state.tags.take(12).forEach { tag ->
-                            TagChip(tag = tag, onClick = { viewModel.onQueryChange(tag.name) })
+                            TagChip(tag = tag, onClick = { viewModel.useTagQuery(tag.name) })
                         }
                     }
                 }
             }
-            item {
-                Text(
-                    text = if (state.query.isBlank()) "搜索结果" else "${state.results.size} 条结果",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                )
-            }
-            if (state.query.isNotBlank() && state.results.isEmpty() && !state.isSearching) {
+            if (state.query.isBlank()) {
                 item {
-                    AppEmptyState(
-                        onAction = { viewModel.onQueryChange("") },
-                        icon = "搜",
-                        title = "未找到相关笔记",
-                        description = "换个关键词试试，或通过标签缩小范围。",
-                        buttonText = "清空搜索"
+                    Text(
+                        text = "最近编辑",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                 }
-            }
-            itemsIndexed(state.results, key = { _, note -> note.id }) { index, note ->
-                AnimatedListItem(index = index) {
-                    NoteListItem(
-                        note = note,
-                        onClick = { navController.navigate(Destination.NoteEdit.createRoute(note.id)) }
+                if (state.recentNotes.isEmpty()) {
+                    item {
+                        AppEmptyState(
+                            onAction = { navController.navigate(Destination.NoteEdit.createRoute()) },
+                            icon = "录",
+                            title = "还没有知识点",
+                            description = "创建第一条笔记，探索页会展示最近编辑的内容。",
+                            buttonText = "去记录"
+                        )
+                    }
+                } else {
+                    itemsIndexed(state.recentNotes, key = { _, note -> "recent-${note.id}" }) { index, note ->
+                        AnimatedListItem(index = index) {
+                            NoteListItem(
+                                note = note,
+                                onClick = {
+                                    navController.navigate(Destination.NoteEdit.createRoute(note.id))
+                                }
+                            )
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Text(
+                        text = "${state.results.size} 条结果",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                     )
+                }
+                if (state.results.isEmpty() && !state.isSearching) {
+                    item {
+                        AppEmptyState(
+                            onAction = { viewModel.onQueryChange("") },
+                            icon = "搜",
+                            title = "未找到相关笔记",
+                            description = "换个关键词试试，用 #标签名 精确筛选，或点击上方标签缩小范围。",
+                            buttonText = "清空搜索"
+                        )
+                    }
+                }
+                itemsIndexed(state.results, key = { _, note -> note.id }) { index, note ->
+                    AnimatedListItem(index = index) {
+                        NoteListItem(
+                            note = note,
+                            highlightQuery = state.query,
+                            onClick = { navController.navigate(Destination.NoteEdit.createRoute(note.id)) }
+                        )
+                    }
                 }
             }
         }

@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,9 +31,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +42,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
+import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.ui.component.AppCard
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.BottomBar
@@ -58,7 +57,6 @@ fun SettingsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var followSystem by remember { mutableStateOf(true) }
     val jsonExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri -> uri?.let(viewModel::exportJsonToUri) }
@@ -107,11 +105,27 @@ fun SettingsScreen(
             if (state.isWorking) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
 
             SettingsSection(title = "外观") {
-                SettingRow(
-                    title = "跟随系统主题",
-                    description = "应用主题将随系统深浅色模式自动切换。"
-                ) {
-                    Switch(checked = followSystem, onCheckedChange = { followSystem = it })
+                Text(
+                    text = "主题模式",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = state.themeMode == ThemeMode.SYSTEM,
+                        onClick = { viewModel.setThemeMode(ThemeMode.SYSTEM) },
+                        label = { Text("跟随系统") }
+                    )
+                    FilterChip(
+                        selected = state.themeMode == ThemeMode.LIGHT,
+                        onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
+                        label = { Text("浅色") }
+                    )
+                    FilterChip(
+                        selected = state.themeMode == ThemeMode.DARK,
+                        onClick = { viewModel.setThemeMode(ThemeMode.DARK) },
+                        label = { Text("深色") }
+                    )
                 }
             }
 
@@ -134,7 +148,7 @@ fun SettingsScreen(
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { jsonExportLauncher.launch("zhilu-backup.json") }) {
+                    OutlinedButton(onClick = { jsonExportLauncher.launch("zhilu-backup.json") }) {
                         Text("导出 JSON")
                     }
                     OutlinedButton(onClick = { markdownExportLauncher.launch("zhilu-notes.md") }) {
@@ -172,9 +186,16 @@ fun SettingsScreen(
                 }
                 SettingRow(
                     title = "提醒总开关",
-                    description = "提醒通知由已保存的提醒与系统权限共同控制。"
+                    description = if (state.remindersEnabled) {
+                        "开启后按计划检查并发送提醒。"
+                    } else {
+                        "已关闭，不再检查或发送提醒。"
+                    }
                 ) {
-                    Switch(checked = true, onCheckedChange = {}, enabled = false)
+                    Switch(
+                        checked = state.remindersEnabled,
+                        onCheckedChange = viewModel::setRemindersEnabled
+                    )
                 }
             }
 
@@ -231,7 +252,7 @@ private fun SettingRow(
     trailing: @Composable () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {

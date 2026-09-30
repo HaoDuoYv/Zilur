@@ -19,14 +19,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -35,23 +33,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.component.AppCardStyle
+import com.example.zhilu.ui.note.blocks.BlockTypePickerSheet
 import com.example.zhilu.ui.note.blocks.EditableBlock
 import com.example.zhilu.ui.note.blocks.ReadOnlyBlock
-import com.example.zhilu.ui.note.blocks.blockTypeLabel
 
 private const val FocusAnimationDurationMillis = 200
-
-private val KnowledgeCardBackground = Color(0xFFFFFFFF)
-private val KnowledgeCardOutlineDefault = Color(0xFFE5E7EB)
-private val KnowledgeCardOutlineFocused = Color(0xFF3B82F6)
-private val PinIconColor = Color(0xFF9CA3AF)
 
 @Composable
 fun KnowledgeCardItem(
@@ -86,19 +79,21 @@ fun KnowledgeCardItem(
     modifier: Modifier = Modifier
 ) {
     val isFocused = card.isFocused && isEditing
+    val defaultBorderColor = MaterialTheme.colorScheme.outlineVariant
+    val focusedBorderColor = MaterialTheme.colorScheme.primary
 
     val borderWidth by animateDpAsState(
-        targetValue = if (isFocused) 2.dp else 1.dp,
+        targetValue = if (isFocused) 2.dp else AppCardStyle.borderWidth,
         animationSpec = tween(durationMillis = FocusAnimationDurationMillis),
         label = "KnowledgeCardBorderWidth"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) KnowledgeCardOutlineFocused else KnowledgeCardOutlineDefault,
+        targetValue = if (isFocused) focusedBorderColor else defaultBorderColor,
         animationSpec = tween(durationMillis = FocusAnimationDurationMillis),
         label = "KnowledgeCardBorderColor"
     )
     val shadowElevation by animateDpAsState(
-        targetValue = if (isFocused) 6.dp else 1.dp,
+        targetValue = if (isFocused) 6.dp else AppCardStyle.elevation,
         animationSpec = tween(durationMillis = FocusAnimationDurationMillis),
         label = "KnowledgeCardShadowElevation"
     )
@@ -112,7 +107,7 @@ fun KnowledgeCardItem(
             .border(borderWidth, borderColor, shape)
             .clickable(enabled = isEditing, onClick = onFocus),
         shape = shape,
-        color = KnowledgeCardBackground
+        color = MaterialTheme.colorScheme.surface
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -184,7 +179,7 @@ private fun CardTitleInput(
         Icon(
             imageVector = Icons.Default.PushPin,
             contentDescription = "知识小点",
-            tint = PinIconColor,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -290,7 +285,7 @@ private fun CardBlockList(
                     block.type != BlockType.LATEX
                 val childBlocks = card.blocks.filter { it.parentBranchId == block.id }
                 val isBranchExpanded = if (isEditing) {
-                    branchExpandedStates[block.id] ?: false
+                    branchExpandedStates[block.id] ?: true
                 } else {
                     true
                 }
@@ -367,34 +362,11 @@ private fun CardBlockList(
     }
 
     if (pendingInsertIndex >= 0) {
-        AlertDialog(
-            onDismissRequest = { pendingInsertIndex = -1 },
-            title = { Text("选择块类型") },
-            text = {
-                Column {
-                    listOf(
-                        BlockType.TEXT,
-                        BlockType.CODE,
-                        BlockType.LINK,
-                        BlockType.LATEX,
-                        BlockType.BRANCH
-                    ).forEach { type ->
-                        TextButton(
-                            onClick = {
-                                onInsertBlockAt(pendingInsertIndex, type)
-                                pendingInsertIndex = -1
-                            }
-                        ) {
-                            Text(blockTypeLabel(type))
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { pendingInsertIndex = -1 }) {
-                    Text("取消")
-                }
+        BlockTypePickerSheet(
+            onDismiss = { pendingInsertIndex = -1 },
+            onSelect = { type ->
+                onInsertBlockAt(pendingInsertIndex, type)
+                pendingInsertIndex = -1
             }
         )
     }

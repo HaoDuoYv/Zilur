@@ -17,12 +17,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.component.AppCardStyle
 import com.example.zhilu.ui.theme.ShapeTokens
-
-private val AddButtonOutlineColor = Color(0xFFD1D5DB)
-private val AddButtonBackgroundColor = Color(0xFFFFFFFF)
 
 @Composable
 fun AddKnowledgeCardButton(
@@ -36,11 +33,14 @@ fun AddKnowledgeCardButton(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         shape = RoundedCornerShape(ShapeTokens.Medium),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = AddButtonBackgroundColor,
+            containerColor = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.primary
         ),
-        border = BorderStroke(width = 1.dp, color = AddButtonOutlineColor),
-        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+        border = BorderStroke(
+            width = AppCardStyle.borderWidth,
+            color = MaterialTheme.colorScheme.outlineVariant
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = AppCardStyle.elevation)
     ) {
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),

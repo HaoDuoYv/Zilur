@@ -68,7 +68,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
@@ -85,6 +84,7 @@ import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.ImageViewer
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.note.blocks.PastePositionSheet
 import com.example.zhilu.ui.note.knowledge.AddKnowledgeCardButton
 import com.example.zhilu.ui.note.knowledge.KnowledgeCardItem
 import com.example.zhilu.ui.note.tag.TagPickerInline
@@ -258,7 +258,7 @@ fun NoteEditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(PageBackground)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             LazyColumn(
                 state = listState,
@@ -360,34 +360,19 @@ fun NoteEditScreen(
                     }
 
                     if (showPasteDialog) {
-                        AlertDialog(
-                            onDismissRequest = { showPasteDialog = false },
-                            title = { Text("粘贴位置") },
-                            text = { Text("选择粘贴位置") },
-                            confirmButton = {
-                                Column {
-                                    TextButton(
-                                        onClick = {
-                                            viewModel.pasteBlock(null)
-                                            showPasteDialog = false
-                                        }
-                                    ) { Text("粘贴到末尾") }
-                                    TextButton(
-                                        onClick = {
-                                            viewModel.pasteBlock(0)
-                                            showPasteDialog = false
-                                        }
-                                    ) { Text("粘贴到上方") }
-                                    TextButton(
-                                        onClick = {
-                                            viewModel.pasteBlock(card.blocks.size)
-                                            showPasteDialog = false
-                                        }
-                                    ) { Text("粘贴到下方") }
-                                }
+                        PastePositionSheet(
+                            onDismiss = { showPasteDialog = false },
+                            onPasteTop = {
+                                viewModel.pasteBlock(0)
+                                showPasteDialog = false
                             },
-                            dismissButton = {
-                                TextButton(onClick = { showPasteDialog = false }) { Text("取消") }
+                            onPasteBottom = {
+                                viewModel.pasteBlock(card.blocks.size)
+                                showPasteDialog = false
+                            },
+                            onPasteEnd = {
+                                viewModel.pasteBlock(null)
+                                showPasteDialog = false
                             }
                         )
                     }
@@ -545,7 +530,6 @@ private fun TitleInput(
     )
 }
 
-private val PageBackground = Color(0xFFF5F7FA)
 
 @Composable
 private fun EditModeHeader(

@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -25,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,6 +58,7 @@ fun TagsScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var newTagName by remember { mutableStateOf("") }
+    var pendingDeleteTag by remember { mutableStateOf<Tag?>(null) }
 
     LaunchedEffect(state.error) {
         state.error?.let {
@@ -106,7 +109,64 @@ fun TagsScreen(
                     }
                 }
             }
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = 0.dp,
+                    end = 0.dp,
+                    top = 8.dp,
+                    bottom = 88.dp
+                )
+            ) {
+                state.selectedTag?.let { tag ->
+                    item(key = "filtered-header") {
+                        Text(
+                            text = "“${tag.name}” 下的知识点",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                    if (state.isLoadingNotes) {
+                        item(key = "filtered-loading") { LinearProgressIndicator() }
+                    } else if (state.filteredNotes.isEmpty()) {
+                        item(key = "filtered-empty") {
+                            AppEmptyState(
+                                onAction = {
+                                    navController.navigate(Destination.NoteEdit.createRoute())
+                                },
+                                icon = "标",
+                                title = "这个标签下还没有知识点",
+                                description = "给笔记添加「${tag.name}」标签后，会出现在这里。",
+                                buttonText = "去记录",
+                                secondaryActionLabel = "取消筛选",
+                                onSecondaryAction = { viewModel.selectTag(tag) }
+                            )
+                        }
+                    } else {
+                        itemsIndexed(
+                            state.filteredNotes,
+                            key = { _, note -> "note-${note.id}" }
+                        ) { index, note ->
+                            AnimatedListItem(index = index) {
+                                NoteListItem(
+                                    note = note,
+                                    onClick = {
+                                        navController.navigate(Destination.NoteEdit.createRoute(note.id))
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    item(key = "tags-header") {
+                        Text(
+                            text = "全部标签",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                        )
+                    }
+                }
                 if (!state.isLoading && state.tags.isEmpty()) {
                     item {
                         AppEmptyState(
@@ -124,48 +184,36 @@ fun TagsScreen(
                                 tag = tag,
                                 selected = state.selectedTag?.id == tag.id,
                                 onClick = { viewModel.selectTag(tag) },
-                                onDelete = { viewModel.deleteTag(tag) }
+                                onDelete = { pendingDeleteTag = tag }
                             )
-                        }
-                    }
-                }
-                state.selectedTag?.let { tag ->
-                    item {
-                        Text(
-                            text = "“${tag.name}” 下的知识点",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                        )
-                    }
-                    if (state.isLoadingNotes) {
-                        item { LinearProgressIndicator() }
-                    } else if (state.filteredNotes.isEmpty()) {
-                        item {
-                            AppCard {
-                                Text(
-                                    text = "这个标签下还没有知识点。",
-                                    modifier = Modifier.padding(16.dp),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    } else {
-                        itemsIndexed(state.filteredNotes, key = { _, note -> "note-${note.id}" }) { index, note ->
-                            AnimatedListItem(index = index) {
-                                NoteListItem(
-                                    note = note,
-                                    onClick = {
-                                        navController.navigate(Destination.NoteEdit.createRoute(note.id))
-                                    }
-                                )
-                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    pendingDeleteTag?.let { tag ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteTag = null },
+            title = { Text("删除标签？") },
+            text = { Text("仅移除标签关联，不会删除笔记内容。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteTag(tag)
+                        pendingDeleteTag = null
+                    }
+                ) {
+                    Text("删除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteTag = null }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
@@ -185,7 +233,7 @@ private fun TagRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(14.dp)
+                    .size(10.dp)
                     .clip(CircleShape)
                     .background(Color(tag.color))
             )
@@ -200,13 +248,13 @@ private fun TagRow(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = if (selected) "正在显示该标签下的知识点" else "点击查看该标签下的知识点",
+                    text = if (selected) "正在筛选该标签下的知识点" else "点击查看该标签下的知识点",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             Button(onClick = onClick) {
-                Text(if (selected) "收起" else "查看")
+                Text(if (selected) "取消筛选" else "筛选")
             }
             IconButton(onClick = onDelete) {
                 Icon(

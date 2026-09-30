@@ -10,6 +10,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.example.zhilu.data.datastore.ThemeMode
 
 private val LightColorScheme = lightColorScheme(
     primary = PrimaryLight,
@@ -67,11 +68,16 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun ZhiLuTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
     // Disabled by default to preserve the editorial brand palette across devices.
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
     val colorScheme = when {
         dynamicColor -> {
             // Dynamic color is intentionally not used by default. To opt in on Android 12+,

@@ -47,7 +47,7 @@ fun TagChip(
         ) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(10.dp)
                     .clip(CircleShape)
                     .background(tagColor)
             )

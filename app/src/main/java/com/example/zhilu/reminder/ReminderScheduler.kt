@@ -24,9 +24,22 @@ class ReminderScheduler @Inject constructor(
         workEnqueuer.enqueueUniqueOneTimeWork(ONE_TIME_WORK)
     }
 
+    fun cancelAll() {
+        workEnqueuer.cancelAll()
+    }
+
+    fun setEnabled(enabled: Boolean) {
+        if (enabled) {
+            schedulePeriodicChecks()
+        } else {
+            cancelAll()
+        }
+    }
+
     interface WorkEnqueuer {
         fun enqueueUniquePeriodicWork(name: String, repeatIntervalMillis: Long)
         fun enqueueUniqueOneTimeWork(name: String)
+        fun cancelAll()
     }
 
     class WorkManagerWorkEnqueuer @Inject constructor(
@@ -56,6 +69,11 @@ class ReminderScheduler @Inject constructor(
                 ExistingWorkPolicy.REPLACE,
                 request
             )
+        }
+
+        override fun cancelAll() {
+            WorkManager.getInstance(context).cancelUniqueWork(PERIODIC_WORK)
+            WorkManager.getInstance(context).cancelUniqueWork(ONE_TIME_WORK)
         }
     }
 

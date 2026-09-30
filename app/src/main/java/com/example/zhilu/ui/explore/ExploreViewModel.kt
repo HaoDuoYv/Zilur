@@ -3,6 +3,7 @@ package com.example.zhilu.ui.explore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,6 +28,7 @@ class ExploreViewModel @Inject constructor(
 
     init {
         observeTags()
+        observeRecentNotes()
     }
 
     fun onQueryChange(query: String) {
@@ -41,6 +43,11 @@ class ExploreViewModel @Inject constructor(
     fun submitSearch() {
         searchJob?.cancel()
         viewModelScope.launch { search(_uiState.value.query) }
+    }
+
+    fun useTagQuery(tagName: String) {
+        onQueryChange(tagName)
+        submitSearch()
     }
 
     fun useRecentQuery(query: String) {
@@ -58,7 +65,12 @@ class ExploreViewModel @Inject constructor(
             return
         }
         _uiState.update { it.copy(isSearching = true) }
-        when (val result = noteRepository.searchNotes(trimmed)) {
+        val result = if (trimmed.startsWith("#")) {
+            searchByTag(trimmed.removePrefix("#").trim())
+        } else {
+            noteRepository.searchNotes(trimmed)
+        }
+        when (result) {
             is RepositoryResult.Success -> _uiState.update {
                 it.copy(
                     results = result.data,
@@ -73,12 +85,39 @@ class ExploreViewModel @Inject constructor(
         }
     }
 
+    private suspend fun searchByTag(tagName: String): RepositoryResult<List<Note>> {
+        if (tagName.isEmpty()) return RepositoryResult.Success(emptyList())
+        return when (val tagResult = tagRepository.getTagByName(tagName)) {
+            is RepositoryResult.Error -> tagResult
+            is RepositoryResult.Success -> {
+                val tag = tagResult.data
+                if (tag == null) {
+                    RepositoryResult.Success(emptyList())
+                } else {
+                    noteRepository.getNotesByTagId(tag.id)
+                }
+            }
+        }
+    }
+
     private fun observeTags() {
         viewModelScope.launch {
             tagRepository.getAllTags().collect { result ->
                 when (result) {
                     is RepositoryResult.Success -> _uiState.update { it.copy(tags = result.data) }
                     is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
+                }
+            }
+        }
+    }
+
+    private fun observeRecentNotes() {
+        viewModelScope.launch {
+            noteRepository.getAllNotes().collect { result ->
+                if (result is RepositoryResult.Success) {
+                    _uiState.update {
+                        it.copy(recentNotes = result.data.take(5))
+                    }
                 }
             }
         }

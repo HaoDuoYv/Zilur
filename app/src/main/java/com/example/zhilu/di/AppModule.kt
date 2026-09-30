@@ -11,6 +11,7 @@ import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.dao.TagDao
 import com.example.zhilu.data.local.dao.TodoDao
 import com.example.zhilu.data.local.database.AppDatabase
+import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.data.local.database.Migration
 import com.example.zhilu.data.repository.MediaRepositoryImpl
@@ -124,4 +125,9 @@ object AppModule {
     @Singleton
     fun provideMediaFileManager(@ApplicationContext context: Context): MediaFileManager =
         MediaFileManager(context)
+
+    @Provides
+    @Singleton
+    fun provideUserPreferences(@ApplicationContext context: Context): UserPreferences =
+        UserPreferences(context)
 }

@@ -54,7 +54,7 @@ fun LatexBlockEditor(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 96.dp),
+                    .heightIn(min = 72.dp),
                 textStyle = textStyle,
                 decorationBox = { innerTextField ->
                     if (value.isEmpty()) {
@@ -67,7 +67,9 @@ fun LatexBlockEditor(
                     innerTextField()
                 }
             )
-            LatexPreview(value = value)
+            if (value.isNotBlank()) {
+                LatexPreview(value = value)
+            }
         }
     }
 }
@@ -138,21 +140,22 @@ fun ReadOnlyLatexBlockContent(
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ScrollableLatexBox(scrollState = scrollState) {
-                if (value.isBlank()) {
-                    Text(
-                        text = "空公式",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
+        if (value.isBlank()) {
+            Text(
+                text = "空公式",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(12.dp)
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ScrollableLatexBox(scrollState = scrollState) {
                     val state = rememberLatexImage(
                         latex = value,
                         textSizeSp = 20f,
