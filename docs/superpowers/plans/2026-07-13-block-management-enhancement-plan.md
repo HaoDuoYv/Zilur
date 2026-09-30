@@ -36,7 +36,7 @@
 - Modify: `app/src/main/java/com/example/zhilu/data/repository/NoteRepositoryImpl.kt:110-126`
 - Test: `app/src/test/java/com/example/zhilu/data/repository/NoteRepositoryImplTest.kt`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```kotlin
 @Test
@@ -62,12 +62,12 @@ fun `hydrate merges orphan blocks into first card when cardId mismatch`() = runT
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "com.example.zhilu.data.repository.NoteRepositoryImplTest.hydrate*" --no-daemon`
 Expected: FAIL
 
-- [ ] **Step 3: 修改 hydrate 逻辑**
+- [x] **Step 3: 修改 hydrate 逻辑**
 
 ```kotlin
 private suspend fun hydrate(entity: NoteEntity): Note {
@@ -95,12 +95,12 @@ private suspend fun hydrate(entity: NoteEntity): Note {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "com.example.zhilu.data.repository.NoteRepositoryImplTest" --no-daemon`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/src/main/java/com/example/zhilu/data/repository/NoteRepositoryImpl.kt \
@@ -110,13 +110,13 @@ git commit -m "fix: merge orphan blocks into first card during hydration"
 
 ---
 
-## Task 2: 增强 ViewModel 防御并修复 addKnowledgeCard 闪退
+## Task 2: 增强 ViewModel 防御并修复 addKnowledgeCard 闪退 ✅
 
 **Files:**
 - Modify: `app/src/main/java/com/example/zhilu/ui/note/NoteViewModel.kt`
 - Test: `app/src/test/java/com/example/zhilu/ui/note/NoteViewModelBlockOpsTest.kt`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```kotlin
 @Test
@@ -133,12 +133,12 @@ fun `addKnowledgeCard does not crash when currentCardId not in cards`() = runTes
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "com.example.zhilu.ui.note.NoteViewModelBlockOpsTest" --no-daemon`
 Expected: FAIL
 
-- [ ] **Step 3: 修改 addKnowledgeCard 与 syncBlocksToState**
+- [x] **Step 3: 修改 addKnowledgeCard 与 syncBlocksToState**
 
 修改 `addKnowledgeCard()`：
 
@@ -207,12 +207,12 @@ private fun syncBlocksToState() {
 }
 ```
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "com.example.zhilu.ui.note.NoteViewModelBlockOpsTest" --no-daemon`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/src/main/java/com/example/zhilu/ui/note/NoteViewModel.kt \
@@ -220,14 +220,16 @@ git add app/src/main/java/com/example/zhilu/ui/note/NoteViewModel.kt \
 git commit -m "fix: defend addKnowledgeCard against stale old-note card ids"
 ```
 
+**Summary:** Task 2 completed - added ensureCurrentCardExists defense in addKnowledgeCard and focusCard, updated syncBlocksToState for empty cards, added tests, spec and code quality reviews approved.
+
 ---
 
-## Task 3: 新增 Block.copyWithFreshId()
+## Task 3: 新增 Block.copyWithFreshId() ✅
 
 **Files:**
 - Modify: `app/src/main/java/com/example/zhilu/domain/model/Block.kt`
 
-- [ ] **Step 1: 在 Block 中添加方法**
+- [x] **Step 1: 在 Block 中添加方法**
 
 ```kotlin
 fun copyWithFreshId(newId: Long): Block = copy(
@@ -239,22 +241,24 @@ fun copyWithFreshId(newId: Long): Block = copy(
 )
 ```
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add app/src/main/java/com/example/zhilu/domain/model/Block.kt
 git commit -m "feat: add Block.copyWithFreshId helper"
 ```
 
+**Summary:** Task 3 completed - added Block.copyWithFreshId helper with fresh id and cleared persistent fields; spec/quality review approved.
+
 ---
 
-## Task 4: 实现 BlockClipboardSerializer
+## Task 4: 实现 BlockClipboardSerializer ✅
 
 **Files:**
 - Create: `app/src/main/java/com/example/zhilu/domain/usecase/clipboard/BlockClipboardSerializer.kt`
 - Test: `app/src/test/java/com/example/zhilu/domain/usecase/clipboard/BlockClipboardSerializerTest.kt`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ```kotlin
 @Test
@@ -287,12 +291,12 @@ fun `serializes branch with children recursively`() {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "com.example.zhilu.domain.usecase.clipboard.BlockClipboardSerializerTest" --no-daemon`
 Expected: FAIL
 
-- [ ] **Step 3: 实现 serializer**
+- [x] **Step 3: 实现 serializer**
 
 ```kotlin
 package com.example.zhilu.domain.usecase.clipboard
@@ -362,12 +366,12 @@ object BlockClipboardSerializer {
 
 注意：这里使用 `Block.children` 字段需要先在 `Block` 数据类中增加 `val children: List<Block> = emptyList()` 作为临时容器（仅在粘贴反序列化时使用），或者改用独立数据结构。如果 `Block` 没有 `children` 字段，则改为返回 `Pair<Block, List<Block>>`。
 
-- [ ] **Step 4: 运行测试确认通过**
+- [x] **Step 4: 运行测试确认通过**
 
 Run: `./gradlew :app:testDebugUnitTest --tests "com.example.zhilu.domain.usecase.clipboard.BlockClipboardSerializerTest" --no-daemon`
 Expected: PASS
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add app/src/main/java/com/example/zhilu/domain/usecase/clipboard/BlockClipboardSerializer.kt \
@@ -375,14 +379,16 @@ git add app/src/main/java/com/example/zhilu/domain/usecase/clipboard/BlockClipbo
 git commit -m "feat: add block clipboard serializer"
 ```
 
+**Summary:** Task 4 completed - created BlockClipboardSerializer using separate BlockClipboardData model (Block unchanged), supports all block types and recursive BRANCH children, tests passing, spec/quality review approved.
+
 ---
 
-## Task 5: 实现 BlockClipboardManager
+## Task 5: 实现 BlockClipboardManager ✅
 
 **Files:**
 - Create: `app/src/main/java/com/example/zhilu/domain/usecase/clipboard/BlockClipboardManager.kt`
 
-- [ ] **Step 1: 实现 Manager**
+- [x] **Step 1: 实现 Manager**
 
 ```kotlin
 package com.example.zhilu.domain.usecase.clipboard
@@ -425,12 +431,14 @@ class BlockClipboardManager @Inject constructor(
 
 注意：`PREFIX` 需要在 `BlockClipboardSerializer` 中改为 `public` 或提供常量访问器。
 
-- [ ] **Step 2: 提交**
+- [x] **Step 2: 提交**
 
 ```bash
 git add app/src/main/java/com/example/zhilu/domain/usecase/clipboard/BlockClipboardManager.kt
 git commit -m "feat: add block clipboard manager"
 ```
+
+**Summary:** Task 5 completed - created BlockClipboardManager as Hilt singleton, directly checks zhilu-block prefix, handles null/empty clipboard safely, spec/quality review approved.
 
 ---
 
