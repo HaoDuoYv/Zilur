@@ -1,6 +1,7 @@
 package com.example.zhilu.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -18,11 +19,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.MotionEasing
+import com.example.zhilu.ui.theme.motionEnterTween
+import com.example.zhilu.ui.theme.motionExitTween
 
 @Composable
 fun HomeFabMenu(
@@ -31,11 +38,18 @@ fun HomeFabMenu(
     onCreateNote: () -> Unit,
     onImport: () -> Unit
 ) {
+    val reducedMotion = LocalReducedMotion.current
+    val rotation by animateFloatAsState(
+        targetValue = if (expanded) 45f else 0f,
+        animationSpec = motionEnterTween(MotionDuration.Short, easing = MotionEasing.EaseInOutCubic, enabled = !reducedMotion),
+        label = "home_fab_rotation"
+    )
+
     Column(horizontalAlignment = Alignment.End) {
         AnimatedVisibility(
             visible = expanded,
-            enter = fadeIn(),
-            exit = fadeOut()
+            enter = fadeIn(motionEnterTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)),
+            exit = fadeOut(motionExitTween(MotionDuration.Short, easing = MotionEasing.Standard, enabled = !reducedMotion))
         ) {
             Column(horizontalAlignment = Alignment.End) {
                 FabMenuItem(
@@ -64,7 +78,7 @@ fun HomeFabMenu(
             Icon(
                 imageVector = Icons.Default.Add,
                 contentDescription = "更多",
-                modifier = Modifier.rotate(if (expanded) 45f else 0f)
+                modifier = Modifier.rotate(rotation)
             )
         }
     }

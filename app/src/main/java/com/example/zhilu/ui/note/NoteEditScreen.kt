@@ -10,7 +10,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -90,6 +89,10 @@ import com.example.zhilu.ui.note.knowledge.KnowledgeCardItem
 import com.example.zhilu.ui.note.tag.TagPickerInline
 import com.example.zhilu.ui.note.toolbar.KnowledgeBottomToolbar
 import com.example.zhilu.ui.settings.NotificationPermissionState
+import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.motionEnterTween
+import com.example.zhilu.ui.theme.motionExitTween
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -458,11 +461,12 @@ private fun SaveStatusIndicator(
     status: SaveStatus,
     modifier: Modifier = Modifier
 ) {
+    val reducedMotion = LocalReducedMotion.current
     AnimatedContent(
         targetState = status,
         modifier = modifier,
         transitionSpec = {
-            fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(150))
+            fadeIn(animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion)) togetherWith fadeOut(animationSpec = motionExitTween(MotionDuration.Short, enabled = !reducedMotion))
         },
         label = "SaveStatus"
     ) { target ->
@@ -477,7 +481,7 @@ private fun SaveStatusIndicator(
             SaveStatus.SAVED -> {
                 val scale = remember { Animatable(0.5f) }
                 LaunchedEffect(Unit) {
-                    scale.animateTo(1f, animationSpec = tween(durationMillis = 200))
+                    scale.animateTo(1f, animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion))
                 }
                 Icon(
                     imageVector = Icons.Default.Check,

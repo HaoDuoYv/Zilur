@@ -14,6 +14,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.ShapeTokens
 
 @Composable
 fun DividerBlockView(
@@ -45,8 +47,8 @@ fun DividerBlockView(
             modifier = modifier
                 .fillMaxWidth()
                 .height(48.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.08f)),
+                .clip(RoundedCornerShape(ShapeTokens.Small))
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Subtle)),
             contentAlignment = Alignment.Center
         ) {
             DividerLine(

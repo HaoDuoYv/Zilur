@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.ui.theme.AlphaTokens
 
 @Composable
 fun TagChip(
@@ -28,7 +30,7 @@ fun TagChip(
 ) {
     val tagColor = Color(tag.color)
     val backgroundColor = if (selected) {
-        tagColor.copy(alpha = 0.12f)
+        tagColor.copy(alpha = AlphaTokens.Hover)
     } else {
         MaterialTheme.colorScheme.surfaceVariant
     }
@@ -37,6 +39,7 @@ fun TagChip(
     Surface(
         onClick = onClick,
         enabled = enabled,
+        modifier = Modifier.minimumInteractiveComponentSize(),
         shape = CircleShape,
         color = backgroundColor,
         shadowElevation = 0.dp

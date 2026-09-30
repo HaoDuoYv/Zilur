@@ -41,6 +41,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.MotionEasing
+import com.example.zhilu.ui.theme.motionEnterTween
+import com.example.zhilu.ui.theme.motionExitTween
 
 @Composable
 fun BlockToolbar(
@@ -54,6 +59,7 @@ fun BlockToolbar(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val reducedMotion = LocalReducedMotion.current
 
     Surface(
         modifier = modifier
@@ -67,8 +73,8 @@ fun BlockToolbar(
         AnimatedContent(
             targetState = expanded,
             transitionSpec = {
-                fadeIn(animationSpec = androidx.compose.animation.core.tween(180)) togetherWith
-                    fadeOut(animationSpec = androidx.compose.animation.core.tween(180)) using
+                fadeIn(animationSpec = motionEnterTween(MotionDuration.Short, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)) togetherWith
+                    fadeOut(animationSpec = motionExitTween(MotionDuration.Short, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)) using
                     SizeTransform(clip = false)
             },
             label = "BlockToolbarExpand"

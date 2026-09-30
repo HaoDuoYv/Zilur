@@ -30,8 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.theme.AlphaTokens
 
 @Composable
 fun KnowledgeBottomToolbar(
@@ -46,11 +46,11 @@ fun KnowledgeBottomToolbar(
     modifier: Modifier = Modifier
 ) {
     val enabled = activeCardId != null
-    val contentAlpha = if (enabled) 1f else 0.5f
+    val contentAlpha = if (enabled) 1f else AlphaTokens.Disabled
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = Color.White
+        color = MaterialTheme.colorScheme.surface
     ) {
         Column {
             HorizontalDivider(

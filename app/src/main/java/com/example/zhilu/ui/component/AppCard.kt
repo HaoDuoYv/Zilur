@@ -16,8 +16,18 @@ import androidx.compose.ui.unit.dp
  * 全站卡片视觉规范：统一圆角、描边与阴影。
  */
 object AppCardStyle {
-    val elevation = 0.5.dp
+    val elevation = ElevationTokens.Card
     val borderWidth = 1.dp
+}
+
+/**
+ * 统一阴影层级：替代散落的 0/0.5/4/6/8dp 字面量。
+ */
+object ElevationTokens {
+    val Flat = 0.dp          // 平铺（标签、块）
+    val Card = 0.5.dp        // 卡片常态
+    val Raised = 3.dp        // 悬浮 / 聚焦
+    val Floating = 6.dp      // FAB、拖拽拾起
 }
 
 @Composable

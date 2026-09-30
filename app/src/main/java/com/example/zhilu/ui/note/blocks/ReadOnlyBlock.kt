@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.AnnotatedString
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.theme.AlphaTokens
 
 @Composable
 fun ReadOnlyBlock(
@@ -62,7 +63,7 @@ fun ReadOnlyBlock(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .height(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Divider))
                 )
             }
             BlockCard(

@@ -16,7 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.motionEnterTween
 
 @Composable
 fun AppFAB(
@@ -28,9 +30,10 @@ fun AppFAB(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotion.current
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.92f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(MotionDuration.Short),
+        animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion),
         label = "fab_press_scale"
     )
 

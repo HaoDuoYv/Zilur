@@ -37,9 +37,13 @@ import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.component.ElevationTokens
 import com.example.zhilu.ui.component.ImageViewer
+import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.ShapeTokens
+import com.example.zhilu.ui.theme.motionSpring
 
-private val BranchCornerRadius = 8.dp
+private val BranchCornerRadius = ShapeTokens.Small
 private val BranchContentIndent = 24.dp
 private val BranchChildSpacing = 6.dp
 private val BranchHeaderSpacing = 8.dp
@@ -69,9 +73,9 @@ fun BranchBlockEditor(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(BranchCornerRadius),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = AlphaTokens.Overlay),
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+        shadowElevation = ElevationTokens.Flat
     ) {
         Column(
             modifier = Modifier.padding(BranchHeaderSpacing)
@@ -139,9 +143,9 @@ fun BranchBlockView(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(BranchCornerRadius),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = AlphaTokens.Overlay),
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp
+        shadowElevation = ElevationTokens.Flat
     ) {
         Column(
             modifier = Modifier.padding(BranchHeaderSpacing)
@@ -194,6 +198,7 @@ private fun BranchHeader(
 ) {
     val rotation by animateFloatAsState(
         targetValue = if (isExpanded) 90f else 0f,
+        animationSpec = motionSpring(),
         label = "branch_arrow_rotation"
     )
     val textStyle = MaterialTheme.typography.bodyLarge.merge(

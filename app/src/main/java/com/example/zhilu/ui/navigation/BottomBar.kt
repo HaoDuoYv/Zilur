@@ -24,6 +24,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.zhilu.ui.theme.motionSpring
 
 @Composable
 fun BottomBar(navController: NavHostController) {
@@ -49,10 +50,12 @@ fun BottomBar(navController: NavHostController) {
                 val selected = currentDestination?.hierarchy?.any { it.route == destination.path } == true
                 val scale by animateFloatAsState(
                     targetValue = if (selected) 1f else 0.92f,
+                    animationSpec = motionSpring(),
                     label = "bottom_bar_item_scale"
                 )
                 val alpha by animateFloatAsState(
                     targetValue = if (selected) 1f else 0.75f,
+                    animationSpec = motionSpring(),
                     label = "bottom_bar_item_alpha"
                 )
 

@@ -39,6 +39,7 @@ import androidx.compose.ui.zIndex
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.theme.AlphaTokens
 
 @Composable
 fun EditableBlock(
@@ -168,7 +169,7 @@ fun EditableBlock(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .height(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f))
+                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Divider))
                 )
             }
 

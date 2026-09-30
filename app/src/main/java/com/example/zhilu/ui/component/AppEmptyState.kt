@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zhilu.ui.theme.ShapeTokens
 
 @Composable
 fun AppEmptyState(
@@ -68,7 +70,7 @@ fun AppEmptyState(
         )
         FilledTonalButton(
             onClick = onAction,
-            shape = CircleShape,
+            shape = RoundedCornerShape(ShapeTokens.Pill),
             modifier = Modifier.padding(top = 16.dp)
         ) {
             Text(

@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
 import com.example.zhilu.ui.theme.MotionEasing
 import com.example.zhilu.ui.theme.motionEnterTween
@@ -29,6 +30,7 @@ fun AnimatedListItem(
     staggerDelayMillis: Int = 40,
     content: @Composable () -> Unit
 ) {
+    val reducedMotion = LocalReducedMotion.current
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(staggerDelayMillis.toLong() * index.coerceAtMost(maxIndex))
@@ -40,12 +42,14 @@ fun AnimatedListItem(
         enter = fadeIn(
             motionEnterTween(
                 durationMillis = MotionDuration.Medium,
-                easing = MotionEasing.EaseOutCubic
+                easing = MotionEasing.EaseOutCubic,
+                enabled = !reducedMotion
             )
         ) + slideInVertically(
             motionEnterTween(
                 durationMillis = MotionDuration.Medium,
-                easing = MotionEasing.EaseOutCubic
+                easing = MotionEasing.EaseOutCubic,
+                enabled = !reducedMotion
             )
         ) { it / 5 }
     ) {

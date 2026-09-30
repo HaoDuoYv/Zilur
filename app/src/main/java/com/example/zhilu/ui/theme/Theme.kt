@@ -1,13 +1,18 @@
 package com.example.zhilu.ui.theme
 
 import android.app.Activity
+import android.content.Context
+import android.provider.Settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import com.example.zhilu.data.datastore.ThemeMode
@@ -89,6 +94,8 @@ fun ZhiLuTheme(
     }
 
     val view = LocalView.current
+    val context = LocalContext.current
+    val reducedMotion = remember { context.isReduceMotionEnabled() }
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
@@ -100,10 +107,30 @@ fun ZhiLuTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = AppShapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalReducedMotion provides reducedMotion) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = AppShapes,
+            content = content
+        )
+    }
+}
+
+private fun Context.isReduceMotionEnabled(): Boolean {
+    return try {
+        val animatorScale = Settings.Global.getFloat(
+            contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f
+        )
+        val transitionScale = Settings.Global.getFloat(
+            contentResolver,
+            Settings.Global.TRANSITION_ANIMATION_SCALE,
+            1f
+        )
+        animatorScale == 0f || transitionScale == 0f
+    } catch (_: Exception) {
+        false
+    }
 }

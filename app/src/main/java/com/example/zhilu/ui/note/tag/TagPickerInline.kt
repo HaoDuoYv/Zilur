@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.theme.AlphaTokens
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -103,7 +105,7 @@ fun TagPickerInline(
                     color = MaterialTheme.colorScheme.surface,
                     border = BorderStroke(
                         width = 1.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Border)
                     )
                 ) {
                     Column(
@@ -149,6 +151,7 @@ fun TagPickerInline(
 private fun AddTagChip(onClick: () -> Unit) {
     Surface(
         onClick = onClick,
+        modifier = Modifier.minimumInteractiveComponentSize(),
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surfaceVariant,
         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -179,7 +182,7 @@ private fun TagInputField(
 ) {
     val textColor = MaterialTheme.colorScheme.onSurface
     val placeholderColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.38f)
+    val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Disabled)
 
     Surface(
         shape = MaterialTheme.shapes.small,

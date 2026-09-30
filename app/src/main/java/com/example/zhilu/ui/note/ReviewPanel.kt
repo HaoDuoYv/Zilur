@@ -5,7 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -17,6 +20,9 @@ import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.ui.component.AppCard
+import com.example.zhilu.ui.theme.ShapeTokens
+
+private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
 @Composable
 fun ReviewPanel(
@@ -37,8 +43,25 @@ fun ReviewPanel(
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            if (isRecording) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "正在录音识别…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             if (plan == null || !plan.enabled) {
-                OutlinedButton(onClick = onStart) { Text("开启复习") }
+                OutlinedButton(onClick = onStart, shape = PillShape) { Text("开启复习") }
             } else {
                 Text(
                     text = "下一次复习：${formatReminderTime(plan.nextReviewAt)}",
@@ -53,15 +76,18 @@ fun ReviewPanel(
                     ) {
                         OutlinedButton(
                             onClick = { onRate(ReviewRating.HARD) },
-                            enabled = !isRecording
+                            enabled = !isRecording,
+                            shape = PillShape
                         ) { Text("困难") }
                         OutlinedButton(
                             onClick = { onRate(ReviewRating.NORMAL) },
-                            enabled = !isRecording
+                            enabled = !isRecording,
+                            shape = PillShape
                         ) { Text("一般") }
                         Button(
                             onClick = { onRate(ReviewRating.MASTERED) },
-                            enabled = !isRecording
+                            enabled = !isRecording,
+                            shape = PillShape
                         ) { Text("掌握") }
                     }
                 }

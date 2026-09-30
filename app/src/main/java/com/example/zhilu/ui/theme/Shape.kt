@@ -16,6 +16,8 @@ object ShapeTokens {
     val Medium = 12.dp
     val Large = 16.dp
     val ExtraLarge = 24.dp
+    // Pill: passed as a percent to RoundedCornerShape(ShapeTokens.Pill) for full capsules.
+    val Pill = 50
 }
 
 val AppShapes = Shapes(

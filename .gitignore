@@ -4,6 +4,7 @@
 .idea/
 .claude/
 .trae/
+.workbuddy/
 .worktrees/
 android-qa-artifacts-*/
 build/

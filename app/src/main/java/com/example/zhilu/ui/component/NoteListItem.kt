@@ -1,6 +1,5 @@
 package com.example.zhilu.ui.component
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -26,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.ui.home.notePreviewText
+import com.example.zhilu.ui.theme.SemanticColors
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -36,41 +36,39 @@ fun NoteListItem(
     trailing: @Composable (() -> Unit)? = null,
     onClick: () -> Unit = {}
 ) {
-    AppCard(modifier = modifier.clickable(onClick = onClick)) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(modifier = Modifier.weight(1f)) {
-                    HighlightedText(
-                        text = note.title.ifBlank { "未命名知识" },
-                        query = highlightQuery,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
-                    )
-                    HighlightedText(
-                        text = notePreviewText(note).orEmpty(),
-                        query = highlightQuery,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
-                if (trailing != null) {
-                    Spacer(Modifier.width(8.dp))
-                    trailing()
-                }
+    AppCard(onClick = onClick, modifier = modifier) {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(modifier = Modifier.weight(1f)) {
+                HighlightedText(
+                    text = note.title.ifBlank { "未命名知识" },
+                    query = highlightQuery,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1
+                )
+                HighlightedText(
+                    text = notePreviewText(note).orEmpty(),
+                    query = highlightQuery,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
-            if (note.tags.isNotEmpty()) {
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    note.tags.take(4).forEach { TagChip(tag = it) }
-                }
+            if (trailing != null) {
+                Spacer(Modifier.width(8.dp))
+                trailing()
+            }
+        }
+        if (note.tags.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                note.tags.take(4).forEach { TagChip(tag = it) }
             }
         }
     }
@@ -120,4 +118,4 @@ fun highlightMatches(text: String, query: String): AnnotatedString {
     }
 }
 
-private val HighlightColor = Color(0xFF1D4ED8)
+private val HighlightColor = SemanticColors.Highlight

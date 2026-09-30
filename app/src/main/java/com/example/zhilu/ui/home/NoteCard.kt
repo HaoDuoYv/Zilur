@@ -37,7 +37,9 @@ import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.ui.component.AppCardStyle
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.motionEnterTween
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -167,9 +169,10 @@ private fun ActionIconButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotion.current
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.86f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(MotionDuration.Short),
+        animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion),
         label = "note_card_action_scale"
     )
 

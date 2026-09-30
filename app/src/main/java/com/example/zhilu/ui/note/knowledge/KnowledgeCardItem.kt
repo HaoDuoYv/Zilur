@@ -2,7 +2,6 @@ package com.example.zhilu.ui.note.knowledge
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -40,11 +39,14 @@ import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.AppCardStyle
+import com.example.zhilu.ui.component.ElevationTokens
 import com.example.zhilu.ui.note.blocks.BlockTypePickerSheet
 import com.example.zhilu.ui.note.blocks.EditableBlock
 import com.example.zhilu.ui.note.blocks.ReadOnlyBlock
-
-private const val FocusAnimationDurationMillis = 200
+import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.motionEnterTween
 
 @Composable
 fun KnowledgeCardItem(
@@ -79,22 +81,23 @@ fun KnowledgeCardItem(
     modifier: Modifier = Modifier
 ) {
     val isFocused = card.isFocused && isEditing
+    val reducedMotion = LocalReducedMotion.current
     val defaultBorderColor = MaterialTheme.colorScheme.outlineVariant
     val focusedBorderColor = MaterialTheme.colorScheme.primary
 
     val borderWidth by animateDpAsState(
         targetValue = if (isFocused) 2.dp else AppCardStyle.borderWidth,
-        animationSpec = tween(durationMillis = FocusAnimationDurationMillis),
+        animationSpec = motionEnterTween(MotionDuration.Medium, enabled = !reducedMotion),
         label = "KnowledgeCardBorderWidth"
     )
     val borderColor by animateColorAsState(
         targetValue = if (isFocused) focusedBorderColor else defaultBorderColor,
-        animationSpec = tween(durationMillis = FocusAnimationDurationMillis),
+        animationSpec = motionEnterTween(MotionDuration.Medium, enabled = !reducedMotion),
         label = "KnowledgeCardBorderColor"
     )
     val shadowElevation by animateDpAsState(
-        targetValue = if (isFocused) 6.dp else AppCardStyle.elevation,
-        animationSpec = tween(durationMillis = FocusAnimationDurationMillis),
+        targetValue = if (isFocused) ElevationTokens.Floating else AppCardStyle.elevation,
+        animationSpec = motionEnterTween(MotionDuration.Medium, enabled = !reducedMotion),
         label = "KnowledgeCardShadowElevation"
     )
 
@@ -125,7 +128,7 @@ fun KnowledgeCardItem(
             HorizontalDivider(
                 modifier = Modifier.fillMaxWidth(),
                 thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Border)
             )
 
             CardBlockList(
@@ -201,7 +204,7 @@ private fun CardTitleInput(
                         Text(
                             text = "输入小点名称(如:情况一)...",
                             style = textStyle,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = AlphaTokens.Hint)
                         )
                     }
                     innerTextField()
@@ -220,7 +223,7 @@ private fun CardTitleInput(
                     tint = if (canDelete) {
                         MaterialTheme.colorScheme.error
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = AlphaTokens.Disabled)
                     }
                 )
             }
@@ -267,7 +270,7 @@ private fun CardBlockList(
             Text(
                 text = "点击底部工具栏添加内容块",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = AlphaTokens.Muted)
             )
         } else {
             topLevelBlocks.forEachIndexed { index, block ->

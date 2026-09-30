@@ -18,6 +18,7 @@ import com.example.zhilu.ui.reminder.ReminderCenterScreen
 import com.example.zhilu.ui.settings.SettingsScreen
 import com.example.zhilu.ui.tag.TagsScreen
 import com.example.zhilu.ui.trash.TrashScreen
+import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
 import com.example.zhilu.ui.theme.MotionEasing
 import com.example.zhilu.ui.theme.motionEnterTween
@@ -28,43 +29,44 @@ fun AppNavHost(
     navController: NavHostController,
     startDestination: String = Destination.Home.path
 ) {
+    val reducedMotion = LocalReducedMotion.current
     NavHost(
         navController = navController,
         startDestination = startDestination
     ) {
         composable(
             route = Destination.Home.path,
-            enterTransition = { bottomNavEnter() },
-            exitTransition = { bottomNavExit() },
-            popEnterTransition = { bottomNavEnter() },
-            popExitTransition = { bottomNavExit() }
+            enterTransition = { bottomNavEnter(!reducedMotion) },
+            exitTransition = { bottomNavExit(!reducedMotion) },
+            popEnterTransition = { bottomNavEnter(!reducedMotion) },
+            popExitTransition = { bottomNavExit(!reducedMotion) }
         ) {
             HomeScreen(navController = navController)
         }
         composable(
             route = Destination.Tags.path,
-            enterTransition = { bottomNavEnter() },
-            exitTransition = { bottomNavExit() },
-            popEnterTransition = { bottomNavEnter() },
-            popExitTransition = { bottomNavExit() }
+            enterTransition = { bottomNavEnter(!reducedMotion) },
+            exitTransition = { bottomNavExit(!reducedMotion) },
+            popEnterTransition = { bottomNavEnter(!reducedMotion) },
+            popExitTransition = { bottomNavExit(!reducedMotion) }
         ) {
             TagsScreen(navController = navController)
         }
         composable(
             route = Destination.Explore.path,
-            enterTransition = { bottomNavEnter() },
-            exitTransition = { bottomNavExit() },
-            popEnterTransition = { bottomNavEnter() },
-            popExitTransition = { bottomNavExit() }
+            enterTransition = { bottomNavEnter(!reducedMotion) },
+            exitTransition = { bottomNavExit(!reducedMotion) },
+            popEnterTransition = { bottomNavEnter(!reducedMotion) },
+            popExitTransition = { bottomNavExit(!reducedMotion) }
         ) {
             ExploreScreen(navController = navController)
         }
         composable(
             route = Destination.Settings.path,
-            enterTransition = { bottomNavEnter() },
-            exitTransition = { bottomNavExit() },
-            popEnterTransition = { bottomNavEnter() },
-            popExitTransition = { bottomNavExit() }
+            enterTransition = { bottomNavEnter(!reducedMotion) },
+            exitTransition = { bottomNavExit(!reducedMotion) },
+            popEnterTransition = { bottomNavEnter(!reducedMotion) },
+            popExitTransition = { bottomNavExit(!reducedMotion) }
         ) {
             SettingsScreen(navController = navController)
         }
@@ -82,26 +84,26 @@ fun AppNavHost(
             arguments = listOf(navArgument(Destination.NoteEdit.ARG_NOTE_ID) { type = NavType.LongType }),
             enterTransition = {
                 slideInHorizontally(
-                    motionEnterTween(MotionDuration.Long, easing = MotionEasing.EaseOutCubic)
+                    motionEnterTween(MotionDuration.Long, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)
                 ) { it } + fadeIn(
-                    motionEnterTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic)
+                    motionEnterTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)
                 )
             },
             exitTransition = {
                 slideOutVertically(
-                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic)
+                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)
                 ) { it } + fadeOut(
-                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic)
+                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)
                 )
             },
             popEnterTransition = {
-                fadeIn(motionEnterTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic))
+                fadeIn(motionEnterTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion))
             },
             popExitTransition = {
                 slideOutVertically(
-                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic)
+                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)
                 ) { it } + fadeOut(
-                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic)
+                    motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = !reducedMotion)
                 )
             }
         ) { entry ->
@@ -113,8 +115,8 @@ fun AppNavHost(
     }
 }
 
-private fun bottomNavEnter() =
-    fadeIn(motionEnterTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic))
+private fun bottomNavEnter(enabled: Boolean) =
+    fadeIn(motionEnterTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = enabled))
 
-private fun bottomNavExit() =
-    fadeOut(motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic))
+private fun bottomNavExit(enabled: Boolean) =
+    fadeOut(motionExitTween(MotionDuration.Medium, easing = MotionEasing.EaseOutCubic, enabled = enabled))

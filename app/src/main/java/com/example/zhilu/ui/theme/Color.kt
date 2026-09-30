@@ -74,3 +74,22 @@ val TagColors = listOf(
     0xFF4A7A7A.toInt(),
     0xFF6B6B6B.toInt()
 )
+
+// Semantic accent colors — replace scattered hard-coded emphasis colors so every
+// highlight/focus/selected state derives from the ink primary instead of an ad-hoc hue.
+object SemanticColors {
+    val Highlight = Color(0xFF3D4F6B)    // search-match highlight (replaces #1D4ED8)
+    val HighlightBg = Color(0x1A3D4F6B)  // 10% ink overlay behind highlighted text
+}
+
+// Opacity layers — single source of truth for the previously scattered alpha values.
+object AlphaTokens {
+    const val Subtle = 0.08f     // divider background
+    const val Hover = 0.12f      // selected chip background
+    const val Divider = 0.15f    // thin inner divider
+    const val Disabled = 0.38f   // disabled content
+    const val Border = 0.5f      // regular border / insert line
+    const val Overlay = 0.55f    // branch background overlay
+    const val Muted = 0.6f       // empty state / de-emphasized prompt
+    const val Hint = 0.7f        // placeholder / hint text
+}

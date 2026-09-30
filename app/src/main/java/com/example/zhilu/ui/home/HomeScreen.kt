@@ -3,6 +3,7 @@ package com.example.zhilu.ui.home
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -10,16 +11,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,9 +30,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -50,7 +53,9 @@ import androidx.navigation.NavHostController
 import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.navigation.BottomBar
 import com.example.zhilu.ui.navigation.Destination
+import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.motionEnterTween
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,11 +90,6 @@ fun HomeScreen(
                         contentDescription = "提醒中心",
                         onClick = { navController.navigate(Destination.Reminders.path) }
                     )
-                    HomeActionIconButton(
-                        icon = Icons.Default.Search,
-                        contentDescription = "探索",
-                        onClick = { navController.navigate(Destination.Explore.path) }
-                    )
                 }
             )
         },
@@ -118,35 +118,28 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            HomeSearchBar(
+                onClick = { navController.navigate(Destination.Explore.path) }
+            )
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                StatCard(
-                    label = "知识",
-                    value = uiState.noteCount.toString(),
+                Text(
+                    text = "${uiState.noteCount} 知识 · ${uiState.tagCount} 标签 · ${uiState.mediaCount} 图片",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
-                StatCard(
-                    label = "标签",
-                    value = uiState.tagCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                StatCard(
-                    label = "图片",
-                    value = uiState.mediaCount.toString(),
-                    modifier = Modifier.weight(1f)
+                ViewModeToggle(
+                    currentMode = uiState.viewMode,
+                    onSelectList = { if (uiState.viewMode != ViewMode.LIST) viewModel.toggleViewMode() },
+                    onSelectTimeline = { if (uiState.viewMode != ViewMode.TIMELINE) viewModel.toggleViewMode() }
                 )
             }
-
-            ViewModeToggle(
-                currentMode = uiState.viewMode,
-                onSelectList = { if (uiState.viewMode != ViewMode.LIST) viewModel.toggleViewMode() },
-                onSelectTimeline = { if (uiState.viewMode != ViewMode.TIMELINE) viewModel.toggleViewMode() },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            )
 
             when {
                 uiState.isLoading -> {
@@ -274,6 +267,36 @@ fun HomeScreen(
 }
 
 @Composable
+private fun HomeSearchBar(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = MaterialTheme.shapes.extraLarge,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "搜索知识、标签…",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun HomeActionIconButton(
     icon: ImageVector,
     contentDescription: String,
@@ -282,9 +305,10 @@ private fun HomeActionIconButton(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotion.current
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.88f else 1f,
-        animationSpec = androidx.compose.animation.core.tween(MotionDuration.Short),
+        animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion),
         label = "home_action_scale"
     )
 
@@ -302,70 +326,31 @@ private fun HomeActionIconButton(
 }
 
 @Composable
-private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 14.dp, horizontal = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
 private fun ViewModeToggle(
     currentMode: ViewMode,
     onSelectList: () -> Unit,
     onSelectTimeline: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(percent = 50)
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.End
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(percent = 50),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Card(
-            shape = shape,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Row {
-                ToggleButton(
-                    text = "列表",
-                    selected = currentMode == ViewMode.LIST,
-                    onClick = onSelectList
-                )
-                ToggleButton(
-                    text = "时间线",
-                    selected = currentMode == ViewMode.TIMELINE,
-                    onClick = onSelectTimeline
-                )
-            }
+        Row {
+            ToggleButton(
+                text = "列表",
+                selected = currentMode == ViewMode.LIST,
+                onClick = onSelectList
+            )
+            ToggleButton(
+                text = "时间线",
+                selected = currentMode == ViewMode.TIMELINE,
+                onClick = onSelectTimeline
+            )
         }
     }
 }

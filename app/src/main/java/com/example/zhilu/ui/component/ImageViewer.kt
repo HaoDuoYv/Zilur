@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -124,6 +125,15 @@ fun ImageViewer(
                         modifier = Modifier.size(36.dp),
                         color = MaterialTheme.colorScheme.primary,
                         strokeWidth = 3.dp
+                    )
+                }
+
+                if (loadError) {
+                    Text(
+                        text = "图片加载失败",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.align(Alignment.Center)
                     )
                 }
             }
