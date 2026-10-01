@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -52,10 +53,31 @@ class TagsViewModelTest {
         assertEquals(tag, viewModel.uiState.value.selectedTag)
         assertEquals(listOf(note), viewModel.uiState.value.filteredNotes)
     }
+
+    @Test
+    fun noteCountsAreTakenFromRepositoryAggregate() = runTest(dispatcher) {
+        val math = Tag(id = 1L, name = "数学", color = 0xFF0061A4.toInt())
+        val english = Tag(id = 2L, name = "英语", color = 0xFF006B2E.toInt())
+        val viewModel = TagsViewModel(
+            tagRepository = FakeTagRepository(
+                tags = listOf(math, english),
+                noteCountsByTag = mapOf(math.id to 3)
+            ),
+            noteRepository = FakeNoteRepository(notesByTag = emptyMap())
+        )
+
+        advanceUntilIdle()
+
+        // 计数直接来自 repository 的聚合结果，ViewModel 不再自行统计
+        assertEquals(mapOf(math.id to 3), viewModel.uiState.value.noteCountByTag)
+        // 聚合查询只返回有笔记的标签，没有笔记的标签不会出现，由界面侧按 0 兜底
+        assertNull(viewModel.uiState.value.noteCountByTag[english.id])
+    }
 }
 
 private class FakeTagRepository(
-    private val tags: List<Tag>
+    private val tags: List<Tag>,
+    private val noteCountsByTag: Map<Long, Int> = emptyMap()
 ) : TagRepository {
     override fun getAllTags(): Flow<RepositoryResult<List<Tag>>> =
         flowOf(RepositoryResult.Success(tags))
@@ -80,6 +102,9 @@ private class FakeTagRepository(
 
     override fun getTagCount(): Flow<RepositoryResult<Int>> =
         flowOf(RepositoryResult.Success(tags.size))
+
+    override fun getNoteCountsByTag(): Flow<RepositoryResult<Map<Long, Int>>> =
+        flowOf(RepositoryResult.Success(noteCountsByTag))
 }
 
 private class FakeNoteRepository(

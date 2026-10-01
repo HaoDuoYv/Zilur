@@ -487,6 +487,9 @@ private class KnowledgeCardTestTagRepository : TagRepository {
 
     override fun getTagCount(): Flow<RepositoryResult<Int>> =
         flowOf(RepositoryResult.Success(0))
+
+    override fun getNoteCountsByTag(): Flow<RepositoryResult<Map<Long, Int>>> =
+        flowOf(RepositoryResult.Success(emptyMap()))
 }
 
 private class KnowledgeCardTestReviewRepository : ReviewRepository {

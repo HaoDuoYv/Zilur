@@ -1,6 +1,7 @@
 package com.example.zhilu.data.repository
 
 import com.example.zhilu.data.local.dao.TagDao
+import com.example.zhilu.data.local.dao.TagNoteCount
 import com.example.zhilu.data.local.mapper.TagMapper
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.Tag
@@ -43,4 +44,10 @@ class TagRepositoryImpl(
     override fun getTagCount(): Flow<RepositoryResult<Int>> = tagDao.countFlow()
         .map<Int, RepositoryResult<Int>> { RepositoryResult.Success(it) }
         .catch { e -> emit(RepositoryResult.Error("Failed to count tags", e)) }
+
+    override fun getNoteCountsByTag(): Flow<RepositoryResult<Map<Long, Int>>> = tagDao.countNotesPerTag()
+        .map<List<TagNoteCount>, RepositoryResult<Map<Long, Int>>> { rows ->
+            RepositoryResult.Success(rows.associate { it.tagId to it.noteCount })
+        }
+        .catch { e -> emit(RepositoryResult.Error("Failed to count notes per tag", e)) }
 }

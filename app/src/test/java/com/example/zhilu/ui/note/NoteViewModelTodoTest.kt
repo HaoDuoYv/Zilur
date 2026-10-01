@@ -384,6 +384,9 @@ private class TodoTestTagRepository : TagRepository {
 
     override fun getTagCount(): Flow<RepositoryResult<Int>> =
         flowOf(RepositoryResult.Success(0))
+
+    override fun getNoteCountsByTag(): Flow<RepositoryResult<Map<Long, Int>>> =
+        flowOf(RepositoryResult.Success(emptyMap()))
 }
 
 private class TodoTestNoteRepository(

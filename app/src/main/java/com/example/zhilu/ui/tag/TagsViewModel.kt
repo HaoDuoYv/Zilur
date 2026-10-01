@@ -94,21 +94,20 @@ class TagsViewModel @Inject constructor(
     /**
      * 统计每个标签下的笔记数，供标签索引行显示二级信息。
      *
-     * 直接复用 [NoteRepository.getAllNotes] 在内存里聚合：标签数量远小于笔记数量，
-     * 为此在 DAO / Repository 上加一条专用聚合查询不划算，也不值得让所有测试替身跟着改。
+     * 计数走数据层的单条 `GROUP BY` 聚合（[TagRepository.getNoteCountsByTag]）。
+     * 早先的实现是复用 [NoteRepository.getAllNotes] 在内存里聚合，代价不小：
+     * 每条笔记都要 hydrate 一次（卡片、区块、标签三次查询），标签页只为显示一个数字
+     * 就要把整个笔记库拉进内存。笔记规模上去后这个开销是线性放大的，所以改由 SQL 承担。
      */
     private fun observeNoteCounts() {
         viewModelScope.launch {
-            noteRepository.getAllNotes().collect { result ->
-                if (result is RepositoryResult.Success) {
-                    val counts = buildMap<Long, Int> {
-                        result.data.forEach { note ->
-                            note.tags.forEach { tag ->
-                                put(tag.id, (this[tag.id] ?: 0) + 1)
-                            }
-                        }
-                    }
-                    _uiState.update { it.copy(noteCountByTag = counts) }
+            tagRepository.getNoteCountsByTag().collect { result ->
+                when (result) {
+                    is RepositoryResult.Success ->
+                        _uiState.update { it.copy(noteCountByTag = result.data) }
+                    // 计数只是行内的二级信息，失败时保留上一次的值即可，
+                    // 不值得为它把整个标签页推进错误态。
+                    is RepositoryResult.Error -> Unit
                 }
             }
         }

@@ -169,6 +169,9 @@ private class FakeTagRepository(
 
     override fun getTagCount(): Flow<RepositoryResult<Int>> =
         flowOf(RepositoryResult.Success(tags.size))
+
+    override fun getNoteCountsByTag(): Flow<RepositoryResult<Map<Long, Int>>> =
+        flowOf(RepositoryResult.Success(emptyMap()))
 }
 
 private class FakeNoteRepository(

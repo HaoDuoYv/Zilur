@@ -181,6 +181,9 @@ app/
 | `ai_conversations` | AI 对话会话 |
 | `ai_messages` | AI 消息（含工具调用与附图引用） |
 
+> 标签页的「N 条笔记」由 `note_tags JOIN notes` 的单条 `GROUP BY` 聚合算出
+> （`TagDao.countNotesPerTag`，过滤 `deletedAt IS NULL`），不会为了显示一个计数把笔记逐条加载进内存。
+
 存储路径约定：`filesDir/media` 存放相册 / 拍照导入的图片，`filesDir/images` 存放聊天附件落的图。
 
 ---
