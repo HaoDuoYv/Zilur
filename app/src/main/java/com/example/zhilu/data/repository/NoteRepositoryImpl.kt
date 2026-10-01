@@ -141,7 +141,10 @@ class NoteRepositoryImpl(
         noteCardDao.deleteByNoteId(noteId)
         val result = mutableMapOf<Long, KnowledgeCard>()
         note.cards.forEachIndexed { index, card ->
-            val entity = CardMapper.toEntity(card, noteId, index)
+            // 卡片 id 在内存里只是临时值（新建的卡片为负数），必须归零交给数据库分配主键。
+            // 否则临时 id 会被当成真实主键落库，与后续会话重新分配的临时 id 相撞，
+            // 表现为 LazyColumn 的 key 重复崩溃——与 replaceBlocks 的处理保持一致。
+            val entity = CardMapper.toNewEntity(card, noteId, index)
             val newId = noteCardDao.insert(entity)
             val savedCard = card.copy(id = newId)
             result[card.id] = savedCard
