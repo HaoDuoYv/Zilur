@@ -45,5 +45,38 @@ object Migration {
         }
     }
 
-    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+    internal val MIGRATION_4_5: androidx.room.migration.Migration = object : androidx.room.migration.Migration(4, 5) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `ai_conversations` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_ai_conversations_updatedAt` ON `ai_conversations` (`updatedAt`)")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `ai_messages` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `conversationId` INTEGER NOT NULL,
+                    `role` TEXT NOT NULL,
+                    `content` TEXT NOT NULL,
+                    `imagesJson` TEXT,
+                    `fileText` TEXT,
+                    `toolCallId` TEXT,
+                    `toolName` TEXT,
+                    `createdAt` INTEGER NOT NULL,
+                    FOREIGN KEY(`conversationId`) REFERENCES `ai_conversations`(`id`) ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_ai_messages_conversationId` ON `ai_messages` (`conversationId`)")
+        }
+    }
+
+    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 }

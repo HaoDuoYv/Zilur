@@ -57,7 +57,35 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate4To5_createsAiConversationTables() {
+        helper.createDatabase(TEST_DB_V5, 4).apply {
+            close()
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB_V5, 5, true, Migration.MIGRATION_4_5).apply {
+            execSQL(
+                "INSERT INTO ai_conversations (id, title, createdAt, updatedAt) VALUES (1, '测试对话', 100, 101)"
+            )
+            execSQL(
+                "INSERT INTO ai_messages (id, conversationId, role, content, createdAt) VALUES (10, 1, 'USER', '你好', 102)"
+            )
+            query(
+                "SELECT id, conversationId, role, content FROM ai_messages WHERE id = 10"
+            ).use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(10L, cursor.getLong(0))
+                assertEquals(1L, cursor.getLong(1))
+                assertEquals("USER", cursor.getString(2))
+                assertEquals("你好", cursor.getString(3))
+                assertFalse(cursor.moveToNext())
+            }
+            close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
+        const val TEST_DB_V5 = "migration-test-v5"
     }
 }

@@ -3,6 +3,8 @@ package com.example.zhilu.data.local.database
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.zhilu.data.local.dao.AiConversationDao
+import com.example.zhilu.data.local.dao.AiMessageDao
 import com.example.zhilu.data.local.dao.MediaDao
 import com.example.zhilu.data.local.dao.NoteBlockDao
 import com.example.zhilu.data.local.dao.NoteCardDao
@@ -11,6 +13,8 @@ import com.example.zhilu.data.local.dao.ReminderDao
 import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.dao.TagDao
 import com.example.zhilu.data.local.dao.TodoDao
+import com.example.zhilu.data.local.entity.AiConversationEntity
+import com.example.zhilu.data.local.entity.AiMessageEntity
 import com.example.zhilu.data.local.entity.MediaEntity
 import com.example.zhilu.data.local.entity.NoteBlockEntity
 import com.example.zhilu.data.local.entity.NoteCardEntity
@@ -33,9 +37,11 @@ import com.example.zhilu.data.local.entity.TodoItemEntity
         ReviewPlanEntity::class,
         ReviewEventEntity::class,
         TodoItemEntity::class,
-        ReminderInstanceEntity::class
+        ReminderInstanceEntity::class,
+        AiConversationEntity::class,
+        AiMessageEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -48,4 +54,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun reviewDao(): ReviewDao
     abstract fun todoDao(): TodoDao
     abstract fun reminderDao(): ReminderDao
+    abstract fun aiConversationDao(): AiConversationDao
+    abstract fun aiMessageDao(): AiMessageDao
 }

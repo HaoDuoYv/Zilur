@@ -2,6 +2,8 @@ package com.example.zhilu.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.zhilu.data.local.dao.AiConversationDao
+import com.example.zhilu.data.local.dao.AiMessageDao
 import com.example.zhilu.data.local.dao.MediaDao
 import com.example.zhilu.data.local.dao.NoteBlockDao
 import com.example.zhilu.data.local.dao.NoteCardDao
@@ -11,9 +13,12 @@ import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.dao.TagDao
 import com.example.zhilu.data.local.dao.TodoDao
 import com.example.zhilu.data.local.database.AppDatabase
+import com.example.zhilu.data.ai.AiAssistantRepositoryImpl
+import com.example.zhilu.data.ai.LlmApiClient
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.data.local.database.Migration
+import com.example.zhilu.data.repository.AiConversationRepositoryImpl
 import com.example.zhilu.data.repository.MediaRepositoryImpl
 import com.example.zhilu.data.repository.NoteRepositoryImpl
 import com.example.zhilu.data.repository.ReminderRepositoryImpl
@@ -21,7 +26,10 @@ import com.example.zhilu.data.repository.ReviewRepositoryImpl
 import com.example.zhilu.data.repository.RoomRepositoryTransactionRunner
 import com.example.zhilu.data.repository.TagRepositoryImpl
 import com.example.zhilu.data.repository.TodoRepositoryImpl
+import com.example.zhilu.domain.ai.repository.AiAssistantRepository
+import com.example.zhilu.domain.ai.usecase.AiToolExecutor
 import com.example.zhilu.domain.reminder.ReviewSchedulePolicy
+import com.example.zhilu.domain.repository.AiConversationRepository
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.ReminderRepository
@@ -69,6 +77,12 @@ object AppModule {
 
     @Provides
     fun provideReminderDao(database: AppDatabase): ReminderDao = database.reminderDao()
+
+    @Provides
+    fun provideAiConversationDao(database: AppDatabase): AiConversationDao = database.aiConversationDao()
+
+    @Provides
+    fun provideAiMessageDao(database: AppDatabase): AiMessageDao = database.aiMessageDao()
 
     @Provides
     @Singleton
@@ -130,4 +144,19 @@ object AppModule {
     @Singleton
     fun provideUserPreferences(@ApplicationContext context: Context): UserPreferences =
         UserPreferences(context)
+
+    @Provides
+    @Singleton
+    fun provideAiConversationRepository(
+        conversationDao: AiConversationDao,
+        messageDao: AiMessageDao
+    ): AiConversationRepository = AiConversationRepositoryImpl(conversationDao, messageDao)
+
+    @Provides
+    @Singleton
+    fun provideAiAssistantRepository(
+        llmApiClient: LlmApiClient,
+        aiToolExecutor: AiToolExecutor,
+        mediaFileManager: MediaFileManager
+    ): AiAssistantRepository = AiAssistantRepositoryImpl(llmApiClient, aiToolExecutor, mediaFileManager)
 }

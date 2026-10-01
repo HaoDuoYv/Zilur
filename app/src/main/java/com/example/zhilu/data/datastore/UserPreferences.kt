@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.zhilu.domain.model.AiConfig
+import com.example.zhilu.domain.model.AiProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,6 +36,11 @@ class UserPreferences @Inject constructor(
 ) {
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
+    private val aiProviderKey = stringPreferencesKey("ai_provider")
+    private val aiEndpointKey = stringPreferencesKey("ai_endpoint")
+    private val aiApiKeyKey = stringPreferencesKey("ai_api_key")
+    private val aiModelKey = stringPreferencesKey("ai_model")
+    private val aiVisionModelKey = stringPreferencesKey("ai_vision_model")
 
     val themeMode: Flow<ThemeMode> = context.userPreferencesStore.data.map { prefs ->
         ThemeMode.fromRaw(prefs[themeModeKey])
@@ -41,6 +48,16 @@ class UserPreferences @Inject constructor(
 
     val remindersEnabled: Flow<Boolean> = context.userPreferencesStore.data.map { prefs ->
         prefs[remindersEnabledKey] ?: true
+    }
+
+    val aiConfig: Flow<AiConfig> = context.userPreferencesStore.data.map { prefs ->
+        AiConfig(
+            provider = prefs[aiProviderKey] ?: AiProvider.DEFAULT_ID,
+            endpoint = prefs[aiEndpointKey] ?: "",
+            apiKey = prefs[aiApiKeyKey] ?: "",
+            model = prefs[aiModelKey] ?: "",
+            visionModel = prefs[aiVisionModelKey] ?: ""
+        )
     }
 
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -52,6 +69,16 @@ class UserPreferences @Inject constructor(
     suspend fun setRemindersEnabled(enabled: Boolean) {
         context.userPreferencesStore.edit { prefs ->
             prefs[remindersEnabledKey] = enabled
+        }
+    }
+
+    suspend fun setAiConfig(config: AiConfig) {
+        context.userPreferencesStore.edit { prefs ->
+            prefs[aiProviderKey] = config.provider
+            prefs[aiEndpointKey] = config.endpoint
+            prefs[aiApiKeyKey] = config.apiKey
+            prefs[aiModelKey] = config.model
+            prefs[aiVisionModelKey] = config.visionModel
         }
     }
 }
