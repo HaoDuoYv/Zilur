@@ -24,7 +24,7 @@ class DtkExporter(
                     mkdirs()
                 }
                 val mediaDir = File(exportDir, "media").apply { mkdirs() }
-                val mediaById = media.associateBy { it.id }
+                val mediaById = media.associateBy { it.id.toString() }
                 val exportedMedia = mutableListOf<Media>()
 
                 val blocks = note.cards.takeIf { it.isNotEmpty() }
@@ -34,8 +34,10 @@ class DtkExporter(
 
                 blocks.forEach { block ->
                     if (block.type != BlockType.IMAGE) return@forEach
-                    val mediaId = ImageBlockContent.mediaId(block.content) ?: return@forEach
-                    val targetMedia = mediaById[mediaId] ?: return@forEach
+                    // 统一走 resolveMedia：mediaId 缺失时会按 URI 反查，
+                    // 否则 AI 写入的裸 URI 图片块会在这里被静默跳过，导出包里就丢了图。
+                    val targetMedia = ImageBlockContent.resolveMedia(block.content, mediaById)
+                        ?: return@forEach
                     val copied = mediaFileManager.copyToCache(targetMedia, mediaDir).getOrNull()
                         ?: return@forEach
                     exportedMedia.add(targetMedia.copy(uri = "media/${copied.name}"))

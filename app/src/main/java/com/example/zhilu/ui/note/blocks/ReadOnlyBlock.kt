@@ -1,6 +1,7 @@
 package com.example.zhilu.ui.note.blocks
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -24,6 +26,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.AnnotatedString
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.component.GeneratingBadge
+import com.example.zhilu.ui.component.rememberGeneratingPulse
 import com.example.zhilu.ui.theme.AlphaTokens
 
 @Composable
@@ -43,11 +47,16 @@ fun ReadOnlyBlock(
     branchChildBlocks: List<Block> = emptyList(),
     isBranchExpanded: Boolean = false,
     onToggleBranchExpanded: () -> Unit = {},
-    onToggleCompletedTodosInBranch: (() -> Unit)? = null
+    onToggleCompletedTodosInBranch: (() -> Unit)? = null,
+    onCiteToAi: () -> Unit = {},
+    isGenerating: Boolean = false,
+    showBadge: Boolean = false
 ) {
     val clipboardManager = LocalClipboardManager.current
     val currentOnCopy by rememberUpdatedState(onCopy)
     var copyMenuExpanded by remember(block.id) { mutableStateOf(false) }
+    val generatingPulse = rememberGeneratingPulse()
+    val generatingBorder = MaterialTheme.colorScheme.primary.copy(alpha = generatingPulse)
 
     Box(
         modifier = modifier.pointerInput(block.id, block.content) {
@@ -70,7 +79,15 @@ fun ReadOnlyBlock(
                 block = block,
                 isEditing = false,
                 onLanguageClick = onLanguageClick,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (isGenerating) {
+                            Modifier.border(1.dp, generatingBorder, MaterialTheme.shapes.medium)
+                        } else {
+                            Modifier
+                        }
+                    ),
                 todoItems = todoItems,
                 showCompletedTodos = showCompletedTodos,
                 onCreateTodo = onCreateTodo,
@@ -83,6 +100,13 @@ fun ReadOnlyBlock(
                 onToggleBranchExpanded = onToggleBranchExpanded
             )
         }
+        if (isGenerating && showBadge) {
+            GeneratingBadge(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
+            )
+        }
         DropdownMenu(
             expanded = copyMenuExpanded,
             onDismissRequest = { copyMenuExpanded = false }
@@ -93,6 +117,13 @@ fun ReadOnlyBlock(
                     copyMenuExpanded = false
                     clipboardManager.setText(readOnlyBlockClipboardText(block))
                     currentOnCopy()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("引用到 AI") },
+                onClick = {
+                    copyMenuExpanded = false
+                    onCiteToAi()
                 }
             )
         }

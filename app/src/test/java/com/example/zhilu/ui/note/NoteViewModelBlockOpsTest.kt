@@ -379,6 +379,8 @@ class NoteViewModelBlockOpsTest {
         reminderRepository = BlockOpsTestReminderRepository(),
         mediaRepository = mockk(relaxed = true),
         blockClipboardManager = clipboardManager,
+        aiTaskManager = fakeAiTaskManager(),
+        refManager = fakeAiRefManager(),
         context = mockk(relaxed = true),
         savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
     )

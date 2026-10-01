@@ -1,5 +1,8 @@
 package com.example.zhilu.ui.navigation
 
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
+
 sealed class Destination(val path: String) {
     data object Home : Destination("home")
     data object Tags : Destination("tags")
@@ -27,3 +30,12 @@ val TopLevelRoutes = setOf(
 /** 该目的地是否为底部导航平级页（决定是否显示底栏）。 */
 val Destination.isTopLevel: Boolean
     get() = path in TopLevelRoutes
+
+/** 以与底栏一致的选项切到「助手」平级页（避免返回栈膨胀）。 */
+fun NavHostController.navigateToAssistant() {
+    navigate(Destination.Assistant.path) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}

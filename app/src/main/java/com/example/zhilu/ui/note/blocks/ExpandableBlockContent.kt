@@ -16,12 +16,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.zhilu.ui.component.RichText
 
 /**
  * 可折叠的长文本块组件。
  *
  * 当文本实际行数超过 [maxLines] 时，默认折叠显示前 N 行，并在底部显示「展开更多」按钮；
  * 点击后完整显示，按钮变为「收起」。折叠状态为运行时状态，不持久化。
+ *
+ * 正文用 [RichText] 渲染，因此行内 `$...$` 公式会真正显示成公式图片。
  */
 @Composable
 fun ExpandableTextContent(
@@ -55,7 +58,7 @@ internal fun ExpandableText(
     Column(
         modifier = modifier.animateContentSize()
     ) {
-        Text(
+        RichText(
             text = text,
             style = style,
             color = color,

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +32,8 @@ fun CardHeader(
     showDelete: Boolean,
     canDelete: Boolean,
     onDelete: () -> Unit,
+    showCite: Boolean = false,
+    onCiteToAi: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val textStyle = MaterialTheme.typography.titleMedium.merge(
@@ -72,6 +75,16 @@ fun CardHeader(
                     innerTextField()
                 }
             )
+        }
+
+        if (showCite) {
+            IconButton(onClick = onCiteToAi) {
+                Icon(
+                    imageVector = Icons.Default.Link,
+                    contentDescription = "引用到 AI",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
 
         if (showDelete) {

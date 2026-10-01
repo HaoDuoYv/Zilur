@@ -1,6 +1,7 @@
 package com.example.zhilu.data.local.file
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -18,15 +19,47 @@ class MediaFileManager(private val context: Context) {
     private val imagesDir: File
         get() = File(context.filesDir, "images").apply { mkdirs() }
 
+    /**
+     * 尽量把 SAF 授予的临时读取权限持久化。
+     * picker 返回的 content:// 授权默认只在本次回调期间有效，异步导入时可能已失效，
+     * 导致图片「选了却没反应」——因此拿到 URI 后先尝试持久化。
+     */
+    fun persistReadPermission(uri: Uri) {
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+    }
+
     fun importUriToInternal(uri: Uri): Result<String> = runCatching {
-        val extension = uri.path?.substringAfterLast('.', "png")?.takeIf { it.isNotBlank() } ?: "png"
-        val destFile = File(imagesDir, "img_${System.currentTimeMillis()}_${UUID.randomUUID()}.${extension}")
+        persistReadPermission(uri)
+        val destFile = File(imagesDir, "img_${System.currentTimeMillis()}_${UUID.randomUUID()}.${
+            resolveExtension(uri)
+        }")
         context.contentResolver.openInputStream(uri)?.use { input ->
             FileOutputStream(destFile).use { output ->
                 input.copyTo(output)
             }
         } ?: throw IllegalArgumentException("无法打开输入流")
         Uri.fromFile(destFile).toString()
+    }
+
+    /**
+     * 推断落盘扩展名：优先 URI 路径里的后缀，其次按 MIME 反推。
+     * picker 返回的 content:// 常常没有后缀（形如 .../media/1000000033），
+     * 早期实现一律写成 .png，会让后续按扩展名判类型的地方误判。
+     */
+    private fun resolveExtension(uri: Uri): String {
+        val fromPath = uri.path?.substringAfterLast('.', "")
+            ?.takeIf { it.isNotBlank() && it.length <= 5 && it.all { c -> c.isLetterOrDigit() } }
+        if (fromPath != null) return fromPath.lowercase()
+        val fromMime = context.contentResolver.getType(uri)
+            ?.substringAfter('/')
+            ?.substringBefore('+')
+            ?.takeIf { it.isNotBlank() && it.all { c -> c.isLetterOrDigit() } }
+        return fromMime?.lowercase() ?: "png"
     }
 
     fun copyToCache(media: Media, cacheDir: File): Result<File> = runCatching {
@@ -77,15 +110,32 @@ class MediaFileManager(private val context: Context) {
      * 超过 [maxBytes] 时降采样并按 JPEG 压缩，避免 token 超限。
      */
     fun uriToBase64DataUrl(uri: Uri, maxBytes: Int = 1_500_000): Result<String> = runCatching {
-        val mime = context.contentResolver.getType(uri) ?: "image/jpeg"
         val rawBytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             ?: throw IllegalArgumentException("无法读取图片")
         val (bytes, actualMime) = if (rawBytes.size <= maxBytes) {
-            rawBytes to mime
+            rawBytes to resolveImageMime(uri)
         } else {
             compressImageBytes(rawBytes, maxBytes) to "image/jpeg"
         }
         "data:$actualMime;base64,${android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)}"
+    }
+
+    /**
+     * 推断图片 MIME。file:// URI 在 ContentResolver 里查不到类型，
+     * 早期实现会一律回落成 image/jpeg，若实际是 PNG/WEBP 就会声明与字节不符。
+     */
+    private fun resolveImageMime(uri: Uri): String {
+        context.contentResolver.getType(uri)?.let { if (it.startsWith("image/")) return it }
+        val extension = uri.path?.substringAfterLast('.', "")?.lowercase().orEmpty()
+        return when (extension) {
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "webp" -> "image/webp"
+            "gif" -> "image/gif"
+            "bmp" -> "image/bmp"
+            "heic", "heif" -> "image/heic"
+            else -> "image/jpeg"
+        }
     }
 
     private fun compressImageBytes(bytes: ByteArray, maxBytes: Int): ByteArray {

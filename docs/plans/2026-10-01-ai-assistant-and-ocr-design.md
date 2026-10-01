@@ -165,7 +165,11 @@ LLM 通过 `create_note` 的 `blocks` 参数生成结构化内容，直接映射
    - 多行对齐**只用** `\begin{array}{ll}...\end{array}`，**禁止** `align` / `align*`；
    - 行分隔只用 `\\`，**禁止** `\\[8pt]`；
    - 简单公式可裸写 `E = mc^2`。
-3. **Block 类型语义**：`text` 普通文本、`latex` 公式、`code` 代码（需 `language`）、`todo` 待办、`link` 链接、`divider` 分割线、`branch` 分支（子块在 `children`）。
+3. **Block 类型语义**：`text` 普通文本、`latex` 公式、`code` 代码（需 `language`）、`todo` 待办、`link` 链接、`divider` 分割线、`branch` 分支（子块在 `children`）、`image` 图片（`content` 填本次消息附带图片的 URI，由 `AiTaskManager.resolveImageContext` 在上下文里给出）。
+
+   > `image` 块的落库形态是 `mediaId|uri`（`ImageBlockContent`），**模型只负责给 URI**：
+   > `AiToolExecutor.registerImageContent()` 会在写入前把该图登记进 `media` 表并补上 `mediaId` 前缀。
+   > 直接存裸 URI 会让图片脱离媒体体系——导出/分享按 `mediaId` 找不到它，媒体清理还会误判为孤儿。
 4. **生成即落库**：涉及「创建/记录」时，必须调用 `create_note`，不要只把内容打在对话里。
 5. **读取优先**：用户问「我的笔记…」时，先 `search_notes` / `get_note`，基于真实数据回答，不得虚构。
 6. **短答复**：回答精炼，除非用户要求展开。
@@ -224,9 +228,10 @@ LLM 通过 `create_note` 的 `blocks` 参数生成结构化内容，直接映射
 ## 11. 验收清单
 
 - [x] `testDebugUnitTest` → `lintDebug` → `assembleDebug` 全绿
-- [ ] 设置页配置 API Key 后可正常对话（流式）——代码已实现，待真机实测
-- [ ] AI 能通过工具真实创建 / 搜索 / 读取笔记，不编造——代码已实现，待真机实测
+- [x] 设置页配置 API Key 后可正常对话（流式）——MuMu 实机验证通过
+- [x] AI 能通过工具真实创建 / 搜索 / 读取笔记，不编造——MuMu 实机验证通过（含越权请求：要求改 `id=999` 时如实报错、不擅自创建）
 - [x] AI 生成的 LaTeX 符合规范（`$$` + `array`，无 `align`/`\\[8pt]`）——system prompt 固化约束
-- [ ] 发图片可识别文字并落地为知识点——代码已实现，待真机实测
-- [x] 未配置 Key / 网络失败 / 超配额均有明确提示
+- [x] 发图片可识别文字并落地为知识点——MuMu 实机验证通过（OCR 逐字正确，`create_note` 同时产出文本块与图片块）
+- [x] 未配置 Key / 网络失败 / 超配额均有明确提示——断网实测：输入内容保留可重发，无助手消息落库
 - [x] Room 已升至 v5，Migration 测试通过，schema 导出 5.json
+- [x] 行内 `$...$` 公式渲染——见 `2026-10-01-ai-iteration-design.md` 第 10 节

@@ -67,6 +67,7 @@ import com.example.zhilu.ui.component.ImageViewer
 import com.example.zhilu.ui.component.TagChip
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.navigation.navigateToAssistant
 import com.example.zhilu.ui.note.blocks.PastePositionSheet
 import com.example.zhilu.ui.note.knowledge.AddKnowledgeCardButton
 import com.example.zhilu.ui.note.knowledge.KnowledgeCardItem
@@ -85,7 +86,7 @@ fun NoteEditScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbar = LocalAppSnackbar.current
     val listState = rememberLazyListState()
-    // 仅用于 UI：当前激活（显示装饰与 ⋮）的块，不进入 ViewModel。
+    // 仅用�? UI：当前激活（显示装饰�? ⋮）的块，不进入 ViewModel�?
     var activeBlockId by remember { mutableStateOf<Long?>(null) }
     var showShareSheet by remember { mutableStateOf(false) }
     var showReviewSheet by remember { mutableStateOf(false) }
@@ -164,7 +165,7 @@ fun NoteEditScreen(
         }
     }
 
-    // 切换聚焦卡片时收起上一张卡片的块装饰。
+    // 切换聚焦卡片时收起上一张卡片的块装饰�?
     LaunchedEffect(state.activeCardId) {
         activeBlockId = null
     }
@@ -181,6 +182,8 @@ fun NoteEditScreen(
                     viewModel.addImageToActiveCardFromCamera(uri)
                     handle["capturedImageUri"] = null
                 }
+                // 从助手页回来时，笔记可能已被 AI 工具改写：浏览态下重新拉取，避免看到旧快照。
+                viewModel.refreshIfBrowsing()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -329,6 +332,18 @@ fun NoteEditScreen(
                             onActivateBlock = { blockId -> activeBlockId = blockId },
                             onReorderBlock = viewModel::moveBlock,
                             onDragStateChange = viewModel::setDragging,
+                            onCiteToAi = {
+                                viewModel.citeCardToAi(card)
+                                navController.navigateToAssistant()
+                            },
+                            onCiteBlockToAi = { blockId ->
+                                card.blocks.firstOrNull { it.id == blockId }?.let {
+                                    viewModel.citeBlockToAi(it)
+                                }
+                                navController.navigateToAssistant()
+                            },
+                            isGenerating = card.id in state.generatingCardIds,
+                            generatingBlockIds = state.generatingBlockIds,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }

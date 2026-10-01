@@ -18,7 +18,8 @@ fun BlockContextMenu(
     onCopy: () -> Unit,
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit
+    onMoveDown: () -> Unit,
+    onCiteToAi: () -> Unit = {}
 ) {
     DropdownMenu(
         expanded = expanded,
@@ -36,6 +37,10 @@ fun BlockContextMenu(
         DropdownMenuItem(
             text = { Text("复制") },
             onClick = { onDismiss(); onCopy() }
+        )
+        DropdownMenuItem(
+            text = { Text("引用到 AI") },
+            onClick = { onDismiss(); onCiteToAi() }
         )
         DropdownMenuItem(
             text = { Text("删除") },

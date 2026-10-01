@@ -80,7 +80,9 @@ fun EditableBlock(
     onInsertAbove: () -> Unit = {},
     onInsertBelow: () -> Unit = {},
     onCopy: () -> Unit = {},
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    onCiteToAi: () -> Unit = {},
+    isGenerating: Boolean = false
 ) {
     val currentOnRemove by rememberUpdatedState(onRemove)
     var removeRequested by remember(block.id, index) { mutableStateOf(false) }
@@ -188,7 +190,7 @@ fun EditableBlock(
                 ) {
                     BlockCard(
                         block = block,
-                        isEditing = true,
+                        isEditing = !isGenerating,
                         onValueChange = onValueChange,
                         onLanguageClick = onLanguageClick,
                         onDelete = onRemove,
@@ -244,7 +246,8 @@ fun EditableBlock(
             onCopy = onCopy,
             onDelete = onRemove,
             onMoveUp = { onMoveUp?.invoke() },
-            onMoveDown = { onMoveDown?.invoke() }
+            onMoveDown = { onMoveDown?.invoke() },
+            onCiteToAi = onCiteToAi
         )
     }
 }

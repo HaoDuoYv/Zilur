@@ -71,6 +71,9 @@ fun CardBlockList(
     onActivateBlock: (Long) -> Unit,
     onReorderBlock: (Long, Long) -> Unit,
     onDragStateChange: (Boolean) -> Unit,
+    onCiteBlockToAi: (Long) -> Unit = {},
+    generatingBlockIds: Set<Long> = emptySet(),
+    isCardGenerating: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
@@ -136,6 +139,7 @@ fun CardBlockList(
                 val blockIndexInAll = card.blocks.indexOfFirst { it.id == block.id }
                 val childCount = card.blocks.count { it.parentBranchId == block.id }
                 val isDragging = draggingBlockId == block.id
+                val isBlockGenerating = isCardGenerating || block.id in generatingBlockIds
 
                 Box(
                     modifier = Modifier
@@ -202,7 +206,9 @@ fun CardBlockList(
                                 } else {
                                     onAddBranchChild(block.id, type)
                                 }
-                            }
+                            },
+                            onCiteToAi = { onCiteBlockToAi(block.id) },
+                            isGenerating = isBlockGenerating
                         )
                     } else {
                         ReadOnlyBlock(
@@ -219,7 +225,10 @@ fun CardBlockList(
                             },
                             branchChildBlocks = childBlocks,
                             isBranchExpanded = isBranchExpanded,
-                            onToggleBranchExpanded = { onToggleBranchExpanded(block.id) }
+                            onToggleBranchExpanded = { onToggleBranchExpanded(block.id) },
+                            onCiteToAi = { onCiteBlockToAi(block.id) },
+                            isGenerating = isBlockGenerating,
+                            showBadge = block.id in generatingBlockIds && !isCardGenerating
                         )
                     }
                 }

@@ -6,8 +6,14 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.mutableStateListOf
+import com.example.zhilu.ai.AiRefManager
+import com.example.zhilu.ai.AiTaskManager
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.data.local.file.MediaFileManager
+import com.example.zhilu.domain.ai.model.AiRef
+import com.example.zhilu.domain.ai.model.AiRefKind
+import com.example.zhilu.domain.ai.model.AiTask
+import com.example.zhilu.domain.ai.model.AiTaskPhase
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
@@ -75,6 +81,8 @@ class NoteViewModel @Inject constructor(
     private val reminderRepository: ReminderRepository,
     private val mediaRepository: MediaRepository,
     private val blockClipboardManager: BlockClipboardManager,
+    private val aiTaskManager: AiTaskManager,
+    private val refManager: AiRefManager,
     @ApplicationContext private val context: Context,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -99,6 +107,8 @@ class NoteViewModel @Inject constructor(
     private var todoObservationJob: Job? = null
     private var observedTodoNoteId: Long = 0L
     private var recordingReviewPlanId: Long? = null
+    /** 上一次 AI 状态广播里处于生成中的任务 id，用于识别「刚刚成功结束」。 */
+    private var previouslyActiveAiTaskIds: Set<String> = emptySet()
 
     init {
         currentCardId = nextCardId--
@@ -107,6 +117,24 @@ class NoteViewModel @Inject constructor(
         }
         load(NoteRouteArgs.noteId(savedStateHandle))
         observeTags()
+        observeAiTasks()
+    }
+
+    /**
+     * 只读浏览态下的重新载入。
+     *
+     * 笔记正文可能在别处被改掉（最典型的是 AI 工具 create_note / update_note 落库），
+     * 而 [load] 是一次性快照读取，不会自动跟随数据库变化。用户从助手页切回来、
+     * 或停留在本页时后台 AI 任务刚好写完这篇笔记，都必须重新拉一次，否则会看到旧内容。
+     *
+     * 编辑态下不做刷新：此时屏幕上的内容才是最新事实，不能被覆盖。
+     */
+    fun refreshIfBrowsing() {
+        val state = _uiState.value
+        if (state.isEditing || state.isLoading) return
+        val id = state.noteId
+        if (id <= 0L) return
+        load(id)
     }
 
     fun load(noteId: Long) {
@@ -814,6 +842,118 @@ class NoteViewModel @Inject constructor(
         _uiState.update { it.copy(error = null) }
     }
 
+    // ---- AI 引用与生成占用 ----
+
+    /** 把当前整篇笔记作为引用目标交给助手。 */
+    fun citeNoteToAi() {
+        val state = _uiState.value
+        refManager.addPending(
+            AiRef(
+                kind = AiRefKind.NOTE,
+                noteId = state.noteId,
+                title = state.title
+            )
+        )
+    }
+
+    /** 把某张知识卡片作为引用目标交给助手。 */
+    fun citeCardToAi(card: KnowledgeCard) {
+        val state = _uiState.value
+        refManager.addPending(
+            AiRef(
+                kind = AiRefKind.CARD,
+                noteId = state.noteId,
+                cardId = card.id,
+                title = cardLabel(card, state.title)
+            )
+        )
+    }
+
+    /**
+     * 卡片引用标签：优先卡片标题；标题为空（默认「知识小点」）时退而使用卡内首个有内容的块摘要，
+     * 最后才回落笔记标题——否则多张无标题卡片会显示成同一个标签，无法区分引用目标。
+     */
+    private fun cardLabel(card: KnowledgeCard, noteTitle: String): String {
+        val title = card.title.trim()
+        if (title.isNotEmpty()) return title
+        val snippet = card.blocks.firstOrNull { it.content.isNotBlank() }
+            ?.let { blockTitleSnippet(it) }
+            .orEmpty()
+        return snippet.ifEmpty { noteTitle }
+    }
+
+    /** 把某个块作为引用目标交给助手。 */
+    fun citeBlockToAi(block: Block) {
+        val state = _uiState.value
+        val card = state.cards.firstOrNull { it.id == block.cardId }
+        refManager.addPending(
+            AiRef(
+                kind = AiRefKind.BLOCK,
+                noteId = state.noteId,
+                cardId = block.cardId ?: card?.id,
+                blockId = block.id,
+                title = blockTitleSnippet(block)
+            )
+        )
+    }
+
+    private fun blockTitleSnippet(block: Block): String {
+        val raw = block.content.replace('\n', ' ').trim()
+        return raw.take(24).ifBlank {
+            when (block.type) {
+                BlockType.IMAGE -> "[图片]"
+                BlockType.DIVIDER -> "[分割线]"
+                BlockType.BRANCH -> "[分支]"
+                else -> "[块]"
+            }
+        }
+    }
+
+    private fun observeAiTasks() {
+        viewModelScope.launch {
+            aiTaskManager.state.collect { taskState ->
+                val locked = taskState.lockedRefs
+                val current = _uiState.value
+                val noteId = current.noteId
+                val generatingCardIds = current.cards.filter { card ->
+                    locked.any { ref ->
+                        ref.locksCard(noteId, card.id, card.blocks.map { it.id })
+                    }
+                }.map { it.id }.toSet()
+                val generatingBlockIds = current.cards.flatMap { card ->
+                    card.blocks.filter { block ->
+                        locked.any { ref -> ref.locksBlock(noteId, card.id, block.id) }
+                    }
+                }.map { it.id }.toSet()
+                _uiState.update {
+                    it.copy(
+                        generatingCardIds = generatingCardIds,
+                        generatingBlockIds = generatingBlockIds
+                    )
+                }
+
+                // 生成占用解除：本页可能刚被 AI 工具改过内容，浏览态下重新拉取。
+                if (justFinishedSuccessfully(taskState.tasks)) {
+                    refreshIfBrowsing()
+                }
+            }
+        }
+    }
+
+    /**
+     * 上一次广播里还在跑的任务，现在是否已经成功结束。
+     * 用状态迁移判断，避免每次广播都触发一次重载。
+     */
+    private fun justFinishedSuccessfully(tasks: List<AiTask>): Boolean {
+        val activeIds = tasks.filter { it.isActive }.map { it.id }.toSet()
+        val finished = previouslyActiveAiTaskIds
+            .filter { it !in activeIds }
+            .mapNotNull { id -> tasks.firstOrNull { it.id == id } }
+            .any { it.phase == AiTaskPhase.SUCCEEDED }
+        previouslyActiveAiTaskIds = activeIds
+        return finished
+    }
+
     fun shareNote(
         format: ShareFormat,
         onReady: (File, String) -> Unit
@@ -823,7 +963,15 @@ class NoteViewModel @Inject constructor(
             val mediaResult = mediaRepository.getAllMedia()
             val media = (mediaResult as? RepositoryResult.Success)?.data.orEmpty()
             val noteMedia = media.filter { m ->
-                note.blocks.any { it.type == BlockType.IMAGE && it.content.contains(m.id.toString()) }
+                // 精确匹配：优先按块里登记的 mediaId，其次按块是否内嵌该媒体的 URI。
+                // 早期用 content.contains(m.id.toString()) 做子串匹配，一旦 URL 里碰巧出现相同数字
+                // 就会误收无关媒体，而真正引用的媒体反而可能漏掉。
+                note.blocks.any { block ->
+                    block.type == BlockType.IMAGE && (
+                        ImageBlockContent.mediaId(block.content) == m.id ||
+                            block.content.contains(m.uri)
+                        )
+                }
             }
             val mediaFileManager = MediaFileManager(context)
             when (format) {

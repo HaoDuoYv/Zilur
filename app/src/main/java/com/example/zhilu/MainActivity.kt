@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import com.example.zhilu.ai.AiTaskManager
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.reminder.ReminderNotifier
@@ -24,6 +25,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var userPreferences: UserPreferences
 
+    @Inject
+    lateinit var aiTaskManager: AiTaskManager
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -35,7 +39,8 @@ class MainActivity : ComponentActivity() {
             ZhiLuTheme(themeMode = themeMode) {
                 AppShell(
                     navController = controller,
-                    startDestination = initialRoute
+                    startDestination = initialRoute,
+                    aiTaskManager = aiTaskManager
                 )
             }
         }

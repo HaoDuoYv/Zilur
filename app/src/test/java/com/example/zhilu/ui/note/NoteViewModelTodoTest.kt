@@ -59,6 +59,8 @@ class NoteViewModelTodoTest {
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -90,6 +92,8 @@ class NoteViewModelTodoTest {
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -112,6 +116,8 @@ class NoteViewModelTodoTest {
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -135,6 +141,8 @@ class NoteViewModelTodoTest {
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -162,6 +170,8 @@ class NoteViewModelTodoTest {
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -184,6 +194,8 @@ class NoteViewModelTodoTest {
             reminderRepository = reminderRepository,
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )
@@ -207,6 +219,8 @@ class NoteViewModelTodoTest {
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
@@ -234,6 +248,8 @@ class NoteViewModelTodoTest {
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 0L))
         )
@@ -261,6 +277,8 @@ class NoteViewModelTodoTest {
             reminderRepository = TodoTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 9L))
         )

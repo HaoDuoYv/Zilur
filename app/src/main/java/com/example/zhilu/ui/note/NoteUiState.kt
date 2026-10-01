@@ -37,6 +37,10 @@ data class NoteUiState(
     val lastSavedAt: Long? = null,
     val isProcessingImage: Boolean = false,
     val branchExpandedStates: Map<Long, Boolean> = emptyMap(),
+    /** 正被 AI 生成占用的卡片 id 集合（驱动「生成中」动画与禁点）。 */
+    val generatingCardIds: Set<Long> = emptySet(),
+    /** 正被 AI 生成占用的块 id 集合。 */
+    val generatingBlockIds: Set<Long> = emptySet(),
     val error: String? = null
 ) {
     fun toNote(): Note {

@@ -68,6 +68,8 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
@@ -363,6 +365,8 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
@@ -376,6 +380,8 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle()
         )
@@ -400,6 +406,8 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
@@ -442,6 +450,8 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )
@@ -477,6 +487,8 @@ class NoteViewModelAdvancedBlockTest {
             reminderRepository = AdvancedBlockReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
         )

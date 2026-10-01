@@ -1,13 +1,19 @@
 package com.example.zhilu.domain.ai.usecase
 
+import android.net.Uri
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.domain.ai.model.AiToolDefinition
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.ImageBlockContent
+import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
+import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -25,7 +31,9 @@ import javax.inject.Singleton
 @Singleton
 class AiToolExecutor @Inject constructor(
     private val noteRepository: NoteRepository,
-    private val tagRepository: TagRepository
+    private val tagRepository: TagRepository,
+    private val mediaRepository: MediaRepository,
+    private val mediaFileManager: MediaFileManager
 ) {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -65,8 +73,8 @@ class AiToolExecutor @Inject constructor(
                       "items": {
                         "type": "object",
                         "properties": {
-                          "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "branch"]},
-                          "content": {"type": "string", "description": "块正文；latex 存放裸 LaTeX 源码（不含 \u0024\u0024 包裹）"},
+                          "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "branch", "image"]},
+                          "content": {"type": "string", "description": "块正文；latex 存放裸 LaTeX 源码（不含 \u0024\u0024 包裹）；image 存放图片 URI，只能使用上下文「本次附带的图片」里给出的路径，不可编造"},
                           "language": {"type": "string", "description": "仅 code 类型必填，如 kotlin / python / java"}
                         },
                         "required": ["type", "content"]
@@ -92,8 +100,8 @@ class AiToolExecutor @Inject constructor(
                       "items": {
                         "type": "object",
                         "properties": {
-                          "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "branch"]},
-                          "content": {"type": "string"},
+                          "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "branch", "image"]},
+                          "content": {"type": "string", "description": "text/latex/code/todo/link/branch 为正文；image 为图片 URI，必须沿用已有块里给出的 URI 或上下文「本次附带的图片」里的路径，不可编造或改写"},
                           "language": {"type": "string"}
                         },
                         "required": ["type", "content"]
@@ -167,11 +175,12 @@ class AiToolExecutor @Inject constructor(
     private suspend fun createNote(argumentsJson: String): String {
         val args = parseArgs(argumentsJson)
         val title = args.optString("title")?.takeIf { it.isNotBlank() } ?: return "缺少 title 参数"
-        val blocks = args.optArray("blocks")?.let(::parseBlocks).orEmpty()
+        val parsed = args.optArray("blocks")?.let { parseBlocks(it) } ?: ParsedBlocks(emptyList(), 0)
         val tags = resolveTags(args.optStringArray("tags"))
-        return when (val result = noteRepository.insertNote(Note(title = title, blocks = blocks, tags = tags))) {
+        return when (val result = noteRepository.insertNote(Note(title = title, blocks = parsed.blocks, tags = tags))) {
             is RepositoryResult.Success ->
-                "已创建笔记「${result.data.title}」(id=${result.data.id})，共 ${result.data.blocks.size} 个内容块。"
+                "已创建笔记「${result.data.title}」(id=${result.data.id})，共 ${result.data.blocks.size} 个内容块。" +
+                    droppedImageHint(parsed.droppedImages)
             is RepositoryResult.Error -> "创建失败：${result.message}"
         }
     }
@@ -184,16 +193,25 @@ class AiToolExecutor @Inject constructor(
             is RepositoryResult.Error -> return "读取失败：${result.message}"
         }
         val title = args.optString("title")
-        val blocks = args.optArray("blocks")?.let(::parseBlocks)
+        val parsed = args.optArray("blocks")?.let { parseBlocks(it) }
         val updated = existing.copy(
             title = title ?: existing.title,
-            blocks = blocks ?: existing.blocks
+            blocks = parsed?.blocks ?: existing.blocks
         )
         return when (val result = noteRepository.updateNote(updated)) {
-            is RepositoryResult.Success -> "已更新笔记「${result.data.title}」(id=${result.data.id})。"
+            is RepositoryResult.Success ->
+                "已更新笔记「${result.data.title}」(id=${result.data.id})。" +
+                    droppedImageHint(parsed?.droppedImages ?: 0)
             is RepositoryResult.Error -> "更新失败：${result.message}"
         }
     }
+
+    /**
+     * 有图片块因 URI 不可读被丢弃时如实说明。
+     * 静默丢弃会让模型继续声称「图片已写入」，用户却看不到图——必须让模型知道才好纠正。
+     */
+    private fun droppedImageHint(count: Int): String =
+        if (count <= 0) "" else "（有 $count 个图片块因图片路径不可读被跳过，请勿声称这些图片已写入）"
 
     private suspend fun addTags(argumentsJson: String): String {
         val args = parseArgs(argumentsJson)
@@ -216,19 +234,83 @@ class AiToolExecutor @Inject constructor(
     private fun parseArgs(argumentsJson: String): JsonObject =
         (json.parseToJsonElement(argumentsJson) as? JsonObject) ?: JsonObject(emptyMap())
 
-    private fun parseBlocks(arr: JsonArray): List<Block> =
-        arr.mapIndexed { index, element ->
-            val obj = element as? JsonObject
-            val type = obj?.optString("type") ?: "text"
-            val content = obj?.optString("content") ?: ""
-            val language = obj?.optString("language") ?: ""
-            Block(
-                type = blockTypeFromName(type),
+    /** 解析结果：块列表 + 被丢弃的图片块数量（用于如实反馈给模型，而不是假装成功）。 */
+    private data class ParsedBlocks(val blocks: List<Block>, val droppedImages: Int)
+
+    private suspend fun parseBlocks(arr: JsonArray): ParsedBlocks {
+        val blocks = mutableListOf<Block>()
+        var dropped = 0
+        for (element in arr) {
+            val obj = element as? JsonObject ?: continue
+            val type = blockTypeFromName(obj.optString("type") ?: "text")
+            val rawContent = obj.optString("content") ?: ""
+            val content: String
+            if (type == BlockType.IMAGE) {
+                val registered = registerImageContent(rawContent)
+                if (registered == null) {
+                    // 图片路径不可读：丢弃该块并计数，交由调用方如实告知模型。
+                    dropped++
+                    continue
+                }
+                content = registered
+            } else {
+                content = rawContent
+            }
+            blocks += Block(
+                type = type,
                 content = content,
-                language = language,
-                sortOrder = index
+                language = obj.optString("language") ?: "",
+                sortOrder = blocks.size
             )
         }
+        return ParsedBlocks(blocks, dropped)
+    }
+
+    /**
+     * 把图片块内容规范成「mediaId|uri」，并确保这张图已登记进 media 表。
+     *
+     * 助手在聊天里附加的图片只落到内部存储（files/images），没有 media 表记录。
+     * 若把裸 URI 直接写进笔记，这张图就脱离了媒体体系——分享/导出按 mediaId 找不到它，
+     * 媒体清理也会把它当孤儿删掉。这里在写入前补登记，让它和用户从相册选的图完全等价。
+     *
+     * @return 规范化后的内容；无法解析为本地可读图片时返回 null，调用方应丢弃该块。
+     */
+    private suspend fun registerImageContent(rawContent: String): String? {
+        val rawUri = ImageBlockContent.displayUri(rawContent).trim()
+        if (rawUri.isBlank()) return null
+
+        // content:// 等外部 URI 先复制进内部存储，file:// 直接沿用（避免重复拷贝）。
+        val uri = if (rawUri.asLocalFile() != null) {
+            rawUri
+        } else {
+            mediaFileManager.importUriToInternal(Uri.parse(rawUri)).getOrNull() ?: return null
+        }
+        val file = uri.asLocalFile()?.takeIf { it.isFile } ?: return null
+
+        // 同一张图已登记过就复用，保证 update_note 反复回写不会插出重复记录。
+        mediaByUri(uri)?.let { return ImageBlockContent.fromMedia(it.id, uri) }
+
+        return when (val result = mediaRepository.insertMedia(Media(uri = uri, size = file.length()))) {
+            is RepositoryResult.Success ->
+                if (result.data > 0) ImageBlockContent.fromMedia(result.data, uri) else null
+            is RepositoryResult.Error -> null
+        }
+    }
+
+    private suspend fun mediaByUri(uri: String): Media? =
+        when (val result = mediaRepository.getAllMedia()) {
+            is RepositoryResult.Success -> result.data.firstOrNull { it.uri == uri }
+            is RepositoryResult.Error -> null
+        }
+
+    private fun String.asLocalFile(): File? {
+        val parsed = Uri.parse(this)
+        return when (parsed.scheme?.lowercase()) {
+            "file" -> parsed.path?.let(::File)
+            null -> File(this)
+            else -> null
+        }
+    }
 
     private fun blockTypeFromName(name: String): BlockType = when (name.lowercase()) {
         "latex" -> BlockType.LATEX
@@ -237,6 +319,7 @@ class AiToolExecutor @Inject constructor(
         "link" -> BlockType.LINK
         "divider" -> BlockType.DIVIDER
         "branch" -> BlockType.BRANCH
+        "image" -> BlockType.IMAGE
         else -> BlockType.TEXT
     }
 
@@ -263,6 +346,9 @@ class AiToolExecutor @Inject constructor(
                 BlockType.TODO -> "- [ ] ${block.content}"
                 BlockType.DIVIDER -> "---"
                 BlockType.BRANCH -> "【分支】${block.content}"
+                // 图片块的 content 形如「mediaId|uri」，回读时只暴露真实 uri，
+                // 这样模型回写 update_note 时能原样沿用，不会编造路径。
+                BlockType.IMAGE -> "【图片】${ImageBlockContent.displayUri(block.content)}"
                 else -> block.content
             }
         }

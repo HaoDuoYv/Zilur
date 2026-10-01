@@ -1,28 +1,39 @@
 package com.example.zhilu.ui.assistant
 
 import android.widget.Toast
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -39,16 +50,17 @@ import com.example.zhilu.ui.theme.ZhiLuType
 @Composable
 fun AiMessageBubble(
     message: AiMessage,
-    isStreaming: Boolean
+    isStreaming: Boolean,
+    isActiveTool: Boolean = false
 ) {
     when (message.role) {
-        AiRole.TOOL -> ToolCallBadge(message = message)
+        AiRole.TOOL -> ToolCallBadge(message = message, isActive = isActiveTool)
         else -> ChatBubble(message = message, isStreaming = isStreaming)
     }
 }
 
 @Composable
-private fun ToolCallBadge(message: AiMessage) {
+private fun ToolCallBadge(message: AiMessage, isActive: Boolean) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -64,16 +76,22 @@ private fun ToolCallBadge(message: AiMessage) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Build,
-                    contentDescription = null,
-                    modifier = Modifier
-                        .height(12.dp)
-                        .width(12.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (isActive) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(12.dp),
+                        strokeWidth = 1.5.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Build,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
-                    text = message.content,
+                    text = message.toolName?.let { toolNameLabel(it) } ?: message.content,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -146,23 +164,49 @@ private fun ChatBubble(message: AiMessage, isStreaming: Boolean) {
                 )
             }
             if (hasText) {
-                if (isUser) {
-                    // 用户消息保持纯文本（原样回显）
-                    Text(
-                        text = message.content + if (isStreaming) "▍" else "",
+                when {
+                    isUser -> Text(
+                        text = message.content,
                         style = ZhiLuType.bodySmall,
                         color = textColor,
                         modifier = Modifier.padding(top = if (message.images.isNotEmpty()) 6.dp else 0.dp)
                     )
-                } else {
-                    // AI 消息富文本渲染：Markdown + LaTeX + 代码块
-                    AiMessageContent(
+                    message.content.isBlank() && isStreaming -> TypingIndicator(color = textColor)
+                    else -> AiMessageContent(
                         text = message.content + if (isStreaming) "▍" else "",
                         textColor = textColor,
                         modifier = Modifier.padding(top = if (message.images.isNotEmpty()) 6.dp else 0.dp)
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun TypingIndicator(color: androidx.compose.ui.graphics.Color) {
+    val transition = rememberInfiniteTransition(label = "typing")
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 4.dp)
+    ) {
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 500, delayMillis = index * 150),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "dot$index"
+            )
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .alpha(alpha)
+                    .background(color, CircleShape)
+            )
         }
     }
 }

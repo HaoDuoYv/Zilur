@@ -212,6 +212,8 @@ class NoteViewModelKnowledgeCardTest {
             reminderRepository = KnowledgeCardTestReminderRepository(),
             mediaRepository = mockk(relaxed = true),
             blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
             context = mockk(relaxed = true),
             savedStateHandle = SavedStateHandle()
         )
@@ -315,6 +317,8 @@ class NoteViewModelKnowledgeCardTest {
         reminderRepository = KnowledgeCardTestReminderRepository(),
         mediaRepository = mockk(relaxed = true),
         blockClipboardManager = mockk(relaxed = true),
+        aiTaskManager = fakeAiTaskManager(),
+        refManager = fakeAiRefManager(),
         context = mockk(relaxed = true),
         savedStateHandle = SavedStateHandle(mapOf("noteId" to note.id))
     )

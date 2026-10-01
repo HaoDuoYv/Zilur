@@ -1,6 +1,7 @@
 package com.example.zhilu.ui.assistant
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -38,6 +40,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
+import com.example.zhilu.domain.ai.model.AiRef
+import com.example.zhilu.domain.ai.model.AiRefKind
 import com.example.zhilu.ui.theme.Radius
 import com.example.zhilu.ui.theme.ZhiLuType
 
@@ -46,12 +50,15 @@ fun AssistantInputBar(
     text: String,
     attachedImages: List<String>,
     attachedFile: AttachedFile?,
+    attachedRefs: List<AiRef>,
     isGenerating: Boolean,
     onTextChange: (String) -> Unit,
     onPickImages: () -> Unit,
     onRemoveImage: (Int) -> Unit,
     onPickFile: () -> Unit,
     onRemoveFile: () -> Unit,
+    onPickRef: () -> Unit,
+    onRemoveRef: (Int) -> Unit,
     onSend: () -> Unit
 ) {
     var attachMenuOpen by remember { mutableStateOf(false) }
@@ -74,6 +81,19 @@ fun AssistantInputBar(
                 ) {
                     attachedImages.forEachIndexed { index, uri ->
                         ImageThumb(uri = uri, onRemove = { onRemoveImage(index) })
+                    }
+                }
+            }
+            if (attachedRefs.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    attachedRefs.forEachIndexed { index, ref ->
+                        RefChip(ref = ref, onRemove = { onRemoveRef(index) })
                     }
                 }
             }
@@ -146,6 +166,16 @@ fun AssistantInputBar(
                                 onPickFile()
                             }
                         )
+                        DropdownMenuItem(
+                            text = { Text("引用笔记") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Link, contentDescription = null)
+                            },
+                            onClick = {
+                                attachMenuOpen = false
+                                onPickRef()
+                            }
+                        )
                     }
                 }
                 OutlinedTextField(
@@ -157,7 +187,7 @@ fun AssistantInputBar(
                     shape = RoundedCornerShape(Radius.Field),
                     maxLines = 4
                 )
-                val canSend = (text.isNotBlank() || attachedImages.isNotEmpty() || attachedFile != null) && !isGenerating
+                val canSend = (text.isNotBlank() || attachedImages.isNotEmpty() || attachedFile != null || attachedRefs.isNotEmpty()) && !isGenerating
                 Surface(
                     onClick = onSend,
                     enabled = canSend,
@@ -214,4 +244,47 @@ private fun ImageThumb(uri: String, onRemove: () -> Unit) {
             )
         }
     }
+}
+
+@Composable
+private fun RefChip(ref: AiRef, onRemove: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = refChipLabel(ref),
+                style = ZhiLuType.chip,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "移除引用",
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
+    }
+}
+
+private fun refChipLabel(ref: AiRef): String {
+    val kind = when (ref.kind) {
+        AiRefKind.NOTE -> "笔记"
+        AiRefKind.CARD -> "卡片"
+        AiRefKind.BLOCK -> "块"
+    }
+    val title = ref.title.ifBlank { when (ref.kind) {
+        AiRefKind.NOTE -> "笔记 ${ref.noteId}"
+        AiRefKind.CARD -> "卡片 ${ref.cardId}"
+        AiRefKind.BLOCK -> "块 ${ref.blockId}"
+    } }
+    return "$kind·$title"
 }

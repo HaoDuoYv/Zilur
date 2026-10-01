@@ -113,9 +113,7 @@ class HtmlExporter(
     }
 
     private fun imageToBase64(block: Block, mediaById: Map<String, Media>): Result<String> = runCatching {
-        val mediaId = ImageBlockContent.mediaId(block.content)?.toString()
-        val media = mediaId?.let { mediaById[it] }
-            ?: mediaById.values.find { block.content.contains(it.uri) }
+        val media = ImageBlockContent.resolveMedia(block.content, mediaById)
             ?: throw IllegalArgumentException("未找到媒体")
         val cacheDir = File(context.cacheDir, "export_images").apply { mkdirs() }
         val copied = mediaFileManager.copyToCache(media, cacheDir).getOrThrow()

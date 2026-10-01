@@ -43,9 +43,7 @@ object MarkdownExporter {
             todoItems = todoItems,
             imageResolver = { block ->
                 runCatching {
-                    val mediaId = ImageBlockContent.mediaId(block.content)?.toString()
-                    val targetMedia = mediaId?.let { mediaById[it] }
-                        ?: mediaById.values.find { block.content.contains(it.uri) }
+                    val targetMedia = ImageBlockContent.resolveMedia(block.content, mediaById)
                         ?: throw IllegalArgumentException("未找到媒体")
                     val cacheDir = File(context.cacheDir, "export_md_images").apply { mkdirs() }
                     val copied = mediaFileManager.copyToCache(targetMedia, cacheDir).getOrThrow()

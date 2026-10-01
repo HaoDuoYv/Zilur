@@ -39,12 +39,13 @@ class AiAssistantRepositoryImpl @Inject constructor(
         config: AiConfig,
         history: List<AiMessage>,
         onDelta: (String) -> Unit,
-        onToolEvent: (String) -> Unit
+        onToolEvent: suspend (String) -> Unit,
+        contextText: String
     ): Result<String> = runCatching {
         withContext(Dispatchers.IO) {
             val hasImages = history.any { it.images.isNotEmpty() }
             val model = if (hasImages) config.visionModel.ifBlank { config.model } else config.model
-            val messages = buildMessages(history).toMutableList()
+            val messages = buildMessages(history, contextText).toMutableList()
             val tools = toolExecutor.definitions.map { it.toToolDto() }
 
             var round = 0
@@ -88,9 +89,14 @@ class AiAssistantRepositoryImpl @Inject constructor(
         }
     }
 
-    private fun buildMessages(history: List<AiMessage>): List<ChatMessageDto> {
+    private fun buildMessages(history: List<AiMessage>, contextText: String): List<ChatMessageDto> {
         val messages = mutableListOf<ChatMessageDto>()
-        messages.add(ChatMessageDto(role = "system", content = textContent(SYSTEM_PROMPT)))
+        val systemPrompt = if (contextText.isBlank()) {
+            SYSTEM_PROMPT
+        } else {
+            "$SYSTEM_PROMPT\n\n$contextText"
+        }
+        messages.add(ChatMessageDto(role = "system", content = textContent(systemPrompt)))
         history.forEach { message ->
             when (message.role) {
                 AiRole.USER -> {
@@ -159,6 +165,16 @@ class AiAssistantRepositoryImpl @Inject constructor(
 - 通过 create_note 的 blocks 存放公式时，content 只写裸 LaTeX 源码（不含 \$\$ 包裹）。
 
 涉及代码时，用三个反引号包裹代码块，并在开头标注语言；通过 create_note 存放代码块时使用 type=code 并填写 language。
+
+通过 create_note / update_note 写入笔记正文时，使用笔记的纯文本排版约定：
+- 笔记正文不渲染 Markdown 标记，行首的 #、##、>、- 与行内 **加粗** 都会原样显示，请一律改用纯文本；
+- 小节标题直接写成「六、易错点清单」这样的纯文本；列表用「·」或「1.」逐行书写；
+- 需要表格时不要写进笔记块，改用「项目：说明」的逐行文本，或放在对话回答里。
+
+图片：
+- 用户附带图片时，先据图回答（可描述、可识别其中的文字）；
+- 用户要求「把这张图存进笔记」「给某篇笔记加这张图」时，调用 create_note / update_note 并使用 type=image，content 填上下文「本次附带的图片」里给出的 URI，原样复制不要改写；
+- 图片只能取自「本次附带的图片」或笔记中已有的图片块（形如【图片】后面的地址），绝不编造图片地址。
 """.trimIndent()
     }
 }
