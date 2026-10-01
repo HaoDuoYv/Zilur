@@ -5,6 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.data.ai.LlmApiClient
+import com.example.zhilu.data.ai.dto.ChatCompletionRequest
+import com.example.zhilu.data.ai.dto.ChatMessageDto
+import com.example.zhilu.data.ai.dto.textContent
+import com.example.zhilu.domain.model.AiConfig
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.BlockType
@@ -16,6 +21,7 @@ import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
+import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 import com.example.zhilu.export.JsonExporter
 import com.example.zhilu.export.MarkdownExporter
 import com.example.zhilu.reminder.ReminderScheduler
@@ -37,7 +43,9 @@ class SettingsViewModel @Inject constructor(
     private val mediaRepository: MediaRepository,
     private val todoRepository: TodoRepository,
     private val userPreferences: UserPreferences,
-    private val reminderScheduler: ReminderScheduler
+    private val reminderScheduler: ReminderScheduler,
+    private val llmApiClient: LlmApiClient,
+    private val importKnowledgeUseCase: ImportKnowledgeUseCase
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -59,6 +67,11 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.copy(remindersEnabled = enabled) }
             }
         }
+        viewModelScope.launch {
+            userPreferences.aiConfig.collect { config ->
+                _uiState.update { it.copy(aiConfig = config) }
+            }
+        }
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -71,6 +84,49 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setRemindersEnabled(enabled)
             reminderScheduler.setEnabled(enabled)
+        }
+    }
+
+    fun updateAiConfig(config: AiConfig) {
+        _uiState.update { it.copy(aiConfig = config, aiTestResult = null) }
+    }
+
+    fun saveAiConfig() {
+        viewModelScope.launch {
+            userPreferences.setAiConfig(_uiState.value.aiConfig)
+            _uiState.update { it.copy(exportMessage = "AI 配置已保存") }
+        }
+    }
+
+    fun testAiConnection() {
+        val config = _uiState.value.aiConfig
+        if (!config.isConfigured) {
+            _uiState.update { it.copy(aiTestResult = "请先填写端点、Key 和模型") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(aiTestInProgress = true, aiTestResult = null) }
+            val outcome = runCatching {
+                llmApiClient.chat(
+                    endpoint = config.endpoint,
+                    apiKey = config.apiKey,
+                    request = ChatCompletionRequest(
+                        model = config.model,
+                        messages = listOf(
+                            ChatMessageDto(role = "user", content = textContent("你好，请回复「连接成功」"))
+                        )
+                    )
+                )
+            }
+            _uiState.update {
+                it.copy(
+                    aiTestInProgress = false,
+                    aiTestResult = outcome.fold(
+                        onSuccess = { "连接成功" },
+                        onFailure = { e -> "连接失败：${e.message ?: "未知错误"}" }
+                    )
+                )
+            }
         }
     }
 
@@ -200,6 +256,50 @@ class SettingsViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    /** 解析 .dtk 文件并弹出预览确认；正式导入在用户确认后执行。 */
+    fun parseImportPreview(uri: Uri) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isWorking = true) }
+            importKnowledgeUseCase.parsePreview(uri)
+                .onSuccess { preview ->
+                    _uiState.update {
+                        it.copy(isWorking = false, importPreview = preview, pendingImportUri = uri)
+                    }
+                }
+                .onFailure { throwable ->
+                    _uiState.update {
+                        it.copy(
+                            isWorking = false,
+                            error = "无法解析文件：${throwable.message}"
+                        )
+                    }
+                }
+        }
+    }
+
+    fun confirmImport() {
+        val uri = _uiState.value.pendingImportUri ?: return
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(isWorking = true, importPreview = null, pendingImportUri = null)
+            }
+            importKnowledgeUseCase.import(uri)
+                .onSuccess {
+                    refreshStats()
+                    _uiState.update { it.copy(isWorking = false, exportMessage = "导入成功") }
+                }
+                .onFailure { throwable ->
+                    _uiState.update {
+                        it.copy(isWorking = false, error = "导入失败：${throwable.message}")
+                    }
+                }
+        }
+    }
+
+    fun dismissImportPreview() {
+        _uiState.update { it.copy(importPreview = null, pendingImportUri = null) }
     }
 
     fun requestJsonExport() {

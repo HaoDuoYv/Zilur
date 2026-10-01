@@ -1,30 +1,20 @@
 package com.example.zhilu.ui.tag
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,21 +24,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.AnimatedListItem
-import com.example.zhilu.ui.component.AppCard
 import com.example.zhilu.ui.component.AppEmptyState
+import com.example.zhilu.ui.component.AppIconButton
 import com.example.zhilu.ui.component.AppTopBar
-import com.example.zhilu.ui.component.NoteListItem
-import com.example.zhilu.ui.navigation.BottomBar
+import com.example.zhilu.ui.component.MetaLine
+import com.example.zhilu.ui.component.NoteRow
+import com.example.zhilu.ui.component.SectionHeader
+import com.example.zhilu.ui.component.ZhiLuDivider
+import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
+import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.theme.Spacing
 
 @Composable
 fun TagsScreen(
@@ -56,21 +47,31 @@ fun TagsScreen(
     viewModel: TagsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = LocalAppSnackbar.current
     var newTagName by remember { mutableStateOf("") }
+    var newTagVisible by remember { mutableStateOf(false) }
     var pendingDeleteTag by remember { mutableStateOf<Tag?>(null) }
 
     LaunchedEffect(state.error) {
         state.error?.let {
-            snackbarHostState.showSnackbar(it)
+            snackbar.showSnackbar(it)
             viewModel.clearError()
         }
     }
 
-    Scaffold(
-        topBar = { AppTopBar(title = "标签") },
-        bottomBar = { BottomBar(navController = navController) },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+    AppTabScaffold(
+        topBar = {
+            AppTopBar(
+                title = "标签",
+                actions = {
+                    AppIconButton(
+                        icon = Icons.Default.Add,
+                        contentDescription = if (newTagVisible) "收起新建标签" else "新建标签",
+                        onClick = { newTagVisible = !newTagVisible }
+                    )
+                }
+            )
+        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -78,69 +79,58 @@ fun TagsScreen(
                 .padding(padding)
         ) {
             if (state.isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            AppCard {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "${state.noteCount} 条笔记，${state.tags.size} 个标签",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = newTagName,
-                            onValueChange = { newTagName = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("新标签") },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.medium
-                        )
-                        Button(
-                            onClick = {
-                                viewModel.addTag(newTagName)
-                                newTagName = ""
-                            },
-                            enabled = newTagName.isNotBlank()
-                        ) {
-                            Text("添加")
-                        }
+
+            AnimatedVisibility(
+                visible = newTagVisible,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                NewTagInput(
+                    value = newTagName,
+                    onValueChange = { newTagName = it },
+                    onSubmit = {
+                        viewModel.addTag(newTagName)
+                        newTagName = ""
+                        newTagVisible = false
                     }
-                }
+                )
             }
+
+            MetaLine(
+                parts = listOf("${state.noteCount} 条笔记", "${state.tags.size} 个标签"),
+                modifier = Modifier.padding(
+                    horizontal = Spacing.PageGutter,
+                    vertical = Spacing.Xs
+                )
+            )
+
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 0.dp,
-                    end = 0.dp,
-                    top = 8.dp,
-                    bottom = 88.dp
-                )
+                contentPadding = PaddingValues(bottom = Spacing.Xl)
             ) {
-                state.selectedTag?.let { tag ->
-                    item(key = "filtered-header") {
-                        Text(
-                            text = "“${tag.name}” 下的知识点",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                val selectedTag = state.selectedTag
+                // 筛选态与索引态互斥：同一屏里只出现一种列表，避免「正在看的」与「已经选完的」叠在一起。
+                if (selectedTag != null) {
+                    item(key = "filter-banner") {
+                        TagFilterBanner(
+                            tagName = selectedTag.name,
+                            onClear = { viewModel.selectTag(selectedTag) }
                         )
+                    }
+                    item(key = "filtered-header") {
+                        SectionHeader(title = "「${selectedTag.name}」下的知识点")
                     }
                     if (state.isLoadingNotes) {
                         item(key = "filtered-loading") { LinearProgressIndicator() }
                     } else if (state.filteredNotes.isEmpty()) {
                         item(key = "filtered-empty") {
                             AppEmptyState(
-                                onAction = {
-                                    navController.navigate(Destination.NoteEdit.createRoute())
-                                },
-                                icon = "标",
+                                onAction = { navController.navigate(Destination.NoteEdit.createRoute()) },
+                                icon = Icons.Outlined.Sell,
                                 title = "这个标签下还没有知识点",
-                                description = "给笔记添加「${tag.name}」标签后，会出现在这里。",
+                                description = "给笔记添加「${selectedTag.name}」标签后，会出现在这里。",
                                 buttonText = "去记录",
-                                secondaryActionLabel = "取消筛选",
-                                onSecondaryAction = { viewModel.selectTag(tag) }
+                                compact = true
                             )
                         }
                     } else {
@@ -149,43 +139,54 @@ fun TagsScreen(
                             key = { _, note -> "note-${note.id}" }
                         ) { index, note ->
                             AnimatedListItem(index = index) {
-                                NoteListItem(
-                                    note = note,
-                                    onClick = {
-                                        navController.navigate(Destination.NoteEdit.createRoute(note.id))
+                                Column {
+                                    NoteRow(
+                                        note = note,
+                                        onClick = {
+                                            navController.navigate(Destination.NoteEdit.createRoute(note.id))
+                                        }
+                                    )
+                                    if (index < state.filteredNotes.lastIndex) {
+                                        ZhiLuDivider(
+                                            modifier = Modifier.padding(start = Spacing.PageGutter)
+                                        )
                                     }
-                                )
+                                }
                             }
                         }
                     }
-                    item(key = "tags-header") {
-                        Text(
-                            text = "全部标签",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                        )
-                    }
-                }
-                if (!state.isLoading && state.tags.isEmpty()) {
-                    item {
-                        AppEmptyState(
-                            onAction = { navController.navigate(Destination.NoteEdit.createRoute()) },
-                            icon = "标",
-                            title = "还没有标签",
-                            description = "创建第一条笔记并添加标签，知识将更容易被找到。",
-                            buttonText = "去记录"
-                        )
-                    }
                 } else {
-                    itemsIndexed(state.tags, key = { _, tag -> tag.id }) { index, tag ->
-                        AnimatedListItem(index = index) {
-                            TagRow(
-                                tag = tag,
-                                selected = state.selectedTag?.id == tag.id,
-                                onClick = { viewModel.selectTag(tag) },
-                                onDelete = { pendingDeleteTag = tag }
+                    item(key = "tags-header") {
+                        SectionHeader(title = "全部标签")
+                    }
+
+                    if (!state.isLoading && state.tags.isEmpty()) {
+                        item(key = "tags-empty") {
+                            AppEmptyState(
+                                onAction = { newTagVisible = true },
+                                icon = Icons.Outlined.Sell,
+                                title = "还没有标签",
+                                description = "创建第一条笔记并添加标签，知识将更容易被找到。",
+                                buttonText = "新建标签",
+                                compact = true
                             )
+                        }
+                    } else {
+                        itemsIndexed(state.tags, key = { _, tag -> tag.id }) { index, tag ->
+                            AnimatedListItem(index = index) {
+                                Column {
+                                    TagRow(
+                                        tag = tag,
+                                        onClick = { viewModel.selectTag(tag) },
+                                        onDelete = { pendingDeleteTag = tag }
+                                    )
+                                    if (index < state.tags.lastIndex) {
+                                        ZhiLuDivider(
+                                            modifier = Modifier.padding(start = Spacing.PageGutter)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -209,60 +210,8 @@ fun TagsScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDeleteTag = null }) {
-                    Text("取消")
-                }
+                TextButton(onClick = { pendingDeleteTag = null }) { Text("取消") }
             }
         )
-    }
-}
-
-@Composable
-private fun TagRow(
-    tag: Tag,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    AppCard {
-        Row(
-            modifier = Modifier
-                .clickable(onClick = onClick)
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(Color(tag.color))
-            )
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp),
-            ) {
-                Text(
-                    text = tag.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = if (selected) "正在筛选该标签下的知识点" else "点击查看该标签下的知识点",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Button(onClick = onClick) {
-                Text(if (selected) "取消筛选" else "筛选")
-            }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = "删除标签",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
     }
 }

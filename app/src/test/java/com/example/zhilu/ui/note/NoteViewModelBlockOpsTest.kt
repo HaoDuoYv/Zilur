@@ -283,6 +283,91 @@ class NoteViewModelBlockOpsTest {
         assertEquals("sortOrder 应按新顺序重算", listOf(0, 1, 2, 3, 4), blocks.map { it.sortOrder })
     }
 
+    @Test
+    fun `moveBlock moves block down after target`() = runTest(dispatcher) {
+        val viewModel = createViewModel(threeTextBlocks())
+        advanceUntilIdle()
+
+        viewModel.moveBlock(1L, 2L)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals("拖动向下时应落到目标块之后", listOf("B", "A", "C"), blocks.map { it.content })
+        assertEquals("sortOrder 应按新顺序重算", listOf(0, 1, 2), blocks.map { it.sortOrder })
+    }
+
+    @Test
+    fun `moveBlock moves block up before target`() = runTest(dispatcher) {
+        val viewModel = createViewModel(threeTextBlocks())
+        advanceUntilIdle()
+
+        viewModel.moveBlock(3L, 2L)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals("拖动向上时应落到目标块之前", listOf("A", "C", "B"), blocks.map { it.content })
+        assertEquals("sortOrder 应按新顺序重算", listOf(0, 1, 2), blocks.map { it.sortOrder })
+    }
+
+    @Test
+    fun `moveBlock keeps branch children attached to their branch`() = runTest(dispatcher) {
+        val viewModel = createViewModel(noteWithBranchChildren())
+        advanceUntilIdle()
+
+        viewModel.moveBlock(2L, 4L)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals(
+            "分支块移动时其子块必须跟随",
+            listOf("A", "C", "分支", "子块"),
+            blocks.map { it.content }
+        )
+        assertEquals(
+            "子块仍应挂在原分支下",
+            2L,
+            blocks.first { it.content == "子块" }.parentBranchId
+        )
+    }
+
+    @Test
+    fun `moveBlock ignores blocks that live inside a branch`() = runTest(dispatcher) {
+        val viewModel = createViewModel(noteWithBranchChildren())
+        advanceUntilIdle()
+
+        viewModel.moveBlock(3L, 4L)
+        viewModel.moveBlock(1L, 3L)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals(
+            "分支子块不参与顶层排序，顺序应保持不变",
+            listOf("A", "分支", "子块", "C"),
+            blocks.map { it.content }
+        )
+    }
+
+    private fun threeTextBlocks(): Note = Note(
+        id = 7L,
+        title = "Reorder",
+        blocks = listOf(
+            Block(id = 1L, type = BlockType.TEXT, content = "A", sortOrder = 0),
+            Block(id = 2L, type = BlockType.TEXT, content = "B", sortOrder = 1),
+            Block(id = 3L, type = BlockType.TEXT, content = "C", sortOrder = 2)
+        )
+    )
+
+    private fun noteWithBranchChildren(): Note = Note(
+        id = 7L,
+        title = "Reorder branch",
+        blocks = listOf(
+            Block(id = 1L, type = BlockType.TEXT, content = "A", sortOrder = 0),
+            Block(id = 2L, type = BlockType.BRANCH, content = "分支", sortOrder = 1),
+            Block(id = 3L, type = BlockType.TEXT, content = "子块", sortOrder = 2, parentBranchId = 2L),
+            Block(id = 4L, type = BlockType.TEXT, content = "C", sortOrder = 3)
+        )
+    )
+
     private fun createViewModel(
         note: Note,
         clipboardManager: BlockClipboardManager = mockk(relaxed = true)

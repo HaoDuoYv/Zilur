@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -96,18 +95,20 @@ fun ZhiLuTheme(
     val view = LocalView.current
     val context = LocalContext.current
     val reducedMotion = remember { context.isReduceMotionEnabled() }
+    val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
     if (!view.isInEditMode) {
         SideEffect {
+            // 系统栏颜色由内容透明绘制（edge-to-edge）；仅切换图标明暗外观。
             val window = (view.context as Activity).window
-            val barColor = colorScheme.background.toArgb()
-            window.statusBarColor = barColor
-            window.navigationBarColor = barColor
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
-    CompositionLocalProvider(LocalReducedMotion provides reducedMotion) {
+    CompositionLocalProvider(
+        LocalReducedMotion provides reducedMotion,
+        LocalExtendedColors provides extendedColors
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,

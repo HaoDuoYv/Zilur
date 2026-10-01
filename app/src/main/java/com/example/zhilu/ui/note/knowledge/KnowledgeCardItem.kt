@@ -2,37 +2,19 @@ package com.example.zhilu.ui.note.knowledge
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
@@ -40,14 +22,15 @@ import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.AppCardStyle
 import com.example.zhilu.ui.component.ElevationTokens
-import com.example.zhilu.ui.note.blocks.BlockTypePickerSheet
-import com.example.zhilu.ui.note.blocks.EditableBlock
-import com.example.zhilu.ui.note.blocks.ReadOnlyBlock
 import com.example.zhilu.ui.theme.AlphaTokens
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
 import com.example.zhilu.ui.theme.motionEnterTween
 
+/**
+ * 知识卡片：头部（图钉 + 标题）与块列表的容器。
+ * 聚焦态下边框加粗、抬升海拔，用容器本身表达「正在编辑这张卡」。
+ */
 @Composable
 fun KnowledgeCardItem(
     card: KnowledgeCard,
@@ -78,12 +61,14 @@ fun KnowledgeCardItem(
     onUpdateTodo: ((TodoItem) -> Unit)?,
     onCompleteTodo: ((Long) -> Unit)?,
     onToggleCompletedTodos: (() -> Unit)?,
+    activeBlockId: Long? = null,
+    onActivateBlock: (Long) -> Unit = {},
+    onReorderBlock: (Long, Long) -> Unit = { _, _ -> },
+    onDragStateChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isFocused = card.isFocused && isEditing
     val reducedMotion = LocalReducedMotion.current
-    val defaultBorderColor = MaterialTheme.colorScheme.outlineVariant
-    val focusedBorderColor = MaterialTheme.colorScheme.primary
 
     val borderWidth by animateDpAsState(
         targetValue = if (isFocused) 2.dp else AppCardStyle.borderWidth,
@@ -91,12 +76,16 @@ fun KnowledgeCardItem(
         label = "KnowledgeCardBorderWidth"
     )
     val borderColor by animateColorAsState(
-        targetValue = if (isFocused) focusedBorderColor else defaultBorderColor,
+        targetValue = if (isFocused) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.outlineVariant
+        },
         animationSpec = motionEnterTween(MotionDuration.Medium, enabled = !reducedMotion),
         label = "KnowledgeCardBorderColor"
     )
     val shadowElevation by animateDpAsState(
-        targetValue = if (isFocused) ElevationTokens.Floating else AppCardStyle.elevation,
+        targetValue = if (isFocused) ElevationTokens.Overlay else AppCardStyle.elevation,
         animationSpec = motionEnterTween(MotionDuration.Medium, enabled = !reducedMotion),
         label = "KnowledgeCardShadowElevation"
     )
@@ -116,7 +105,7 @@ fun KnowledgeCardItem(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            CardTitleInput(
+            CardHeader(
                 title = card.title,
                 onTitleChange = onTitleChange,
                 readOnly = !(isEditing && isFocused),
@@ -155,222 +144,12 @@ fun KnowledgeCardItem(
                 onCreateTodo = onCreateTodo,
                 onUpdateTodo = onUpdateTodo,
                 onCompleteTodo = onCompleteTodo,
-                onToggleCompletedTodos = onToggleCompletedTodos
+                onToggleCompletedTodos = onToggleCompletedTodos,
+                activeBlockId = activeBlockId,
+                onActivateBlock = onActivateBlock,
+                onReorderBlock = onReorderBlock,
+                onDragStateChange = onDragStateChange
             )
         }
-    }
-}
-
-@Composable
-private fun CardTitleInput(
-    title: String,
-    onTitleChange: (String) -> Unit,
-    readOnly: Boolean,
-    showDelete: Boolean,
-    canDelete: Boolean,
-    onDelete: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val textStyle = MaterialTheme.typography.titleMedium.merge(
-        TextStyle(color = MaterialTheme.colorScheme.onSurface)
-    )
-
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Default.PushPin,
-            contentDescription = "知识小点",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        if (readOnly) {
-            Text(
-                text = title.ifBlank { "知识小点" },
-                style = textStyle,
-                modifier = Modifier.weight(1f)
-            )
-        } else {
-            BasicTextField(
-                value = title,
-                onValueChange = onTitleChange,
-                modifier = Modifier.weight(1f),
-                textStyle = textStyle,
-                singleLine = true,
-                decorationBox = { innerTextField ->
-                    if (title.isEmpty()) {
-                        Text(
-                            text = "输入小点名称(如:情况一)...",
-                            style = textStyle,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = AlphaTokens.Hint)
-                        )
-                    }
-                    innerTextField()
-                }
-            )
-        }
-
-        if (showDelete) {
-            IconButton(
-                onClick = onDelete,
-                enabled = canDelete
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = if (canDelete) "删除知识卡片" else "至少保留一张知识卡片",
-                    tint = if (canDelete) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = AlphaTokens.Disabled)
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CardBlockList(
-    card: KnowledgeCard,
-    isEditing: Boolean,
-    onBlockContentChange: (Long, String) -> Unit,
-    onBlockLanguageClick: (Long) -> Unit,
-    onRemoveBlock: (Long) -> Unit,
-    onMoveBlockUp: (Long) -> Unit,
-    onMoveBlockDown: (Long) -> Unit,
-    onInsertBlockAt: (Int, BlockType) -> Unit,
-    onCopyBlock: (Long) -> Unit,
-    onImageClick: (Block) -> Unit,
-    onToggleBranchExpanded: (Long) -> Unit,
-    onBranchTitleChange: (Long, String) -> Unit,
-    onBranchChildValueChange: (Long, String) -> Unit,
-    onBranchChildLanguageClick: (Long) -> Unit,
-    onRemoveBranchChild: (Long) -> Unit,
-    onAddBranchChild: (Long, BlockType) -> Unit,
-    onAddBranchChildImage: (Long) -> Unit,
-    branchExpandedStates: Map<Long, Boolean>,
-    todoItems: List<TodoItem>,
-    showCompletedTodos: Boolean,
-    onCreateTodo: (suspend (String, Long?) -> Boolean)?,
-    onUpdateTodo: ((TodoItem) -> Unit)?,
-    onCompleteTodo: ((Long) -> Unit)?,
-    onToggleCompletedTodos: (() -> Unit)?,
-    modifier: Modifier = Modifier
-) {
-    val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
-    var pendingInsertIndex by remember { mutableIntStateOf(-1) }
-
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        if (topLevelBlocks.isEmpty()) {
-            Text(
-                text = "点击底部工具栏添加内容块",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = AlphaTokens.Muted)
-            )
-        } else {
-            topLevelBlocks.forEachIndexed { index, block ->
-                val prevType = topLevelBlocks.getOrNull(index - 1)?.type
-                val topPadding = when {
-                    block.type == BlockType.DIVIDER || prevType == BlockType.DIVIDER -> 24.dp
-                    prevType != null && prevType == block.type -> 8.dp
-                    prevType != null -> 16.dp
-                    else -> 0.dp
-                }
-                val showTopDivider = prevType != null &&
-                    prevType == block.type &&
-                    block.type != BlockType.DIVIDER &&
-                    block.type != BlockType.IMAGE &&
-                    block.type != BlockType.LATEX
-                val childBlocks = card.blocks.filter { it.parentBranchId == block.id }
-                val isBranchExpanded = if (isEditing) {
-                    branchExpandedStates[block.id] ?: true
-                } else {
-                    true
-                }
-                val blockIndexInAll = card.blocks.indexOfFirst { it.id == block.id }
-                val childCount = card.blocks.count { it.parentBranchId == block.id }
-
-                val canEditBlock = isEditing && card.isFocused
-                if (canEditBlock) {
-                    EditableBlock(
-                        index = index,
-                        block = block,
-                        total = topLevelBlocks.size,
-                        onValueChange = { onBlockContentChange(block.id, it) },
-                        onLanguageClick = { onBlockLanguageClick(block.id) },
-                        onRemove = { onRemoveBlock(block.id) },
-                        onMoveUp = { topLevelBlocks.getOrNull(index - 1)?.id?.let { onMoveBlockUp(block.id) } },
-                        onMoveDown = { topLevelBlocks.getOrNull(index + 1)?.id?.let { onMoveBlockDown(block.id) } },
-                        onInsertAbove = { pendingInsertIndex = blockIndexInAll },
-                        onInsertBelow = { pendingInsertIndex = blockIndexInAll + 1 + childCount },
-                        onCopy = { onCopyBlock(block.id) },
-                        onImageClick = if (block.type == BlockType.IMAGE) {
-                            { onImageClick(block) }
-                        } else {
-                            null
-                        },
-                        showTopDivider = showTopDivider,
-                        modifier = Modifier.padding(top = topPadding),
-                        todoItems = todoItems,
-                        showCompletedTodos = showCompletedTodos,
-                        onCreateTodo = onCreateTodo,
-                        onUpdateTodo = onUpdateTodo,
-                        onCompleteTodo = onCompleteTodo,
-                        onToggleCompletedTodos = onToggleCompletedTodos,
-                        branchChildBlocks = childBlocks,
-                        isBranchExpanded = isBranchExpanded,
-                        onBranchTitleChange = { onBranchTitleChange(block.id, it) },
-                        onToggleBranchExpanded = { onToggleBranchExpanded(block.id) },
-                        onBranchChildValueChange = { childId, value ->
-                            onBranchChildValueChange(childId, value)
-                        },
-                        onBranchChildLanguageClick = { childId ->
-                            onBranchChildLanguageClick(childId)
-                        },
-                        onRemoveBranchChild = { childId -> onRemoveBranchChild(childId) },
-                        onAddBranchChild = { type ->
-                            if (type == BlockType.IMAGE) {
-                                onAddBranchChildImage(block.id)
-                            } else {
-                                onAddBranchChild(block.id, type)
-                            }
-                        }
-                    )
-                } else {
-                    ReadOnlyBlock(
-                        block = block,
-                        onCopy = {},
-                        showTopDivider = showTopDivider,
-                        modifier = Modifier.padding(top = topPadding),
-                        todoItems = todoItems,
-                        showCompletedTodos = showCompletedTodos,
-                        onToggleCompletedTodos = onToggleCompletedTodos,
-                        onImageClick = if (block.type == BlockType.IMAGE) {
-                            { onImageClick(block) }
-                        } else {
-                            null
-                        },
-                        branchChildBlocks = childBlocks,
-                        isBranchExpanded = isBranchExpanded,
-                        onToggleBranchExpanded = { onToggleBranchExpanded(block.id) }
-                    )
-                }
-            }
-        }
-    }
-
-    if (pendingInsertIndex >= 0) {
-        BlockTypePickerSheet(
-            onDismiss = { pendingInsertIndex = -1 },
-            onSelect = { type ->
-                onInsertBlockAt(pendingInsertIndex, type)
-                pendingInsertIndex = -1
-            }
-        )
     }
 }

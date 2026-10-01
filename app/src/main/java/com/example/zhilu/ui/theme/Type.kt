@@ -7,103 +7,111 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /**
- * Editorial typography scale for ZhiLu.
+ * 知录字阶（精炼纸墨）。
  *
- * Headlines use a serif face to evoke a printed, editorial feel; body and label styles use a
- * clean sans-serif for readability. The scale emphasizes generous line height and restrained
- * letter spacing for a calm, content-first reading experience.
+ * 衬线只用于 4 类标题（[ZhiLuType.noteTitle] / [pageTitle] / [cardTitle] / [sectionTitle]），
+ * 其余一律无衬线；正文行高放宽到 26sp 以保证长文阅读舒适。
  *
- * To replace with custom fonts, place font files under app/src/main/res/font and create a
- * FontFamily (e.g. Font(R.font.editorial_serif, FontWeight.*) for headlines and
- * Font(R.font.body_sans, FontWeight.*) for body text), then assign those families below.
+ * 组件应直接使用 [ZhiLuType] 的语义样式，而非 M3 的模糊槽位名；
+ * [Typography] 保留并按本表映射，让 M3 内置组件自动跟随新字阶。
  */
-val Typography = Typography(
-    // Editorial display headings: serif, tight leading, negative letter spacing
-    headlineLarge = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = 40.sp,
-        letterSpacing = (-0.25).sp
-    ),
-    headlineMedium = TextStyle(
+object ZhiLuType {
+    // —— 衬线标题 ——
+    val noteTitle = TextStyle(
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 28.sp,
         lineHeight = 36.sp,
-        letterSpacing = (-0.25).sp
-    ),
-    headlineSmall = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 32.sp,
-        letterSpacing = 0.sp
-    ),
-    // Section / card titles: serif for continuity with display type
-    titleLarge = TextStyle(
+        letterSpacing = (-0.2).sp
+    )
+    val pageTitle = TextStyle(
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Medium,
-        fontSize = 22.sp,
+        fontSize = 20.sp,
         lineHeight = 28.sp,
         letterSpacing = 0.sp
-    ),
-    titleMedium = TextStyle(
+    )
+    val cardTitle = TextStyle(
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Medium,
-        fontSize = 18.sp,
+        fontSize = 17.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.sp
+    )
+    val sectionTitle = TextStyle(
+        fontFamily = FontFamily.Serif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 15.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.1.sp
+    )
+
+    // —— 无衬线界面与正文 ——
+    val rowTitle = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        letterSpacing = (-0.1).sp
+    )
+    val body = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
         lineHeight = 26.sp,
         letterSpacing = 0.sp
-    ),
-    titleSmall = TextStyle(
-        fontFamily = FontFamily.Serif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.sp
-    ),
-    // Body copy: sans-serif, open leading for long-form reading
-    bodyLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.5.sp
-    ),
-    bodyMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = 0.25.sp
-    ),
-    bodySmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.4.sp
-    ),
-    // UI labels: sans-serif, slightly wider tracking for clarity at small sizes
-    labelLarge = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        letterSpacing = 0.1.sp
-    ),
-    labelMedium = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
-    ),
-    labelSmall = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp
     )
+    val bodySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.1.sp
+    )
+    val meta = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.2.sp
+    )
+    val label = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.6.sp
+    )
+    val chip = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.2.sp
+    )
+    val mono = TextStyle(
+        fontFamily = FontFamily.Monospace,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.5.sp,
+        lineHeight = 21.sp,
+        letterSpacing = 0.sp
+    )
+}
+
+val Typography = Typography(
+    displayLarge = ZhiLuType.noteTitle,
+    displayMedium = ZhiLuType.noteTitle,
+    displaySmall = ZhiLuType.pageTitle,
+    headlineLarge = ZhiLuType.noteTitle,
+    headlineMedium = ZhiLuType.pageTitle,
+    headlineSmall = ZhiLuType.pageTitle,
+    titleLarge = ZhiLuType.pageTitle,
+    titleMedium = ZhiLuType.cardTitle,
+    titleSmall = ZhiLuType.sectionTitle,
+    bodyLarge = ZhiLuType.body,
+    bodyMedium = ZhiLuType.bodySmall,
+    bodySmall = ZhiLuType.meta,
+    labelLarge = ZhiLuType.bodySmall,
+    labelMedium = ZhiLuType.chip,
+    labelSmall = ZhiLuType.label
 )

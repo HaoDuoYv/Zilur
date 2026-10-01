@@ -16,15 +16,20 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.ui.theme.AlphaTokens
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.motionEnterTween
 import com.example.zhilu.ui.theme.motionExitTween
 
+/**
+ * 块之间的插入槽：发丝线常显（编辑态的可发现入口），点击后浮出加号按钮完成插入。
+ */
 @Composable
 fun BlockInsertIndicator(
     visible: Boolean,
@@ -32,30 +37,29 @@ fun BlockInsertIndicator(
     modifier: Modifier = Modifier
 ) {
     val reducedMotion = LocalReducedMotion.current
-    AnimatedVisibility(
-        visible = visible,
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(24.dp)
-            .clickable(onClick = onClick),
-        enter = fadeIn(motionEnterTween(MotionDuration.Short, enabled = !reducedMotion)),
-        exit = fadeOut(motionExitTween(MotionDuration.Short, enabled = !reducedMotion))
+            .height(Spacing.GutterTap),
+        contentAlignment = Alignment.Center
     ) {
         Box(
-            modifier = Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 32.dp)
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = AlphaTokens.Divider))
+        )
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(motionEnterTween(MotionDuration.Short, enabled = !reducedMotion)),
+            exit = fadeOut(motionExitTween(MotionDuration.Short, enabled = !reducedMotion))
         ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 32.dp)
-                    .height(2.dp)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = AlphaTokens.Border))
-            )
-            Box(
-                modifier = Modifier
                     .size(24.dp)
-                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    .background(MaterialTheme.colorScheme.primary, CircleShape)
+                    .clickable(onClick = onClick),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(

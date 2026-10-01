@@ -8,11 +8,6 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -35,20 +30,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -77,36 +62,33 @@ import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.KnowledgeCard
-import com.example.zhilu.domain.model.ReviewPlan
-import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.model.Tag
-import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.ImageViewer
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.navigation.Destination
+import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.note.blocks.PastePositionSheet
 import com.example.zhilu.ui.note.knowledge.AddKnowledgeCardButton
 import com.example.zhilu.ui.note.knowledge.KnowledgeCardItem
 import com.example.zhilu.ui.note.tag.TagPickerInline
 import com.example.zhilu.ui.note.toolbar.KnowledgeBottomToolbar
 import com.example.zhilu.ui.settings.NotificationPermissionState
-import com.example.zhilu.ui.theme.LocalReducedMotion
-import com.example.zhilu.ui.theme.MotionDuration
-import com.example.zhilu.ui.theme.motionEnterTween
-import com.example.zhilu.ui.theme.motionExitTween
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NoteEditScreen(
     navController: NavHostController,
-    noteId: Long = 0L,
     viewModel: NoteViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = LocalAppSnackbar.current
     val listState = rememberLazyListState()
+    // 仅用于 UI：当前激活（显示装饰与 ⋮）的块，不进入 ViewModel。
+    var activeBlockId by remember { mutableStateOf<Long?>(null) }
     var showShareSheet by remember { mutableStateOf(false) }
+    var showReviewSheet by remember { mutableStateOf(false) }
     var viewingImageUri by remember { mutableStateOf<String?>(null) }
     var pendingBranchImageBlockId by remember { mutableStateOf<Long?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -125,7 +107,7 @@ fun NoteEditScreen(
         onResult = { granted ->
             if (!granted) {
                 coroutineScope.launch {
-                    snackbarHostState.showSnackbar("通知权限未开启，可在提醒中心查看到期项目")
+                    snackbar.showSnackbar("通知权限未开启，可在提醒中心查看到期项目")
                 }
             }
         }
@@ -155,7 +137,7 @@ fun NoteEditScreen(
                 )
             } else {
                 coroutineScope.launch {
-                    snackbarHostState.showSnackbar("需要存储权限才能选择图片")
+                    snackbar.showSnackbar("需要存储权限才能选择图片")
                 }
             }
         }
@@ -182,9 +164,13 @@ fun NoteEditScreen(
         }
     }
 
-    LaunchedEffect(noteId) {
-        if (noteId > 0L) viewModel.load(noteId)
+    // 切换聚焦卡片时收起上一张卡片的块装饰。
+    LaunchedEffect(state.activeCardId) {
+        activeBlockId = null
     }
+
+    // 笔记数据由 NoteViewModel.init 从 savedStateHandle 的 noteId 载入；
+    // 这里不再重复调用 load()，否则每次进入都会多消耗一次卡片临时 id。
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, navController) {
         val observer = LifecycleEventObserver { _, event ->
@@ -204,7 +190,7 @@ fun NoteEditScreen(
     }
     LaunchedEffect(state.error) {
         state.error?.let {
-            snackbarHostState.showSnackbar(it)
+            snackbar.showSnackbar(it)
             viewModel.clearError()
         }
     }
@@ -212,7 +198,7 @@ fun NoteEditScreen(
         viewModel.uiEvents.collect { event ->
             when (event) {
                 is UiEvent.ShowUndoSnackbar -> {
-                    val result = snackbarHostState.showSnackbar(
+                    val result = snackbar.showSnackbar(
                         message = "Block deleted",
                         actionLabel = "Undo"
                     )
@@ -227,35 +213,25 @@ fun NoteEditScreen(
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            AppTopBar(
+            NoteTopBar(
                 title = when {
                     state.isEditing && state.noteId == 0L -> "新建记录"
                     state.isEditing -> "编辑记录"
                     else -> "知识详情"
                 },
+                isEditing = state.isEditing,
+                saveStatus = state.saveStatus,
+                showReview = !state.isEditing,
+                isReviewDue = state.isReviewDue,
                 onBack = { navController.popBackStack() },
-                actions = {
-                    SaveStatusIndicator(status = state.saveStatus)
-                    if (state.saveStatus != SaveStatus.IDLE) {
-                        Spacer(Modifier.width(8.dp))
-                    }
-                    if (state.isEditing) {
-                        IconButton(onClick = viewModel::saveNow) {
-                            Icon(Icons.Default.Check, contentDescription = "保存")
-                        }
-                    } else {
-                        IconButton(onClick = { showShareSheet = true }) {
-                            Icon(Icons.Default.Share, contentDescription = "分享")
-                        }
-                        IconButton(onClick = viewModel::startEditing) {
-                            Icon(Icons.Default.Edit, contentDescription = "编辑")
-                        }
-                    }
-                }
+                onSave = viewModel::saveNow,
+                onShare = { showShareSheet = true },
+                onStartEditing = viewModel::startEditing,
+                onReviewClick = { showReviewSheet = true }
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -284,15 +260,6 @@ fun NoteEditScreen(
                         ReadOnlyHeader(
                             title = state.title,
                             selectedTags = state.selectedTags,
-                            reviewPlan = state.reviewPlan,
-                            isReviewDue = state.isReviewDue,
-                            isRecordingReview = state.isRecordingReview,
-                            onStartReviewPlan = {
-                                requestNotificationPermissionIfNeeded()
-                                viewModel.startReviewPlan()
-                            },
-                            onDisableReviewPlan = viewModel::disableReviewPlan,
-                            onRecordReview = viewModel::recordReview,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
@@ -358,6 +325,10 @@ fun NoteEditScreen(
                             onUpdateTodo = if (state.isEditing) viewModel::updateTodo else null,
                             onCompleteTodo = if (state.isEditing) viewModel::completeTodo else null,
                             onToggleCompletedTodos = viewModel::toggleCompletedTodos,
+                            activeBlockId = activeBlockId,
+                            onActivateBlock = { blockId -> activeBlockId = blockId },
+                            onReorderBlock = viewModel::moveBlock,
+                            onDragStateChange = viewModel::setDragging,
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
@@ -401,7 +372,7 @@ fun NoteEditScreen(
                 KnowledgeBottomToolbar(
                     activeCardId = state.activeCardId,
                     onAddText = { viewModel.addBlockToActiveCard(BlockType.TEXT) },
-                    onTakePhoto = { navController.navigate("camera") },
+                    onTakePhoto = { navController.navigate(Destination.Camera.path) },
                     onPickImageFromGallery = ::launchGalleryPicker,
                     onAddLatex = { viewModel.addBlockToActiveCard(BlockType.LATEX) },
                     onAddCode = { viewModel.addBlockToActiveCard(BlockType.CODE) },
@@ -433,6 +404,28 @@ fun NoteEditScreen(
         )
     }
 
+    if (showReviewSheet) {
+        ReviewSheet(
+            plan = state.reviewPlan,
+            isDue = state.isReviewDue,
+            isRecording = state.isRecordingReview,
+            onStart = {
+                requestNotificationPermissionIfNeeded()
+                viewModel.startReviewPlan()
+                showReviewSheet = false
+            },
+            onDisable = {
+                viewModel.disableReviewPlan()
+                showReviewSheet = false
+            },
+            onRate = {
+                viewModel.recordReview(it)
+                showReviewSheet = false
+            },
+            onDismiss = { showReviewSheet = false }
+        )
+    }
+
     if (showShareSheet) {
         ShareFormatBottomSheet(
             onDismiss = { showShareSheet = false },
@@ -453,53 +446,6 @@ fun NoteEditScreen(
                 }
             }
         )
-    }
-}
-
-@Composable
-private fun SaveStatusIndicator(
-    status: SaveStatus,
-    modifier: Modifier = Modifier
-) {
-    val reducedMotion = LocalReducedMotion.current
-    AnimatedContent(
-        targetState = status,
-        modifier = modifier,
-        transitionSpec = {
-            fadeIn(animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion)) togetherWith fadeOut(animationSpec = motionExitTween(MotionDuration.Short, enabled = !reducedMotion))
-        },
-        label = "SaveStatus"
-    ) { target ->
-        when (target) {
-            SaveStatus.SAVING -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            SaveStatus.SAVED -> {
-                val scale = remember { Animatable(0.5f) }
-                LaunchedEffect(Unit) {
-                    scale.animateTo(1f, animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion))
-                }
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = "已保存",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp * scale.value)
-                )
-            }
-            SaveStatus.ERROR -> {
-                Icon(
-                    imageVector = Icons.Default.Error,
-                    contentDescription = "保存失败",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-            SaveStatus.IDLE -> {}
-        }
     }
 }
 
@@ -567,12 +513,6 @@ private fun EditModeHeader(
 private fun ReadOnlyHeader(
     title: String,
     selectedTags: List<Tag>,
-    reviewPlan: ReviewPlan?,
-    isReviewDue: Boolean,
-    isRecordingReview: Boolean,
-    onStartReviewPlan: () -> Unit,
-    onDisableReviewPlan: () -> Unit,
-    onRecordReview: (ReviewRating) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -599,14 +539,6 @@ private fun ReadOnlyHeader(
             }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        ReviewPanel(
-            plan = reviewPlan,
-            isDue = isReviewDue,
-            isRecording = isRecordingReview,
-            onStart = onStartReviewPlan,
-            onDisable = onDisableReviewPlan,
-            onRate = onRecordReview
-        )
     }
 }
 

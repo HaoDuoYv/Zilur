@@ -1,16 +1,20 @@
 package com.example.zhilu.ui.home
 
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.reminder.ReminderClassifier
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
+import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.TagRepository
-import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,20 +22,29 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
+/**
+ * 笔记页状态：笔记列表、列表 / 时间线模式、页内搜索与到期提醒计数。
+ *
+ * 搜索原先住在探索页，探索页移除后并入此处，避免同一能力存在两套实现。
+ */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
     private val tagRepository: TagRepository,
     private val mediaRepository: MediaRepository,
-    private val importKnowledgeUseCase: ImportKnowledgeUseCase
+    private val reminderRepository: ReminderRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
+    private val classifier = ReminderClassifier()
+    private var searchJob: Job? = null
+
     init {
         loadNotes()
         loadStats()
+        observeDueReminders()
     }
 
     fun loadNotes() {
@@ -95,51 +108,100 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(error = null) }
     }
 
-    fun parseImportPreview(uri: Uri) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
-            val result = importKnowledgeUseCase.parsePreview(uri)
-            result.onSuccess { preview ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        importPreview = preview,
-                        pendingImportUri = uri
-                    )
-                }
-            }.onFailure { error ->
-                Timber.e(error)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "无法解析文件：${error.message}"
-                    )
+    fun onQueryChange(query: String) {
+        _uiState.update { it.copy(query = query) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DEBOUNCE_MILLIS)
+            search(query)
+        }
+    }
+
+    fun submitSearch() {
+        searchJob?.cancel()
+        viewModelScope.launch { search(_uiState.value.query) }
+    }
+
+    fun useRecentQuery(query: String) {
+        onQueryChange(query)
+    }
+
+    fun clearQuery() {
+        searchJob?.cancel()
+        _uiState.update { it.copy(query = "", searchResults = emptyList(), isSearching = false) }
+    }
+
+    private suspend fun search(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            _uiState.update { it.copy(searchResults = emptyList(), isSearching = false) }
+            return
+        }
+        _uiState.update { it.copy(isSearching = true) }
+        val result = if (trimmed.startsWith(TAG_QUERY_PREFIX)) {
+            searchByTag(trimmed.removePrefix(TAG_QUERY_PREFIX).trim())
+        } else {
+            noteRepository.searchNotes(trimmed)
+        }
+        when (result) {
+            is RepositoryResult.Success -> _uiState.update {
+                it.copy(
+                    searchResults = result.data,
+                    recentQueries = (listOf(trimmed) + it.recentQueries)
+                        .distinct()
+                        .take(MAX_RECENT_QUERIES),
+                    isSearching = false,
+                    error = null
+                )
+            }
+            is RepositoryResult.Error -> _uiState.update {
+                it.copy(isSearching = false, error = result.message)
+            }
+        }
+    }
+
+    private suspend fun searchByTag(tagName: String): RepositoryResult<List<Note>> {
+        if (tagName.isEmpty()) return RepositoryResult.Success(emptyList())
+        return when (val tagResult = tagRepository.getTagByName(tagName)) {
+            is RepositoryResult.Error -> tagResult
+            is RepositoryResult.Success -> {
+                val tag = tagResult.data
+                if (tag == null) {
+                    RepositoryResult.Success(emptyList())
+                } else {
+                    noteRepository.getNotesByTagId(tag.id)
                 }
             }
         }
     }
 
-    fun confirmImport() {
-        val uri = _uiState.value.pendingImportUri ?: return
+    private fun observeDueReminders() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, importPreview = null, pendingImportUri = null) }
-            val result = importKnowledgeUseCase.import(uri)
-            result.onSuccess {
-                loadNotes()
-                _uiState.update { it.copy(isLoading = false, error = "导入成功") }
-            }.onFailure { error ->
-                Timber.e(error)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        error = "导入失败：${error.message}"
+            reminderRepository.observeAll().collect { result ->
+                if (result is RepositoryResult.Success) {
+                    val bucket = classifier.classify(
+                        reminders = result.data,
+                        now = System.currentTimeMillis(),
+                        startOfToday = startOfToday()
                     )
+                    _uiState.update {
+                        it.copy(dueReminderCount = bucket.overdue.size + bucket.today.size)
+                    }
                 }
             }
         }
     }
 
-    fun dismissImportPreview() {
-        _uiState.update { it.copy(importPreview = null, pendingImportUri = null) }
+    companion object {
+        const val MAX_RECENT_QUERIES = 6
+        const val SEARCH_DEBOUNCE_MILLIS = 300L
+
+        /** 以 `#` 开头时按标签检索，而非全文匹配。 */
+        const val TAG_QUERY_PREFIX = "#"
+
+        private fun startOfToday(): Long = LocalDate.now()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
     }
 }

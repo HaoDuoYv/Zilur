@@ -5,10 +5,7 @@ import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
 /**
- * Shared shape tokens for the ZhiLu design system.
- *
- * Use these values directly for bespoke components, or consume [AppShapes] through
- * MaterialTheme.shapes for standard Material 3 components.
+ * 共享圆角 token。数值阶梯用于通用场景，[Radius] 为语义别名，优先使用。
  */
 object ShapeTokens {
     val ExtraSmall = 4.dp
@@ -20,10 +17,20 @@ object ShapeTokens {
     val Pill = 50
 }
 
+/**
+ * 语义圆角：字段 / 卡片 / 底部弹层 / 胶囊。
+ */
+object Radius {
+    val Field = 10.dp
+    val Card = 14.dp
+    val Sheet = 20.dp
+    const val Chip = 50  // percent
+}
+
 val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(ShapeTokens.ExtraSmall),
     small = RoundedCornerShape(ShapeTokens.Small),
-    medium = RoundedCornerShape(ShapeTokens.Medium),
+    medium = RoundedCornerShape(Radius.Card),
     large = RoundedCornerShape(ShapeTokens.Large),
     extraLarge = RoundedCornerShape(ShapeTokens.ExtraLarge)
 )

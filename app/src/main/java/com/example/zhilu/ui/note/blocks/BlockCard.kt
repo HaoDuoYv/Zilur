@@ -2,6 +2,7 @@ package com.example.zhilu.ui.note.blocks
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
@@ -38,9 +40,11 @@ import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.theme.AlphaTokens
 
 private val BlockTypeIconSize = 20.dp
 private val BlockTypeIconSpacing = 8.dp
+private val DragHandleTouchSize = 40.dp
 
 @Composable
 fun BlockCard(
@@ -53,6 +57,12 @@ fun BlockCard(
     onMoveUp: (() -> Unit)? = null,
     onMoveDown: (() -> Unit)? = null,
     isDragging: Boolean = false,
+    /** 激活块才显示类型图标与 ⋮ 菜单；未激活时只呈现内容本身。 */
+    isActive: Boolean = false,
+    /** 是否露出拖拽把手（只有编辑态的激活块）。 */
+    showDragHandle: Boolean = false,
+    /** 把手上的拖拽手势，由调用方注入，缺省时把手不可拖动。 */
+    dragHandleModifier: Modifier = Modifier,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
     onCreateTodo: (suspend (String, Long?) -> Boolean)? = null,
@@ -69,16 +79,25 @@ fun BlockCard(
     onRemoveBranchChild: (Long) -> Unit = {},
     onAddBranchChild: (BlockType) -> Unit = {}
 ) {
-    val borderColor = if (isDragging) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.outlineVariant
+    val borderColor = when {
+        isDragging -> MaterialTheme.colorScheme.primary
+        isActive -> MaterialTheme.colorScheme.outlineVariant
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Divider)
     }
     val backgroundColor = if (isDragging) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = AlphaTokens.DragTint)
     } else {
         MaterialTheme.colorScheme.surface
     }
+    val showDecorations = isEditing && isActive
+    val showsMenu = shouldShowBlockActionMenu(
+        isEditing = isEditing,
+        hasDelete = onDelete != null,
+        hasMoveUp = onMoveUp != null,
+        hasMoveDown = onMoveDown != null
+    )
+    val hasDecorations = showDecorations &&
+        (showDragHandle || blockTypeIcon(block.type) != null || showsMenu)
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -94,12 +113,27 @@ fun BlockCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (isEditing) {
+            if (hasDecorations) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (showDragHandle) {
+                        Box(
+                            modifier = Modifier
+                                .size(DragHandleTouchSize)
+                                .then(dragHandleModifier),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DragHandle,
+                                contentDescription = "拖动排序",
+                                modifier = Modifier.size(BlockTypeIconSize),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
                     val icon = blockTypeIcon(block.type)
                     if (icon != null) {
                         Icon(
@@ -110,20 +144,13 @@ fun BlockCard(
                         )
                         Spacer(Modifier.width(BlockTypeIconSpacing))
                     }
-                }
-                if (
-                    shouldShowBlockActionMenu(
-                        isEditing = isEditing,
-                        hasDelete = onDelete != null,
-                        hasMoveUp = onMoveUp != null,
-                        hasMoveDown = onMoveDown != null
-                    )
-                ) {
-                    BlockOverflowMenu(
-                        onDelete = onDelete,
-                        onMoveUp = onMoveUp,
-                        onMoveDown = onMoveDown
-                    )
+                    if (showsMenu) {
+                        BlockOverflowMenu(
+                            onDelete = onDelete,
+                            onMoveUp = onMoveUp,
+                            onMoveDown = onMoveDown
+                        )
+                    }
                 }
             }
             BlockContent(

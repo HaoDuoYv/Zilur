@@ -1,12 +1,14 @@
 package com.example.zhilu.ui.note.toolbar
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Code
@@ -17,7 +19,6 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -30,9 +31,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.component.ZhiLuDivider
+import com.example.zhilu.ui.component.pressScale
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.Spacing
+import com.example.zhilu.ui.theme.ZhiLuType
 
+/**
+ * 知识卡片编辑态底部工具栏：6 个 48dp 图标（无文字标签），
+ * 未选中卡片时整体降透明度，用视觉而非文案表达可用状态。
+ */
 @Composable
 fun KnowledgeBottomToolbar(
     activeCardId: Long?,
@@ -53,27 +63,23 @@ fun KnowledgeBottomToolbar(
         color = MaterialTheme.colorScheme.surface
     ) {
         Column {
-            HorizontalDivider(
-                modifier = Modifier.fillMaxWidth(),
-                thickness = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant
-            )
+            ZhiLuDivider()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .alpha(contentAlpha)
-                    .padding(vertical = 8.dp),
+                    .padding(horizontal = Spacing.Sm, vertical = Spacing.Xs),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                ToolbarItem(
+                ToolbarIcon(
                     onClick = onAddText,
                     enabled = enabled,
-                    label = "文本"
+                    contentDescription = "文本块"
                 ) {
                     Text(
                         text = "Aa",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = ZhiLuType.cardTitle,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
@@ -84,79 +90,69 @@ fun KnowledgeBottomToolbar(
                     enabled = enabled
                 )
 
-                ToolbarItem(
+                ToolbarIcon(
                     onClick = onAddLatex,
                     enabled = enabled,
-                    label = "公式"
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Functions,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                    contentDescription = "公式块",
+                    icon = Icons.Default.Functions
+                )
 
-                ToolbarItem(
+                ToolbarIcon(
                     onClick = onAddCode,
                     enabled = enabled,
-                    label = "代码"
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Code,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                    contentDescription = "代码块",
+                    icon = Icons.Default.Code
+                )
 
-                ToolbarItem(
+                ToolbarIcon(
                     onClick = onAddLink,
                     enabled = enabled,
-                    label = "链接"
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Link,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                    contentDescription = "链接块",
+                    icon = Icons.Default.Link
+                )
 
-                ToolbarItem(
+                ToolbarIcon(
                     onClick = onAddBranch,
                     enabled = enabled,
-                    label = "折叠分支"
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                    contentDescription = "折叠分支",
+                    icon = Icons.Default.Folder
+                )
             }
         }
     }
 }
 
 @Composable
-private fun ToolbarItem(
+private fun ToolbarIcon(
     onClick: () -> Unit,
     enabled: Boolean,
-    label: String,
+    contentDescription: String,
     modifier: Modifier = Modifier,
-    icon: @Composable () -> Unit
+    icon: ImageVector? = null,
+    content: (@Composable () -> Unit)? = null
 ) {
-    Column(
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
         modifier = modifier
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+            .size(48.dp)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .pressScale(interactionSource, pressedScale = 0.88f, enabled = enabled),
+        contentAlignment = Alignment.Center
     ) {
-        icon()
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+        } else {
+            content?.invoke()
+        }
     }
 }
 
@@ -170,17 +166,12 @@ private fun ImageToolbarItem(
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
-        ToolbarItem(
+        ToolbarIcon(
             onClick = { if (enabled) expanded = true },
             enabled = enabled,
-            label = "图片"
-        ) {
-            Icon(
-                imageVector = Icons.Default.Image,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-        }
+            contentDescription = "图片块",
+            icon = Icons.Default.Image
+        )
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
@@ -214,3 +205,4 @@ private fun ImageToolbarItem(
         }
     }
 }
+

@@ -47,6 +47,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+/**
+ * 卡片临时 id 的起点，刻意远离 0。
+ *
+ * 早期版本会把内存里的临时负数 id 当成真实主键写进数据库（已在
+ * `NoteRepositoryImpl.replaceCards` 修复），这些残留值落在 -1 附近。
+ * 临时 id 若仍从 -1 开始，就会与残留主键撞号：两张卡片拿到同一个 id，
+ * LazyColumn 的 key 重复会直接抛 IllegalArgumentException 崩溃。
+ */
+private const val TEMP_CARD_ID_SEED = -9_000_000_000_000L
+
 sealed interface UiEvent {
     data class ShowUndoSnackbar(val block: Block, val index: Int, val token: Long) : UiEvent
 }
@@ -79,8 +89,8 @@ class NoteViewModel @Inject constructor(
     private var saveJob: Job? = null
     private var saveVersion: Long = 0L
     private var nextBlockId: Long = -1L
-    private var nextCardId: Long = -1L
-    private var currentCardId: Long = -1L
+    private var nextCardId: Long = TEMP_CARD_ID_SEED
+    private var currentCardId: Long = TEMP_CARD_ID_SEED
     private var _isDragging = false
     private val pendingRemovals = mutableMapOf<Long, PendingBlockRemoval>()
     private val removalConfirmJobs = mutableMapOf<Long, Job>()
@@ -484,7 +494,10 @@ class NoteViewModel @Inject constructor(
     }
 
     fun setDragging(dragging: Boolean) {
+        val wasDragging = _isDragging
         _isDragging = dragging
+        // 拖动期间 moveBlock 不落盘，松手时才补一次保存。
+        if (wasDragging && !dragging) scheduleSave()
     }
 
     fun moveBlock(fromId: Long, toId: Long) {
@@ -507,7 +520,9 @@ class NoteViewModel @Inject constructor(
         } else {
             _blocks.removeAt(fromIndex)
             val newToIndex = _blocks.indexOfFirst { it.id == toId }
-            _blocks.add(newToIndex.coerceIn(0, _blocks.size), fromBlock)
+            // 与分支块同样处理方向：向下拖要落到目标之后，向上拖落到目标之前。
+            val insertIndex = if (fromIndex < toIndex) newToIndex + 1 else newToIndex
+            _blocks.add(insertIndex.coerceIn(0, _blocks.size), fromBlock)
         }
         syncBlocksToState()
         if (!_isDragging) scheduleSave()

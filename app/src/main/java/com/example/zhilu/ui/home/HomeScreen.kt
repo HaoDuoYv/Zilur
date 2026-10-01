@@ -1,41 +1,22 @@
 package com.example.zhilu.ui.home
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.outlined.Create
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -45,333 +26,192 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
-import com.example.zhilu.ui.component.AnimatedListItem
-import com.example.zhilu.ui.navigation.BottomBar
+import com.example.zhilu.ui.component.AppEmptyState
+import com.example.zhilu.ui.component.MetaLine
+import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
-import com.example.zhilu.ui.theme.LocalReducedMotion
-import com.example.zhilu.ui.theme.MotionDuration
-import com.example.zhilu.ui.theme.motionEnterTween
+import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.theme.Spacing
+import com.example.zhilu.ui.theme.ZhiLuType
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     navController: NavHostController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbar = LocalAppSnackbar.current
     var pendingDeleteNoteId by remember { mutableStateOf<Long?>(null) }
+    var searchFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
-            snackbarHostState.showSnackbar(it)
+            snackbar.showSnackbar(it)
             viewModel.clearError()
         }
     }
 
-    Scaffold(
+    AppTabScaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "知录",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                actions = {
-                    HomeActionIconButton(
-                        icon = Icons.Default.Notifications,
-                        contentDescription = "提醒中心",
-                        onClick = { navController.navigate(Destination.Reminders.path) }
-                    )
-                }
+            HomeTopBar(
+                dueReminderCount = uiState.dueReminderCount,
+                onOpenReminders = { navController.navigate(Destination.Reminders.path) }
             )
         },
-        bottomBar = { BottomBar(navController = navController) },
         floatingActionButton = {
-            var fabExpanded by remember { mutableStateOf(false) }
-            val importLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument(),
-                onResult = { uri ->
-                    uri?.let { viewModel.parseImportPreview(it) }
-                }
+            HomeCreateFab(
+                onClick = { navController.navigate(Destination.NoteEdit.createRoute()) }
             )
-            HomeFabMenu(
-                expanded = fabExpanded,
-                onToggle = { fabExpanded = !fabExpanded },
-                onCreateNote = { navController.navigate(Destination.NoteEdit.createRoute()) },
-                onImport = {
-                    importLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
-                }
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            HomeSearchBar(
-                onClick = { navController.navigate(Destination.Explore.path) }
+            HomeSearchField(
+                query = uiState.query,
+                onQueryChange = viewModel::onQueryChange,
+                onSubmit = viewModel::submitSearch,
+                onFocusChanged = { searchFocused = it }
             )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${uiState.noteCount} 知识 · ${uiState.tagCount} 标签 · ${uiState.mediaCount} 图片",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f)
+            if (uiState.isSearchActive) {
+                SearchResultHeader(
+                    resultCount = uiState.searchResults.size,
+                    isSearching = uiState.isSearching,
+                    onClear = viewModel::clearQuery
                 )
-                ViewModeToggle(
-                    currentMode = uiState.viewMode,
-                    onSelectList = { if (uiState.viewMode != ViewMode.LIST) viewModel.toggleViewMode() },
-                    onSelectTimeline = { if (uiState.viewMode != ViewMode.TIMELINE) viewModel.toggleViewMode() }
+            } else {
+                HomeListHeader(
+                    noteCount = uiState.noteCount,
+                    tagCount = uiState.tagCount,
+                    mediaCount = uiState.mediaCount,
+                    viewMode = uiState.viewMode,
+                    onSelectViewMode = { mode ->
+                        if (mode != uiState.viewMode) viewModel.toggleViewMode()
+                    }
                 )
+                if (searchFocused && uiState.recentQueries.isNotEmpty()) {
+                    RecentQueriesRow(
+                        queries = uiState.recentQueries,
+                        onSelect = viewModel::useRecentQuery
+                    )
+                }
             }
 
             when {
-                uiState.isLoading -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "加载中...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                uiState.isSearchActive -> LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = 88.dp)
+                ) {
+                    homeSearchResults(
+                        results = uiState.searchResults,
+                        query = uiState.query,
+                        isSearching = uiState.isSearching,
+                        onClearQuery = viewModel::clearQuery,
+                        onOpenNote = { noteId ->
+                            navController.navigate(Destination.NoteEdit.createRoute(noteId))
+                        }
+                    )
                 }
 
-                uiState.notes.isEmpty() -> EmptyState {
-                    navController.navigate(Destination.NoteEdit.createRoute())
+                uiState.isLoading -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "加载中…",
+                        style = ZhiLuType.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
 
-                else -> {
-                    val timelineGroups = remember(uiState.notes) {
-                        if (uiState.viewMode == ViewMode.TIMELINE) {
-                            groupNotesByTimeline(uiState.notes)
-                        } else {
-                            emptyList()
-                        }
-                    }
-                    LazyColumn(
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp)
-                    ) {
-                        if (uiState.viewMode == ViewMode.TIMELINE) {
-                            timelineGroups.forEach { group ->
-                                item(key = "header-${group.label}") {
-                                    Text(
-                                        text = group.label,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
-                                    )
-                                }
-                                itemsIndexed(
-                                    group.notes,
-                                    key = { _, note -> note.id }
-                                ) { index, note ->
-                                    AnimatedListItem(index = index) {
-                                        NoteCard(
-                                            note = note,
-                                            onClick = {
-                                                navController.navigate(Destination.NoteEdit.createRoute(note.id))
-                                            },
-                                            onToggleFavorite = { viewModel.toggleFavorite(note) },
-                                            onDelete = { pendingDeleteNoteId = note.id }
-                                        )
-                                    }
-                                }
-                            }
-                        } else {
-                            itemsIndexed(uiState.notes, key = { _, note -> note.id }) { index, note ->
-                                AnimatedListItem(index = index) {
-                                    NoteCard(
-                                        note = note,
-                                        onClick = {
-                                            navController.navigate(Destination.NoteEdit.createRoute(note.id))
-                                        },
-                                        onToggleFavorite = { viewModel.toggleFavorite(note) },
-                                        onDelete = { pendingDeleteNoteId = note.id }
-                                    )
-                                }
-                            }
-                        }
-                    }
+                uiState.notes.isEmpty() -> AppEmptyState(
+                    onAction = { navController.navigate(Destination.NoteEdit.createRoute()) },
+                    icon = Icons.Outlined.Create,
+                    title = "从这里开始记录",
+                    description = "写下第一条知识，之后可按标签、内容和时间找回它。",
+                    buttonText = "开始记录"
+                )
+
+                else -> LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = 88.dp)
+                ) {
+                    homeNoteList(
+                        notes = uiState.notes,
+                        viewMode = uiState.viewMode,
+                        onOpenNote = { noteId ->
+                            navController.navigate(Destination.NoteEdit.createRoute(noteId))
+                        },
+                        onToggleFavorite = viewModel::toggleFavorite,
+                        onDeleteRequest = { note -> pendingDeleteNoteId = note.id }
+                    )
                 }
             }
         }
     }
 
     pendingDeleteNoteId?.let { noteId ->
-        AlertDialog(
-            onDismissRequest = { pendingDeleteNoteId = null },
-            title = { Text("移入回收站？") },
-            text = { Text("删除后可在回收站恢复，30 天后自动清空。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.softDeleteNote(noteId)
-                        pendingDeleteNoteId = null
-                    }
-                ) {
-                    Text("删除")
-                }
+        DeleteNoteDialog(
+            onConfirm = {
+                viewModel.softDeleteNote(noteId)
+                pendingDeleteNoteId = null
             },
-            dismissButton = {
-                TextButton(onClick = { pendingDeleteNoteId = null }) {
-                    Text("取消")
-                }
-            }
-        )
-    }
-
-    val preview = uiState.importPreview
-    if (preview != null) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissImportPreview,
-            title = { Text("导入知识点") },
-            text = {
-                Text(
-                    "标题：${preview.title}\n" +
-                    "块数：${preview.blockCount}\n" +
-                    "图片：${preview.imageCount}"
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = viewModel::confirmImport) {
-                    Text("导入")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissImportPreview) {
-                    Text("取消")
-                }
-            }
+            onDismiss = { pendingDeleteNoteId = null }
         )
     }
 }
 
+/** 搜索结果头：结果数 / 进行中状态 + 清空。 */
 @Composable
-private fun HomeSearchBar(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier
+private fun SearchResultHeader(
+    resultCount: Int,
+    isSearching: Boolean,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = Spacing.PageGutter, vertical = Spacing.Xs),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = "搜索知识、标签…",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        MetaLine(
+            parts = listOf(if (isSearching) "搜索中…" else "$resultCount 条结果"),
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(onClick = onClear) {
+            Text("清空", style = ZhiLuType.chip)
         }
     }
 }
 
+/** 搜索框聚焦且尚未输入时的历史关键词建议。 */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun HomeActionIconButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
+private fun RecentQueriesRow(
+    queries: List<String>,
+    onSelect: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val reducedMotion = LocalReducedMotion.current
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.88f else 1f,
-        animationSpec = motionEnterTween(MotionDuration.Short, enabled = !reducedMotion),
-        label = "home_action_scale"
-    )
-
-    IconButton(
-        onClick = onClick,
-        modifier = modifier.scale(scale),
-        interactionSource = interactionSource
+    FlowRow(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.PageGutter, vertical = Spacing.Xs),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.Sm),
+        verticalArrangement = Arrangement.spacedBy(Spacing.Xs)
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun ViewModeToggle(
-    currentMode: ViewMode,
-    onSelectList: () -> Unit,
-    onSelectTimeline: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(percent = 50),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Row {
-            ToggleButton(
-                text = "列表",
-                selected = currentMode == ViewMode.LIST,
-                onClick = onSelectList
-            )
-            ToggleButton(
-                text = "时间线",
-                selected = currentMode == ViewMode.TIMELINE,
-                onClick = onSelectTimeline
+        queries.forEach { query ->
+            AssistChip(
+                onClick = { onSelect(query) },
+                label = { Text(query, style = ZhiLuType.chip) }
             )
         }
-    }
-}
-
-@Composable
-private fun ToggleButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    TextButton(
-        onClick = onClick,
-        shape = RoundedCornerShape(percent = 50),
-        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
-            contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge
-        )
     }
 }

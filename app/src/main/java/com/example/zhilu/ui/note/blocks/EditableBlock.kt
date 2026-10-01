@@ -1,7 +1,7 @@
 package com.example.zhilu.ui.note.blocks
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +39,7 @@ import androidx.compose.ui.zIndex
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.component.ElevationTokens
 import com.example.zhilu.ui.theme.AlphaTokens
 
 @Composable
@@ -55,6 +56,10 @@ fun EditableBlock(
     onDragStart: (() -> Unit)? = null,
     onDragEnd: (() -> Unit)? = null,
     isDragging: Boolean = false,
+    /** 是否为当前激活块（决定是否显示类型图标、⋮ 与拖拽把手）。 */
+    isActive: Boolean = false,
+    /** 长按/交互时将本块置为激活块。 */
+    onActivate: () -> Unit = {},
     showTopDivider: Boolean = false,
     modifier: Modifier = Modifier,
     todoItems: List<TodoItem>? = null,
@@ -104,26 +109,24 @@ fun EditableBlock(
     var menuOffset by remember(block.id, index) { mutableStateOf(DpOffset.Zero) }
     val density = LocalDensity.current
 
-    val tapModifier = if (onDrag == null) {
-        Modifier.pointerInput(block.id) {
-            detectTapGestures(
-                onLongPress = { offsetPx ->
-                    menuOffset = with(density) {
-                        DpOffset(offsetPx.x.toDp(), offsetPx.y.toDp())
-                    }
-                    showMenu = true
-                    onLongClick?.invoke()
+    val tapModifier = Modifier.pointerInput(block.id) {
+        detectTapGestures(
+            onLongPress = { offsetPx ->
+                menuOffset = with(density) {
+                    DpOffset(offsetPx.x.toDp(), offsetPx.y.toDp())
                 }
-            )
-        }
-    } else {
-        Modifier
+                showMenu = true
+                onActivate()
+                onLongClick?.invoke()
+            }
+        )
     }
 
-    val dragModifier = if (onDrag != null) {
+    // 拖拽手势只挂在把手上（激活块才露出），长按菜单因此不被抢占。
+    val dragHandleModifier = if (onDrag != null) {
         Modifier
             .pointerInput(block.id) {
-                detectDragGesturesAfterLongPress(
+                detectDragGestures(
                     onDragStart = { onDragStart?.invoke() },
                     onDragEnd = { onDragEnd?.invoke() },
                     onDragCancel = { onDragEnd?.invoke() },
@@ -133,14 +136,14 @@ fun EditableBlock(
                     }
                 )
             }
-            .semantics { contentDescription = "Long press to reorder block" }
-            .zIndex(if (isDragging) 1f else 0f)
-            .shadow(if (isDragging) 8.dp else 0.dp, MaterialTheme.shapes.medium)
+            .semantics { contentDescription = "拖动排序" }
     } else {
         Modifier
-            .zIndex(if (isDragging) 1f else 0f)
-            .shadow(if (isDragging) 8.dp else 0.dp, MaterialTheme.shapes.medium)
     }
+
+    val dragModifier = Modifier
+        .zIndex(if (isDragging) 1f else 0f)
+        .shadow(if (isDragging) ElevationTokens.Overlay else 0.dp, MaterialTheme.shapes.medium)
 
     Box(modifier = modifier.then(dragModifier)) {
         Column(
@@ -192,6 +195,9 @@ fun EditableBlock(
                         onMoveUp = onMoveUp.takeIf { index > 0 },
                         onMoveDown = onMoveDown.takeIf { index < total - 1 },
                         isDragging = isDragging,
+                        isActive = isActive,
+                        showDragHandle = isActive && onDrag != null,
+                        dragHandleModifier = dragHandleModifier,
                         todoItems = todoItems,
                         showCompletedTodos = showCompletedTodos,
                         onCreateTodo = onCreateTodo,

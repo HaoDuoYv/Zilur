@@ -1,19 +1,16 @@
 package com.example.zhilu.ui.navigation
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.Label
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -22,57 +19,78 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.theme.motionSpring
+
+/** 底部导航项：选中 / 未选中用成对图标表达，比单一色值更容易一眼分辨。 */
+private data class BottomTab(
+    val destination: Destination,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector
+)
+
+private fun bottomTabs(): List<BottomTab> = listOf(
+    BottomTab(
+        destination = Destination.Home,
+        label = "笔记",
+        selectedIcon = Icons.AutoMirrored.Filled.Article,
+        unselectedIcon = Icons.AutoMirrored.Outlined.Article
+    ),
+    BottomTab(
+        destination = Destination.Tags,
+        label = "标签",
+        selectedIcon = Icons.AutoMirrored.Filled.Label,
+        unselectedIcon = Icons.AutoMirrored.Outlined.Label
+    ),
+    BottomTab(
+        destination = Destination.Assistant,
+        label = "助手",
+        selectedIcon = Icons.Default.AutoAwesome,
+        unselectedIcon = Icons.Outlined.AutoAwesome
+    ),
+    BottomTab(
+        destination = Destination.Settings,
+        label = "我的",
+        selectedIcon = Icons.Default.Person,
+        unselectedIcon = Icons.Outlined.Person
+    )
+)
 
 @Composable
 fun BottomBar(navController: NavHostController) {
-    val items = listOf(
-        Destination.Home to "首页",
-        Destination.Tags to "标签",
-        Destination.Explore to "探索",
-        Destination.Settings to "设置"
-    )
+    val tabs = bottomTabs()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentDestination = navBackStackEntry?.destination
 
     Column {
-        HorizontalDivider(
-            thickness = 0.5.dp,
-            color = MaterialTheme.colorScheme.outlineVariant
-        )
+        ZhiLuDivider()
         NavigationBar(
             containerColor = MaterialTheme.colorScheme.surface,
             tonalElevation = 0.dp
         ) {
-            val navBackStackEntry by navController.currentBackStackEntryAsState()
-            val currentDestination = navBackStackEntry?.destination
-            items.forEach { (destination, label) ->
-                val selected = currentDestination?.hierarchy?.any { it.route == destination.path } == true
+            tabs.forEach { tab ->
+                val selected = currentDestination?.hierarchy
+                    ?.any { it.route == tab.destination.path } == true
                 val scale by animateFloatAsState(
-                    targetValue = if (selected) 1f else 0.92f,
+                    targetValue = if (selected) 1f else 0.96f,
                     animationSpec = motionSpring(),
                     label = "bottom_bar_item_scale"
-                )
-                val alpha by animateFloatAsState(
-                    targetValue = if (selected) 1f else 0.75f,
-                    animationSpec = motionSpring(),
-                    label = "bottom_bar_item_alpha"
                 )
 
                 NavigationBarItem(
                     selected = selected,
                     onClick = {
-                        navController.navigate(destination.path) {
+                        navController.navigate(tab.destination.path) {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }
@@ -82,56 +100,27 @@ fun BottomBar(navController: NavHostController) {
                     },
                     icon = {
                         Icon(
-                            imageVector = when (destination) {
-                                Destination.Home -> Icons.Default.Home
-                                Destination.Tags -> Icons.AutoMirrored.Filled.Label
-                                Destination.Explore -> Icons.Default.Explore
-                                Destination.Settings -> Icons.Default.Settings
-                                else -> Icons.Default.Home
-                            },
-                            contentDescription = label,
-                            modifier = Modifier
-                                .graphicsLayer {
-                                    scaleX = scale
-                                    scaleY = scale
-                                }
-                                .alpha(alpha)
+                            imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                            contentDescription = tab.label,
+                            modifier = Modifier.graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
                         )
                     },
                     label = {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                                modifier = Modifier
-                                    .graphicsLayer {
-                                        scaleX = scale
-                                        scaleY = scale
-                                    }
-                                    .alpha(alpha)
-                            )
-                            Spacer(modifier = Modifier.height(3.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(4.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (selected) {
-                                            MaterialTheme.colorScheme.primary
-                                        } else {
-                                            Color.Transparent
-                                        }
-                                    )
-                            )
-                        }
+                        Text(
+                            text = tab.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+                        )
                     },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MaterialTheme.colorScheme.primary,
                         selectedTextColor = MaterialTheme.colorScheme.primary,
                         unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        indicatorColor = Color.Transparent
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer
                     )
                 )
             }

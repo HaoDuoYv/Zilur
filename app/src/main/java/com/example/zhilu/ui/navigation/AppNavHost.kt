@@ -5,13 +5,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.example.zhilu.ui.assistant.AssistantScreen
 import com.example.zhilu.ui.camera.CameraScreen
-import com.example.zhilu.ui.explore.ExploreScreen
 import com.example.zhilu.ui.home.HomeScreen
 import com.example.zhilu.ui.note.NoteEditScreen
 import com.example.zhilu.ui.reminder.ReminderCenterScreen
@@ -33,12 +34,14 @@ import com.example.zhilu.ui.theme.motionExitTween
 @Composable
 fun AppNavHost(
     navController: NavHostController,
-    startDestination: String = Destination.Home.path
+    startDestination: String = Destination.Home.path,
+    modifier: Modifier = Modifier
 ) {
     val motion = !LocalReducedMotion.current
     NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = startDestination,
+        modifier = modifier
     ) {
         composable(
             route = Destination.Home.path,
@@ -59,15 +62,6 @@ fun AppNavHost(
             TagsScreen(navController = navController)
         }
         composable(
-            route = Destination.Explore.path,
-            enterTransition = { bottomNavEnter(motion) },
-            exitTransition = { bottomNavExit(motion) },
-            popEnterTransition = { bottomNavPopEnter(motion) },
-            popExitTransition = { bottomNavPopExit(motion) }
-        ) {
-            ExploreScreen(navController = navController)
-        }
-        composable(
             route = Destination.Settings.path,
             enterTransition = { bottomNavEnter(motion) },
             exitTransition = { bottomNavExit(motion) },
@@ -75,6 +69,15 @@ fun AppNavHost(
             popExitTransition = { bottomNavPopExit(motion) }
         ) {
             SettingsScreen(navController = navController)
+        }
+        composable(
+            route = Destination.Assistant.path,
+            enterTransition = { bottomNavEnter(motion) },
+            exitTransition = { bottomNavExit(motion) },
+            popEnterTransition = { bottomNavPopEnter(motion) },
+            popExitTransition = { bottomNavPopExit(motion) }
+        ) {
+            AssistantScreen(navController = navController)
         }
         composable(
             route = Destination.Camera.path,
@@ -110,11 +113,8 @@ fun AppNavHost(
             exitTransition = { forwardExit(motion) },
             popEnterTransition = { backEnter(motion) },
             popExitTransition = { backExit(motion) }
-        ) { entry ->
-            NoteEditScreen(
-                navController = navController,
-                noteId = entry.arguments?.getLong(Destination.NoteEdit.ARG_NOTE_ID) ?: 0L
-            )
+        ) {
+            NoteEditScreen(navController = navController)
         }
     }
 }
@@ -125,13 +125,13 @@ private fun bottomNavEnter(enabled: Boolean) =
     slideInHorizontally(
         animationSpec = motionEnterTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     ) { it / 4 } + fadeIn(
         motionEnterTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     )
@@ -140,13 +140,13 @@ private fun bottomNavExit(enabled: Boolean) =
     slideOutHorizontally(
         animationSpec = motionExitTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     ) { -it / 4 } + fadeOut(
         motionExitTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     )
@@ -155,13 +155,13 @@ private fun bottomNavPopEnter(enabled: Boolean) =
     slideInHorizontally(
         animationSpec = motionEnterTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     ) { -it / 4 } + fadeIn(
         motionEnterTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     )
@@ -170,13 +170,13 @@ private fun bottomNavPopExit(enabled: Boolean) =
     slideOutHorizontally(
         animationSpec = motionExitTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     ) { it / 4 } + fadeOut(
         motionExitTween(
             MotionDuration.Medium,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     )
@@ -187,13 +187,13 @@ private fun forwardEnter(enabled: Boolean) =
     slideInHorizontally(
         animationSpec = motionEnterTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     ) { it } + fadeIn(
         motionEnterTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     )
@@ -202,13 +202,13 @@ private fun forwardExit(enabled: Boolean) =
     slideOutHorizontally(
         animationSpec = motionExitTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     ) { -it / 3 } + fadeOut(
         motionExitTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     )
@@ -217,13 +217,13 @@ private fun backEnter(enabled: Boolean) =
     slideInHorizontally(
         animationSpec = motionEnterTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     ) { -it / 3 } + fadeIn(
         motionEnterTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedDecelerate,
+            easing = MotionEasing.Enter,
             enabled = enabled
         )
     )
@@ -232,13 +232,13 @@ private fun backExit(enabled: Boolean) =
     slideOutHorizontally(
         animationSpec = motionExitTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     ) { it } + fadeOut(
         motionExitTween(
             MotionDuration.Long,
-            easing = MotionEasing.EmphasizedAccelerate,
+            easing = MotionEasing.Exit,
             enabled = enabled
         )
     )

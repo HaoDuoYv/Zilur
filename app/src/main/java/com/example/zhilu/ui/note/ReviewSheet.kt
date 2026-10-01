@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -19,34 +21,44 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewRating
-import com.example.zhilu.ui.component.AppCard
+import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ShapeTokens
+import com.example.zhilu.ui.theme.ZhiLuType
 
 private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
+/**
+ * 复习面板（底部 sheet）：由顶栏「复习」胶囊唤出，承载开启、评级与关闭，
+ * 常态下不占用正文版面。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ReviewPanel(
+fun ReviewSheet(
     plan: ReviewPlan?,
     isDue: Boolean,
     isRecording: Boolean,
     onStart: () -> Unit,
     onDisable: () -> Unit,
-    onRate: (ReviewRating) -> Unit
+    onRate: (ReviewRating) -> Unit,
+    onDismiss: () -> Unit
 ) {
-    AppCard {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.PageGutter)
+                .padding(bottom = Spacing.Xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.Md)
         ) {
             Text(
                 text = "复习计划",
-                style = MaterialTheme.typography.titleMedium,
+                style = ZhiLuType.sectionTitle,
                 color = MaterialTheme.colorScheme.onSurface
             )
             if (isRecording) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)
                 ) {
                     CircularProgressIndicator(
                         modifier = Modifier.size(16.dp),
@@ -55,7 +67,7 @@ fun ReviewPanel(
                     )
                     Text(
                         text = "正在录音识别…",
-                        style = MaterialTheme.typography.bodySmall,
+                        style = ZhiLuType.meta,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -65,13 +77,13 @@ fun ReviewPanel(
             } else {
                 Text(
                     text = "下一次复习：${formatReminderTime(plan.nextReviewAt)}",
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = ZhiLuType.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (isDue) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.Sm),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(

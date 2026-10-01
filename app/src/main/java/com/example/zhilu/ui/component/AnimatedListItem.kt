@@ -26,14 +26,17 @@ import kotlinx.coroutines.delay
 fun AnimatedListItem(
     index: Int,
     modifier: Modifier = Modifier,
-    maxIndex: Int = 12,
-    staggerDelayMillis: Int = 40,
+    maxIndex: Int = 8,
+    staggerDelayMillis: Int = 24,
     content: @Composable () -> Unit
 ) {
     val reducedMotion = LocalReducedMotion.current
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        delay(staggerDelayMillis.toLong() * index.coerceAtMost(maxIndex))
+        // 无障碍降级时不做错峰等待，直接呈现。
+        if (!reducedMotion) {
+            delay(staggerDelayMillis.toLong() * index.coerceAtMost(maxIndex))
+        }
         visible = true
     }
     AnimatedVisibility(

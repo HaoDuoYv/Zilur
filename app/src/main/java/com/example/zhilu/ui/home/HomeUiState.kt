@@ -1,8 +1,6 @@
 package com.example.zhilu.ui.home
 
-import android.net.Uri
 import com.example.zhilu.domain.model.Note
-import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 
 enum class ViewMode {
     LIST,
@@ -17,6 +15,15 @@ data class HomeUiState(
     val viewMode: ViewMode = ViewMode.LIST,
     val isLoading: Boolean = true,
     val error: String? = null,
-    val importPreview: ImportKnowledgeUseCase.Preview? = null,
-    val pendingImportUri: Uri? = null
-)
+    /** 搜索关键词；非空时列表切换为搜索结果。 */
+    val query: String = "",
+    val searchResults: List<Note> = emptyList(),
+    val isSearching: Boolean = false,
+    /** 最近搜索词，仅存活于内存，最多 [HomeViewModel.MAX_RECENT_QUERIES] 条。 */
+    val recentQueries: List<String> = emptyList(),
+    /** 已逾期与今天到期的提醒数，供顶栏铃铛展示状态圆点。 */
+    val dueReminderCount: Int = 0
+) {
+    /** 是否处于搜索结果态（而非笔记列表态）。 */
+    val isSearchActive: Boolean get() = query.isNotBlank()
+}

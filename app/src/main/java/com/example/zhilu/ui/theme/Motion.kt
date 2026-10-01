@@ -12,36 +12,43 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
- * Motion constants for the ZhiLu design system.
+ * 知录动效常量（精炼纸墨）。
  *
- * Durations are intentionally short and understated to match the editorial, content-first
- * aesthetic. Use the tween specs below for consistent enter/exit transitions.
+ * 时长整体收短、意图化：按压反馈最快，状态切换 240ms，页面转场 320ms，
+ * 强调型转场（FAB 展开等）420ms。曲线统一走 [MotionEasing.Standard]。
  */
 object MotionDuration {
     const val Quick = 100        // press / micro feedback
-    const val Short = 150        // save status, icon feedback
-    const val Medium = 300       // card entrance, focus
-    const val Long = 500         // page transition
-    const val Emphasized = 600   // FAB expand, emphasized entrances
+    const val Short = 140        // save status, icon feedback
+    const val Medium = 240       // card entrance, focus, state change
+    const val Long = 320         // page transition
+    const val Emphasized = 420   // FAB expand, emphasized entrances
 }
 
 object MotionEasing {
-    val Standard: Easing = FastOutSlowInEasing
+    val Standard: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
     val EaseOutCubic: Easing = CubicBezierEasing(0.33f, 1f, 0.68f, 1f)
     val EaseInOutCubic: Easing = CubicBezierEasing(0.65f, 0f, 0.35f, 1f)
-    // Material 3 emphasized curves for enter/exit emphasis
-    val EmphasizedDecelerate: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
-    val EmphasizedAccelerate: Easing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
+    // Enter / exit emphasis curves
+    val Enter: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+    val Exit: Easing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 }
 
 // Springs for gesture-driven feedback (drag scale, FAB rebound). Prefer springs over tweens
 // wherever the animation tracks a finger, so the response feels "跟手".
 object MotionSpring {
-    val Snappy = spring<Float>(
+    // 按压反馈：快、几乎无回弹
+    val Press = spring<Float>(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessHigh
+    )
+    // 位移/跟随：中等阻尼
+    val Move = spring<Float>(
         dampingRatio = Spring.DampingRatioMediumBouncy,
         stiffness = Spring.StiffnessMedium
     )
-    val Bouncy = spring<Float>(
+    // 弹层/展开：轻回弹
+    val Sheet = spring<Float>(
         dampingRatio = Spring.DampingRatioLowBouncy,
         stiffness = Spring.StiffnessMediumLow
     )

@@ -11,7 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.reminder.ReminderNotifier
-import com.example.zhilu.ui.navigation.AppNavHost
+import com.example.zhilu.ui.navigation.AppShell
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.theme.ZhiLuTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
             val controller = rememberNavController()
             navController = controller
             ZhiLuTheme(themeMode = themeMode) {
-                AppNavHost(
+                AppShell(
                     navController = controller,
                     startDestination = initialRoute
                 )
