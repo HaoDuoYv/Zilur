@@ -24,6 +24,7 @@ class TagsViewModel @Inject constructor(
 
     init {
         observeTags()
+        observeNoteCounts()
         loadNoteCount()
     }
 
@@ -85,6 +86,29 @@ class TagsViewModel @Inject constructor(
                     is RepositoryResult.Error -> _uiState.update {
                         it.copy(isLoading = false, error = result.message)
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * 统计每个标签下的笔记数，供标签索引行显示二级信息。
+     *
+     * 直接复用 [NoteRepository.getAllNotes] 在内存里聚合：标签数量远小于笔记数量，
+     * 为此在 DAO / Repository 上加一条专用聚合查询不划算，也不值得让所有测试替身跟着改。
+     */
+    private fun observeNoteCounts() {
+        viewModelScope.launch {
+            noteRepository.getAllNotes().collect { result ->
+                if (result is RepositoryResult.Success) {
+                    val counts = buildMap<Long, Int> {
+                        result.data.forEach { note ->
+                            note.tags.forEach { tag ->
+                                put(tag.id, (this[tag.id] ?: 0) + 1)
+                            }
+                        }
+                    }
+                    _uiState.update { it.copy(noteCountByTag = counts) }
                 }
             }
         }

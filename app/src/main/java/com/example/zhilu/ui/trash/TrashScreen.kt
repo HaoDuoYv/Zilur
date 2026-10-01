@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.LinearProgressIndicator
@@ -28,6 +29,8 @@ import com.example.zhilu.domain.model.Note
 import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.AppTopBar
+import com.example.zhilu.ui.component.RevealSide
+import com.example.zhilu.ui.component.RowReveal
 import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.theme.Spacing
@@ -40,14 +43,22 @@ fun TrashScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val snackbar = LocalAppSnackbar.current
+    val listState = rememberLazyListState()
     var pendingDelete by remember { mutableStateOf<Note?>(null) }
     var clearConfirmVisible by remember { mutableStateOf(false) }
+    // 滑动露出的操作槽：同一时刻至多一行。
+    var reveal by remember { mutableStateOf<RowReveal?>(null) }
 
     LaunchedEffect(state.error) {
         state.error?.let {
             snackbar.showSnackbar(it)
             viewModel.clearError()
         }
+    }
+
+    // 滚动即收起，避免翻找条目时误点到露出槽。
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress) reveal = null
     }
 
     Scaffold(
@@ -84,6 +95,7 @@ fun TrashScreen(
                 )
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(
                         top = Spacing.Sm,
@@ -91,16 +103,21 @@ fun TrashScreen(
                     )
                 ) {
                     itemsIndexed(state.deletedNotes, key = { _, note -> note.id }) { index, note ->
+                        val revealedSide = reveal?.takeIf { it.id == note.id }?.side ?: RevealSide.None
                         AnimatedListItem(index = index) {
                             Column {
                                 TrashRow(
                                     note = note,
+                                    revealedSide = revealedSide,
+                                    onRevealChange = { side ->
+                                        reveal = if (side == RevealSide.None) null else RowReveal(note.id, side)
+                                    },
                                     onRestore = { viewModel.restore(note.id) },
                                     onDeleteRequest = { pendingDelete = note }
                                 )
                                 if (index < state.deletedNotes.lastIndex) {
                                     ZhiLuDivider(
-                                        modifier = Modifier.padding(start = Spacing.PageGutter)
+                                        modifier = Modifier.padding(horizontal = Spacing.PageGutter)
                                     )
                                 }
                             }

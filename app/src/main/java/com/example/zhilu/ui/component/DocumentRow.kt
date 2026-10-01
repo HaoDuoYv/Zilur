@@ -72,8 +72,8 @@ fun DocumentRow(
                 .padding(
                     start = DocumentSpineGap,
                     end = Spacing.PageGutter,
-                    top = Spacing.Md,
-                    bottom = Spacing.Md
+                    top = Spacing.RowVertical,
+                    bottom = Spacing.RowVertical
                 ),
             content = content
         )

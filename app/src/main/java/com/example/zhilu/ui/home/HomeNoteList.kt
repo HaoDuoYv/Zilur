@@ -15,6 +15,8 @@ import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.NoteRow
 import com.example.zhilu.ui.component.NoteRowVariant
+import com.example.zhilu.ui.component.RevealSide
+import com.example.zhilu.ui.component.RowReveal
 import com.example.zhilu.ui.component.SectionHeader
 import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.theme.Spacing
@@ -24,11 +26,16 @@ import com.example.zhilu.ui.theme.Spacing
  *
  * 列表视图 = 紧凑文档行（无卡片外观，发丝线按正文缩进分隔）；
  * 时间线视图 = 白纸卡片 + 吸附分节标题。两种模式结构不同，切换才看得出差别。
+ *
+ * 露出态（滑动露出的操作槽）由调用方持有（[reveal]），因此同一时刻至多一行露出，
+ * 且列表滚动时可以一次性收起。
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun LazyListScope.homeNoteList(
     notes: List<Note>,
     viewMode: ViewMode,
+    reveal: RowReveal?,
+    onRevealChange: (RowReveal?) -> Unit,
     onOpenNote: (Long) -> Unit,
     onToggleFavorite: (Note) -> Unit,
     onDeleteRequest: (Note) -> Unit
@@ -46,6 +53,8 @@ fun LazyListScope.homeNoteList(
                     HomeNoteItem(
                         note = note,
                         variant = NoteRowVariant.Card,
+                        revealedSide = reveal.sideFor(note.id),
+                        onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
                         onClick = { onOpenNote(note.id) },
                         onToggleFavorite = { onToggleFavorite(note) },
                         onDeleteRequest = { onDeleteRequest(note) }
@@ -60,12 +69,14 @@ fun LazyListScope.homeNoteList(
                     HomeNoteItem(
                         note = note,
                         variant = NoteRowVariant.Document,
+                        revealedSide = reveal.sideFor(note.id),
+                        onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
                         onClick = { onOpenNote(note.id) },
                         onToggleFavorite = { onToggleFavorite(note) },
                         onDeleteRequest = { onDeleteRequest(note) }
                     )
                     if (index < notes.lastIndex) {
-                        ZhiLuDivider(modifier = Modifier.padding(start = Spacing.PageGutter))
+                        ZhiLuDivider(modifier = Modifier.padding(horizontal = Spacing.PageGutter))
                     }
                 }
             }
@@ -102,9 +113,19 @@ fun LazyListScope.homeSearchResults(
                     onClick = { onOpenNote(note.id) }
                 )
                 if (index < results.lastIndex) {
-                    ZhiLuDivider(modifier = Modifier.padding(start = Spacing.PageGutter))
+                    ZhiLuDivider(modifier = Modifier.padding(horizontal = Spacing.PageGutter))
                 }
             }
         }
     }
 }
+
+/** 该行是否就是当前露出的一行；不是则一律视为未展开。 */
+private fun RowReveal?.sideFor(noteId: Long): RevealSide {
+    val current = this ?: return RevealSide.None
+    return if (current.id == noteId) current.side else RevealSide.None
+}
+
+/** 反向映射：`None` 表示没有任何行露出，向列表层传 `null`。 */
+private fun RevealSide.toReveal(noteId: Long): RowReveal? =
+    if (this == RevealSide.None) null else RowReveal(noteId, this)

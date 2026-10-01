@@ -8,6 +8,8 @@ data class TagsUiState(
     val selectedTag: Tag? = null,
     val filteredNotes: List<Note> = emptyList(),
     val noteCount: Int = 0,
+    /** 每个标签下的笔记数。标签索引行靠它撑起二级信息，不必再向数据层加查询。 */
+    val noteCountByTag: Map<Long, Int> = emptyMap(),
     val isLoading: Boolean = true,
     val isLoadingNotes: Boolean = false,
     val error: String? = null

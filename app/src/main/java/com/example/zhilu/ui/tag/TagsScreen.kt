@@ -100,13 +100,13 @@ fun TagsScreen(
                 parts = listOf("${state.noteCount} 条笔记", "${state.tags.size} 个标签"),
                 modifier = Modifier.padding(
                     horizontal = Spacing.PageGutter,
-                    vertical = Spacing.Xs
+                    vertical = Spacing.Sm
                 )
             )
 
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = Spacing.Xl)
+                contentPadding = PaddingValues(bottom = Spacing.Xxl)
             ) {
                 val selectedTag = state.selectedTag
                 // 筛选态与索引态互斥：同一屏里只出现一种列表，避免「正在看的」与「已经选完的」叠在一起。
@@ -148,7 +148,7 @@ fun TagsScreen(
                                     )
                                     if (index < state.filteredNotes.lastIndex) {
                                         ZhiLuDivider(
-                                            modifier = Modifier.padding(start = Spacing.PageGutter)
+                                            modifier = Modifier.padding(horizontal = Spacing.PageGutter)
                                         )
                                     }
                                 }
@@ -177,12 +177,13 @@ fun TagsScreen(
                                 Column {
                                     TagRow(
                                         tag = tag,
+                                        noteCount = state.noteCountByTag[tag.id] ?: 0,
                                         onClick = { viewModel.selectTag(tag) },
                                         onDelete = { pendingDeleteTag = tag }
                                     )
                                     if (index < state.tags.lastIndex) {
                                         ZhiLuDivider(
-                                            modifier = Modifier.padding(start = Spacing.PageGutter)
+                                            modifier = Modifier.padding(horizontal = Spacing.PageGutter)
                                         )
                                     }
                                 }

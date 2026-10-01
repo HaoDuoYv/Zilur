@@ -24,7 +24,7 @@ fun HomeListHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.PageGutter, vertical = Spacing.Xs),
+            .padding(horizontal = Spacing.PageGutter, vertical = Spacing.Sm),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)
     ) {

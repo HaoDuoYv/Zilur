@@ -143,14 +143,14 @@ private fun NoteRowBody(
                 style = ZhiLuType.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = if (dense) 1 else 2,
-                modifier = Modifier.padding(top = 2.dp)
+                modifier = Modifier.padding(top = Spacing.RowGapTight)
             )
         }
         if (!dense && note.tags.isNotEmpty()) {
-            NoteTagsLine(tags = note.tags, modifier = Modifier.padding(top = 6.dp))
+            NoteTagsLine(tags = note.tags, modifier = Modifier.padding(top = Spacing.RowGapGroup))
         }
         if (!dense) {
-            MetaLine(parts = noteMetaParts(note), modifier = Modifier.padding(top = 6.dp))
+            MetaLine(parts = noteMetaParts(note), modifier = Modifier.padding(top = Spacing.RowGapMeta))
         }
     }
 }

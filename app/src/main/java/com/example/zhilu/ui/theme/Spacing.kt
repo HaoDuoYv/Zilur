@@ -26,4 +26,19 @@ object Spacing {
     val ListRowGap = 8.dp     // 列表行之间
     val RowMinHeight = 56.dp  // 列表行最小高度（触控）
     val GutterTap = 24.dp     // 块插入条触控高度
+
+    /**
+     * 列表行节奏。
+     *
+     * 行内四个层级（标题 / 摘要 / 标签 / 元信息）靠留白梯度区分，而不是靠字号硬拉：
+     * 组内最紧（[RowGapTight]）→ 跨组最松（[RowGapGroup]）→ 组内从属居中（[RowGapMeta]）。
+     * 行上下用 [RowVertical] 兜住，与卡片内边距 [CardPadding] 取同一数值，
+     * 这样列表视图与时间线视图切换时行距不会跳动。
+     */
+    val RowVertical = 16.dp   // 列表行上下内边距
+    val RowGapTight = 6.dp    // 行内同组：标题 ↔ 摘要
+    val RowGapGroup = 10.dp   // 行内跨组：摘要 ↔ 标签
+    val RowGapMeta = 8.dp     // 行内从属：标签 ↔ 元信息
+    val ListTopGap = 4.dp     // 头部与列表之间的呼吸
+    val ListBottomGap = 24.dp // 列表底部留白
 }

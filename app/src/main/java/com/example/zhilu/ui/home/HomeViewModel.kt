@@ -92,9 +92,18 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun toggleFavorite(note: Note) {
+    /**
+     * 显式设置收藏态。
+     *
+     * 收藏与「撤销收藏」走同一入口：撤销不是「再取反一次」，而是把状态写回原值，
+     * 这样即使列表在 Snackbar 显示期间刷新过，结果也不会漂移。
+     *
+     * 注意不要在这里加「值相同就跳过」的守卫——传进来的 [note] 是列表渲染时的快照，
+     * 它的 `isFavorite` 是**切换前**的旧值，拿它做比较会让撤销被静默跳过。
+     */
+    fun setFavorite(note: Note, favorite: Boolean) {
         viewModelScope.launch {
-            noteRepository.updateNote(note.copy(isFavorite = !note.isFavorite))
+            noteRepository.updateNote(note.copy(isFavorite = favorite))
         }
     }
 
