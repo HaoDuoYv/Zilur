@@ -17,8 +17,9 @@
 
 ### 浏览与检索
 
-- **首页** — 笔记卡片流 / 时间轴双模式，统计卡片（笔记数 / 标签数 / 图片数）
-- **列表手势** — 右滑 / 左滑只**露出**「收藏」「删除」操作槽，点按槽位才真正执行。手势带方向锁定（横向位移需超过纵向 1.6 倍才生效）、单行互斥与滚动自动收起，上下翻动列表不会误触；长按菜单与读屏自定义动作提供等价入口
+- **首页** — 圆角卡片流，统计行（笔记数 / 标签数 / 图片数）；右上角可切「列表 / 时间线」，时间线在卡片之上叠一层吸附的日期分节
+- **列表手势** — 右滑 / 左滑只**露出**「收藏」「删除」操作槽，点按槽位才真正执行。手势带方向锁定（横向位移需超过纵向 1.6 倍才生效）、单行互斥与滚动自动收起，上下翻动列表不会误触；长按菜单与读屏自定义动作提供等价入口。切换视图或进出搜索时露出态一并作废
+- **底部导航** — 图标下方带文字标签，选中态是一整颗胶囊把「图标 + 文字」一起包住，颜色过渡与字重同时作用在文字上
 - **全局搜索** — 按标题、正文、标签搜索，支持最近搜索记录
 - **标签页** — 按标签浏览笔记，显示各标签下笔记数量
 - **探索页** — 搜索入口 + 热门标签 + 最近浏览
@@ -39,6 +40,7 @@
 - **多模态识图** — 附图后视觉模型可识别图中文字，并把图片写入笔记
 - **生成占用锁** — 正在生成的目标在编辑器中标记为「生成中」并禁点，避免并发改写冲突
 - **进程级任务管理** — 生成过程切页不中断，全局状态栏常驻显示进度并可一键回到对话
+- **后台继续生成** — 生成期间拉起 `dataSync` 前台服务保活：切走或锁屏都不会中断，通知栏常驻进度并带「停止」按钮；任务在后台结束时补一条完成/失败通知，点开直达助手页
 - **供应商预设** — DeepSeek / 通义千问 / 智谱 / Moonshot / OpenAI / 自定义，统一走 OpenAI 兼容协议，文本与视觉模型分开配置
 
 ### OCR 文字识别
@@ -184,6 +186,11 @@ app/
 > 标签页的「N 条笔记」由 `note_tags JOIN notes` 的单条 `GROUP BY` 聚合算出
 > （`TagDao.countNotesPerTag`，过滤 `deletedAt IS NULL`），不会为了显示一个计数把笔记逐条加载进内存。
 
+> 笔记正文在库里有两个**互斥**的落点：有知识卡片的笔记，块挂在卡片下（`note_blocks.cardId` 指向 `note_cards`），
+> 从库里读出来的 `Note.blocks` 是**空的**；没有卡片的笔记，块才直接归属笔记。
+> 取正文统一走 `Note.contentBlocks`（`blocks` 为空时回退到卡片下的块），
+> 读写两侧都不要自己判空——写侧漏掉这一层，一次「只改标题」的往返就会把整篇正文删掉。
+
 存储路径约定：`filesDir/media` 存放相册 / 拍照导入的图片，`filesDir/images` 存放聊天附件落的图。
 
 ---
@@ -222,6 +229,44 @@ app/
 在「设置 → AI 助手」中选择供应商（DeepSeek / 通义千问 / 智谱 / Moonshot / OpenAI / 自定义）、
 填写 API Key 并分别选择文本模型与视觉模型。端点统一走 OpenAI 兼容协议，
 自定义供应商需手动填写 endpoint。配置仅存于本机 DataStore。
+
+### 键盘与窗口 insets
+
+- Activity 声明 `android:windowSoftInputMode="adjustResize"`，并配合 `WindowCompat.setDecorFitsSystemWindows(window, false)`。
+  这两者缺一不可：不声明 softInputMode 时系统会把 `adjustUnspecified` 解析成 **`adjustPan`**，
+  框架先把窗口表面整体上推一次，页面里再 `imePadding()` 就变成同一个 inset 消费两遍，
+  输入框与键盘之间会空出「与键盘等高」的一整块空白。
+- **IME 只在根层 `AppShell` 让位一次**（`Modifier.imePadding()`），各页不要再自己加，
+  这与 API 30 以下「窗口被键盘顶掉一块」的原生行为等价。
+- 其余系统栏 inset 同样归口根层：根 Scaffold 的 `contentWindowInsets` 归零，
+  底栏与全局 AI 状态条各自消费自己的那条边。
+
+### UI 组件约定
+
+- **列表行有两种形态**（`ui/component/NoteRow.kt`）：`Document` 是纯文档行，靠发丝线分隔，左缘带
+  通高标签色书脊，给标签索引 / 回收站 / 提醒中心这类高密度列表用；`Card` 是圆角纸卡，靠留白分隔，
+  **不带书脊**——3dp 的书脊遇到 14dp 圆角会被切成两头收窄的细条，看着像渲染瑕疵。
+  首页的两种视图都用 `Card`，区别只在时间线多一层吸附日期分节。
+- **分段控件不要用 `Surface(onClick = …)` 承载分段**（`ui/component/SegmentedToggle.kt`）。
+  `Surface(onClick)` 把 `minimumInteractiveComponentSize()` 套在**背景之上**：布局盒撑到 48dp，
+  背景却仍按内容自然尺寸（约 27dp）居中绘制 → 选中色块浮在容器中间、上下各空 10dp，
+  也就是「选中框没有铺满」。正确做法是把背景画在段槽自身（定高 + `fillMaxHeight` 语义）上，
+  触控目标由外层 `minimumInteractiveComponentSize()` 兜住。
+- **底部导航的选中态要落在文字上**（`ui/navigation/BottomBar.kt`）。图标与文字放进同一个 `Column`，
+  整块包进 `clip(CircleShape).background(indicatorColor)`——胶囊因此铺满「图标 + 文字」，
+  文字与图标共用一份 `animateColorAsState` 的 `contentColor`，选中时再切 `FontWeight.SemiBold`。
+  只把胶囊套在图标上会让文字游离在选中态之外，读起来像「图标选中了、标签没变」。
+- **时间线视图的轨道画在卡片外层**（`ui/home/TimelineRail.kt` 的 `Modifier.timelineRail`）：
+  `drawBehind` 画一条 `outlineVariant` 竖线加一颗 `primary` 节点圆，首/尾行用 `isFirst` / `isLast`
+  把线段收在节点处，避免轨道穿出列表首尾。
+
+### 键盘与焦点
+
+- **弹层关闭后要主动唤回键盘**（`ui/assistant/AssistantScreen.restoreComposerFocus`）。
+  弹层打开只是让主窗口失焦、系统收起 IME，输入框的 Compose 焦点**未必**被清掉，
+  此时直接 `FocusRequester.requestFocus()` 会因「已经聚焦」而完全失效。
+  必须 `LocalFocusManager.clearFocus()` 先强制走一遍 unfocused，隔一小段时间再 `requestFocus()`，
+  让输入框经历一次真实的焦点变化才会重新拉起 IME。
 
 ### 设计文档
 

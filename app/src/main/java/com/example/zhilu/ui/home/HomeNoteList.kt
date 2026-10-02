@@ -1,8 +1,7 @@
 package com.example.zhilu.ui.home
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
@@ -18,14 +17,15 @@ import com.example.zhilu.ui.component.NoteRowVariant
 import com.example.zhilu.ui.component.RevealSide
 import com.example.zhilu.ui.component.RowReveal
 import com.example.zhilu.ui.component.SectionHeader
-import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.theme.Spacing
 
 /**
  * 笔记列表内容。
  *
- * 列表视图 = 紧凑文档行（无卡片外观，发丝线按正文缩进分隔）；
- * 时间线视图 = 白纸卡片 + 吸附分节标题。两种模式结构不同，切换才看得出差别。
+ * 两种视图都是**圆角卡片**，差别在两处：
+ * 时间线多一层吸附的日期分节标题，且卡片左侧留白里有一条贯穿的竖直轨道与节点圆点；
+ * 列表视图则是一串等价的卡片，没有分组也没有轨道——快扫用。
+ * 卡片之间靠 [Spacing.CardGap] 的留白分隔，不再用发丝线——卡片自己就能自证边界。
  *
  * 露出态（滑动露出的操作槽）由调用方持有（[reveal]），因此同一时刻至多一行露出，
  * 且列表滚动时可以一次性收起。
@@ -50,41 +50,44 @@ fun LazyListScope.homeNoteList(
             }
             itemsIndexed(group.notes, key = { _, note -> note.id }) { index, note ->
                 AnimatedListItem(index = index) {
-                    HomeNoteItem(
-                        note = note,
-                        variant = NoteRowVariant.Card,
-                        revealedSide = reveal.sideFor(note.id),
-                        onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
-                        onClick = { onOpenNote(note.id) },
-                        onToggleFavorite = { onToggleFavorite(note) },
-                        onDeleteRequest = { onDeleteRequest(note) }
-                    )
+                    // 时间线比列表视图多一条贯穿的轨道：这是两个视图一眼可辨的差别所在。
+                    Box(
+                        modifier = Modifier.timelineRail(
+                            isFirst = index == 0,
+                            isLast = index == group.notes.lastIndex
+                        )
+                    ) {
+                        HomeNoteItem(
+                            note = note,
+                            variant = NoteRowVariant.Card,
+                            revealedSide = reveal.sideFor(note.id),
+                            onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
+                            onClick = { onOpenNote(note.id) },
+                            onToggleFavorite = { onToggleFavorite(note) },
+                            onDeleteRequest = { onDeleteRequest(note) }
+                        )
+                    }
                 }
             }
         }
     } else {
         itemsIndexed(notes, key = { _, note -> note.id }) { index, note ->
             AnimatedListItem(index = index) {
-                Column {
-                    HomeNoteItem(
-                        note = note,
-                        variant = NoteRowVariant.Document,
-                        revealedSide = reveal.sideFor(note.id),
-                        onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
-                        onClick = { onOpenNote(note.id) },
-                        onToggleFavorite = { onToggleFavorite(note) },
-                        onDeleteRequest = { onDeleteRequest(note) }
-                    )
-                    if (index < notes.lastIndex) {
-                        ZhiLuDivider(modifier = Modifier.padding(horizontal = Spacing.PageGutter))
-                    }
-                }
+                HomeNoteItem(
+                    note = note,
+                    variant = NoteRowVariant.Card,
+                    revealedSide = reveal.sideFor(note.id),
+                    onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
+                    onClick = { onOpenNote(note.id) },
+                    onToggleFavorite = { onToggleFavorite(note) },
+                    onDeleteRequest = { onDeleteRequest(note) }
+                )
             }
         }
     }
 }
 
-/** 搜索结果：与列表视图同为文档行，但无滑动与长按菜单。 */
+/** 搜索结果：与列表视图同为圆角卡片，但无滑动与长按菜单。 */
 fun LazyListScope.homeSearchResults(
     results: List<Note>,
     query: String,
@@ -106,16 +109,12 @@ fun LazyListScope.homeSearchResults(
     }
     itemsIndexed(results, key = { _, note -> note.id }) { index, note ->
         AnimatedListItem(index = index) {
-            Column {
-                NoteRow(
-                    note = note,
-                    highlightQuery = query,
-                    onClick = { onOpenNote(note.id) }
-                )
-                if (index < results.lastIndex) {
-                    ZhiLuDivider(modifier = Modifier.padding(horizontal = Spacing.PageGutter))
-                }
-            }
+            NoteRow(
+                note = note,
+                variant = NoteRowVariant.Card,
+                highlightQuery = query,
+                onClick = { onOpenNote(note.id) }
+            )
         }
     }
 }

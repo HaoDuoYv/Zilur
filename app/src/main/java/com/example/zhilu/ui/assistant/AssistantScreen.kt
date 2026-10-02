@@ -23,7 +23,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -34,18 +36,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
+import com.example.zhilu.ai.toolNameLabel
 import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.domain.model.AiRole
+import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,6 +69,61 @@ fun AssistantScreen(
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // 附件弹层：加号入口不再用下拉菜单，改成底部弹层（一排功能 + 最近图片）。
+    // sheetState 由这里持有，关闭时先 hide 走完动画再移出组合。
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var attachSheetVisible by remember { mutableStateOf(false) }
+
+    // 弹层打开会让主窗口失焦、键盘收起，但输入框的 Compose 焦点未必被清掉；
+    // 直接 requestFocus 会因「已经聚焦」而失效。先 clearFocus 强制走一遍
+    // unfocused→focused，输入框才会重新拉起 IME。中间隔一小段时间让清焦点落地。
+    fun restoreComposerFocus() {
+        focusManager.clearFocus()
+        scope.launch {
+            delay(60)
+            focusRequester.requestFocus()
+        }
+    }
+
+    // 无跳转的关闭（点遮罩 / 下滑）：动画收起后要回焦点、唤回键盘。
+    fun dismissAttachSheet() {
+        scope.launch { sheetState.hide() }.invokeOnCompletion {
+            attachSheetVisible = false
+            restoreComposerFocus()
+        }
+    }
+
+    // 拍照结果回传：相机页把 mediaId|uri 写回 savedStateHandle，助手页在 ON_RESUME 消费。
+    // 与 NoteEditScreen 共用同一 key；这里剥掉 mediaId 前缀，走图片附件导入（复制进 images/）。
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, navController) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val handle = navController.currentBackStackEntry?.savedStateHandle
+                val uri = handle?.get<String?>("capturedImageUri")
+                if (uri != null) {
+                    viewModel.attachImages(listOf(ImageBlockContent.displayUri(uri)))
+                    handle["capturedImageUri"] = null
+                    restoreComposerFocus()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // 相册最近图片：有权限才查，避免 scoped storage 下拿不到还白跑一次 IO。
+    var hasGalleryAccess by remember { mutableStateOf(context.canReadGallery()) }
+    val galleryPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> hasGalleryAccess = granted }
+    val recentImages = rememberRecentGalleryImages(
+        enabled = attachSheetVisible && hasGalleryAccess,
+        limit = 8
+    )
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents(),
@@ -134,28 +199,14 @@ fun AssistantScreen(
                     attachedFile = state.attachedFile,
                     attachedRefs = state.attachedRefs,
                     isGenerating = state.isGenerating,
+                    focusRequester = focusRequester,
                     onTextChange = viewModel::updateInput,
-                    // 部分设备/精简系统没有能处理 GET_CONTENT 的选择器，
-                    // 直接 launch 会抛 ActivityNotFoundException 把应用打崩，这里降级为提示。
-                    onPickImages = {
-                        runCatching { imagePicker.launch("image/*") }.onFailure {
-                            scope.launch { snackbar.showSnackbar("未找到可用的图片选择器") }
-                        }
-                    },
+                    onOpenAttachSheet = { attachSheetVisible = true },
                     onRemoveImage = viewModel::removeImage,
-                    onPickFile = {
-                        runCatching {
-                            filePicker.launch(
-                                arrayOf("text/plain", "text/markdown", "application/octet-stream")
-                            )
-                        }.onFailure {
-                            scope.launch { snackbar.showSnackbar("未找到可用的文件选择器") }
-                        }
-                    },
                     onRemoveFile = viewModel::removeFile,
-                    onPickRef = viewModel::openRefPicker,
                     onRemoveRef = viewModel::removeRef,
-                    onSend = viewModel::sendMessage
+                    onSend = viewModel::sendMessage,
+                    onStop = viewModel::stopGeneration
                 )
             }
         }
@@ -211,6 +262,45 @@ fun AssistantScreen(
             refs = state.refPickerNotes,
             onDismiss = viewModel::dismissRefPicker,
             onSelect = viewModel::addRef
+        )
+    }
+
+    if (attachSheetVisible) {
+        AttachSheet(
+            sheetState = sheetState,
+            canReadGallery = hasGalleryAccess,
+            recentImages = recentImages,
+            onRequestGalleryAccess = { galleryPermissionLauncher.launch(galleryReadPermission) },
+            onTakePhoto = {
+                attachSheetVisible = false
+                navController.navigate(Destination.Camera.path)
+            },
+            onPickFromGallery = {
+                attachSheetVisible = false
+                runCatching { imagePicker.launch("image/*") }.onFailure {
+                    scope.launch { snackbar.showSnackbar("未找到可用的图片选择器") }
+                }
+            },
+            onPickFile = {
+                attachSheetVisible = false
+                runCatching {
+                    filePicker.launch(
+                        arrayOf("text/plain", "text/markdown", "application/octet-stream")
+                    )
+                }.onFailure {
+                    scope.launch { snackbar.showSnackbar("未找到可用的文件选择器") }
+                }
+            },
+            onPickRef = {
+                attachSheetVisible = false
+                viewModel.openRefPicker()
+            },
+            onPickRecentImage = { uri ->
+                attachSheetVisible = false
+                viewModel.attachImages(listOf(uri.toString()))
+                restoreComposerFocus()
+            },
+            onDismissRequest = ::dismissAttachSheet
         )
     }
 }
@@ -279,17 +369,6 @@ private fun ToolStatusBar(toolStatus: String?, isGenerating: Boolean) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
-}
-
-/** 工具名 → 友好中文（供状态条与徽章共用）。 */
-internal fun toolNameLabel(toolName: String): String = when (toolName) {
-    "list_notes" -> "读取笔记列表"
-    "search_notes" -> "搜索笔记"
-    "get_note" -> "读取笔记"
-    "create_note" -> "创建笔记"
-    "update_note" -> "修改笔记"
-    "add_tags" -> "更新标签"
-    else -> toolName
 }
 
 private fun queryDisplayName(context: Context, uri: Uri): String? =
