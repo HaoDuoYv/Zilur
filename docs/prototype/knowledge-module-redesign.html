@@ -1,0 +1,2523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>知录 · 知识点模块重新设计 · 产品原型</title>
+  <style>
+    /* ============================================================
+     纸墨设计 token（取自项目 ui/theme/*.kt，仅用于原型演示）
+     ============================================================ */
+    :root {
+      --paper: #FAF8F3;
+      --paper-raised: #FFFFFF;
+      --paper-sunken: #F3F0E9;
+      --ink: #191917;
+      --ink-body: #3B3A36;
+      --ink-muted: #77746C;
+      --ink-faint: #9A968C;
+      --hairline: #E7E2D8;
+      --outline: #C9C2B4;
+
+      /* 语义强调色（4 角色）—— 派生自 AccentPalette，不随主题强调色变化。
+         色值不新写：取自 accentPaint(OCHRE / MOSS / CRIMSON / TEAL).light.primary */
+      --key: #7C5C31;
+      /* 要点 KEY：定义 / 结论 / 主旨 / 关键数据 */
+      --idea: #4B6B4F;
+      /* 想法 IDEA：自己的理解 / 联想 / 评价 */
+      --warn: #8A4550;
+      /* 注意 WARN：易错 / 陷阱 / 存疑 / 待确认 */
+      --todo: #3D6E6B;
+      /* 待办 TODO：跟进 / 延伸阅读 / 待补充 */
+
+      /* 行内着色用的"加深墨色"（比块级标签更深，保证小字可读） */
+      --key-ink: #5E431F;
+      --idea-ink: #33513A;
+      --warn-ink: #6B2C38;
+      --todo-ink: #275250;
+
+      /* 卡片身份色（7 色 · 显式轮转序 · 取自 TagColors 低饱和批次）
+         刻意不复用 AccentPalette 的 primary：赭土/苔绿/绛红/松石 四个 primary
+         与 4 个语义角色逐值撞色，身份色与内容色必须同族不同值 */
+      --c1: #4A5C7A;
+      /* 01 墨蓝 */
+      --c2: #8A6B3A;
+      /* 02 赭土 */
+      --c3: #4A7A7A;
+      /* 03 松石 */
+      --c4: #8A4A5B;
+      /* 04 绛红 */
+      --c5: #4A6B5B;
+      /* 05 苔绿 */
+      --c6: #6B6B6B;
+      /* 06 石墨 */
+      --c7: #6B5B8A;
+      /* 07 黛紫 */
+
+      --serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+      --sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      --mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+
+      --r-sm: 6px;
+      --r-md: 12px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: #EDEAE3;
+      font-family: var(--sans);
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---------- 画板外框 ---------- */
+    .board-head {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 48px 32px 8px;
+    }
+
+    .board-head .kicker {
+      font-size: 12px;
+      letter-spacing: 2.4px;
+      color: var(--ink-faint);
+      text-transform: uppercase;
+      margin: 0 0 14px;
+    }
+
+    .board-head h1 {
+      font-family: var(--serif);
+      font-size: 34px;
+      font-weight: 600;
+      letter-spacing: -.4px;
+      margin: 0 0 12px;
+    }
+
+    .board-head p {
+      font-size: 14.5px;
+      line-height: 1.75;
+      color: var(--ink-muted);
+      max-width: 820px;
+      margin: 0;
+    }
+
+    .board-head .rule {
+      height: 1px;
+      background: var(--outline);
+      opacity: .5;
+      margin: 28px 0 0;
+    }
+
+    /* ---------- 设备排布 ---------- */
+    .board {
+      display: flex;
+      gap: 48px;
+      align-items: flex-start;
+      justify-content: center;
+      flex-wrap: wrap;
+      padding: 44px 32px 64px;
+    }
+
+    .device-wrap {
+      margin: 0;
+    }
+
+    .device {
+      position: relative;
+      width: 388px;
+      height: 812px;
+      background: var(--paper);
+      border-radius: 40px;
+      border: 9px solid #221F1B;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, .5) inset,
+        0 30px 60px -20px rgba(34, 31, 27, .45),
+        0 8px 20px -12px rgba(34, 31, 27, .3);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .device-wrap figcaption {
+      margin-top: 18px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--ink-muted);
+      line-height: 1.6;
+      max-width: 388px;
+    }
+
+    .device-wrap figcaption b {
+      display: block;
+      font-family: var(--serif);
+      font-size: 15px;
+      color: var(--ink);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    /* ---------- 状态栏 / 顶栏 ---------- */
+    .statusbar {
+      height: 34px;
+      flex: 0 0 34px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 22px;
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: .3px;
+    }
+
+    .statusbar .dots {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .statusbar .dots i {
+      display: block;
+      width: 3px;
+      border-radius: 1px;
+      background: var(--ink);
+      opacity: .8;
+    }
+
+    .statusbar .dots i:nth-child(1) {
+      height: 5px;
+    }
+
+    .statusbar .dots i:nth-child(2) {
+      height: 7px;
+    }
+
+    .statusbar .dots i:nth-child(3) {
+      height: 9px;
+    }
+
+    .statusbar .dots i:nth-child(4) {
+      height: 11px;
+      opacity: .35;
+    }
+
+    .topbar {
+      flex: 0 0 54px;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      background: var(--paper);
+      border-bottom: 1px solid var(--hairline);
+      position: relative;
+      z-index: 30;
+    }
+
+    .topbar .iconbtn {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--ink-body);
+      cursor: pointer;
+      transition: background .16s ease;
+    }
+
+    .topbar .iconbtn:hover {
+      background: rgba(25, 25, 23, .06);
+    }
+
+    .topbar .title {
+      font-family: var(--serif);
+      font-size: 16px;
+      font-weight: 500;
+      flex: 1;
+    }
+
+    .topbar .badge-save {
+      font-size: 11px;
+      color: var(--ink-faint);
+      letter-spacing: .4px;
+      margin-right: 2px;
+    }
+
+    .outline-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--outline);
+      border-radius: 999px;
+      background: transparent;
+      font-family: var(--sans);
+      font-size: 12px;
+      color: var(--ink-body);
+      cursor: pointer;
+      transition: all .16s ease;
+    }
+
+    .outline-btn:hover {
+      background: #fff;
+      border-color: var(--ink-faint);
+    }
+
+    .outline-btn.on {
+      background: var(--ink);
+      color: var(--paper);
+      border-color: var(--ink);
+    }
+
+    /* ---------- 滚动内容 ---------- */
+    .canvas {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      position: relative;
+      padding: 18px 20px 90px;
+      scrollbar-width: none;
+    }
+
+    .canvas::-webkit-scrollbar {
+      display: none;
+    }
+
+    .note-title {
+      font-family: var(--serif);
+      font-size: 27px;
+      font-weight: 600;
+      letter-spacing: -.3px;
+      line-height: 1.3;
+      margin: 2px 0 10px;
+    }
+
+    .note-tags {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-bottom: 22px;
+    }
+
+    .tagchip {
+      font-size: 11.5px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: var(--paper-sunken);
+      color: var(--ink-muted);
+      letter-spacing: .3px;
+    }
+
+    /* ============================================================
+     知识卡片
+     ============================================================ */
+    .card {
+      position: relative;
+      background: var(--paper-raised);
+      border-radius: var(--r-md);
+      box-shadow: 0 1px 2px rgba(34, 31, 27, .06), 0 6px 18px -12px rgba(34, 31, 27, .22);
+      padding: 16px 16px 14px;
+      margin-bottom: 26px;
+      transition: box-shadow .2s ease;
+    }
+
+    .card:last-of-type {
+      margin-bottom: 8px;
+    }
+
+    .card.focused {
+      box-shadow: 0 0 0 2px var(--acc), 0 10px 26px -14px rgba(34, 31, 27, .35);
+    }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .ident {
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      border-radius: var(--r-sm);
+      background: color-mix(in srgb, var(--acc) 12%, transparent);
+      color: var(--acc);
+      display: grid;
+      place-items: center;
+      font-family: var(--serif);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      margin-top: 1px;
+    }
+
+    .card-headtext {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .card-title {
+      font-family: var(--serif);
+      font-size: 18px;
+      font-weight: 600;
+      line-height: 1.35;
+      color: var(--ink);
+    }
+
+    .card-summary {
+      font-size: 12.5px;
+      line-height: 1.6;
+      color: var(--ink-faint);
+      margin-top: 3px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+      flex: 0 0 auto;
+    }
+
+    .count-pill {
+      font-size: 11px;
+      color: var(--ink-faint);
+      background: var(--paper-sunken);
+      border-radius: 999px;
+      padding: 2px 8px;
+      letter-spacing: .3px;
+    }
+
+    .chev {
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      color: var(--ink-faint);
+      transition: transform .22s cubic-bezier(.2, .8, .3, 1);
+    }
+
+    .card.folded .chev {
+      transform: rotate(-90deg);
+    }
+
+    .card-body {
+      position: relative;
+      margin-top: 14px;
+      padding-left: 42px;
+      overflow: hidden;
+      transition: max-height .3s cubic-bezier(.2, .8, .3, 1), opacity .22s ease;
+      max-height: 1600px;
+    }
+
+    .card.folded .card-body {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+
+    .card-body::before {
+      content: "";
+      position: absolute;
+      left: 15px;
+      top: 8px;
+      bottom: 10px;
+      width: 1px;
+      background: color-mix(in srgb, var(--acc) 26%, transparent);
+    }
+
+    /* ---------- 结构化行（小点） ---------- */
+    .blk {
+      position: relative;
+      margin-bottom: 4px;
+    }
+
+    .blk.cross {
+      margin-top: 14px;
+    }
+
+    .blk:last-child {
+      margin-bottom: 0;
+    }
+
+    .gutter {
+      position: absolute;
+      left: -42px;
+      top: 1px;
+      width: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .idx {
+      font-size: 11px;
+      line-height: 18px;
+      color: var(--ink-faint);
+      background: var(--paper-raised);
+      padding: 0 1px;
+      letter-spacing: .2px;
+    }
+
+    /* 块级标记的入口：激活块的序号下方出现一枚小圆点 */
+    .marker-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--tone, var(--ink-faint));
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone, var(--ink-faint)) 16%, transparent);
+      cursor: pointer;
+      transition: transform .16s ease;
+    }
+
+    .marker-dot:hover {
+      transform: scale(1.25);
+    }
+
+    .marker-dot.empty {
+      background: transparent;
+      box-shadow: inset 0 0 0 1.5px var(--outline);
+    }
+
+    .blk.active .idx {
+      color: #fff;
+      background: var(--acc);
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      text-align: center;
+      padding: 0;
+      font-weight: 600;
+    }
+
+    .blk-body {
+      font-size: 14.5px;
+      line-height: 1.72;
+      color: var(--ink-body);
+      border-radius: var(--r-sm);
+      padding: 3px 8px 3px 9px;
+      margin-left: -9px;
+      transition: background .16s ease;
+    }
+
+    .blk.active .blk-body {
+      background: rgba(25, 25, 23, .045);
+      border-left: 2px solid var(--acc);
+      padding-left: 8px;
+    }
+
+    /* ── 块级语义强调（L1） ── */
+    .emph {
+      border-left: 3px solid var(--tone);
+      background: color-mix(in srgb, var(--tone) 8%, transparent);
+      padding: 6px 10px 6px 9px;
+      margin-left: -9px;
+    }
+
+    .blk.active .emph {
+      border-left: 3px solid var(--tone);
+      background: color-mix(in srgb, var(--tone) 12%, transparent);
+    }
+
+    .emph-tag {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: .8px;
+      color: var(--tone);
+      margin-right: 7px;
+      vertical-align: 1px;
+    }
+
+    .tone-key {
+      --tone: var(--key);
+      --tone-ink: var(--key-ink);
+    }
+
+    .tone-idea {
+      --tone: var(--idea);
+      --tone-ink: var(--idea-ink);
+    }
+
+    .tone-warn {
+      --tone: var(--warn);
+      --tone-ink: var(--warn-ink);
+    }
+
+    .tone-todo {
+      --tone: var(--todo);
+      --tone-ink: var(--todo-ink);
+    }
+
+    /* ============================================================
+     行内字符级关键字着色（L2）—— 单个字也能变色
+     ============================================================ */
+    /* 荧光笔：底色 20% + 文字加深，字级、词组级通用 */
+    .kw {
+      border-radius: 3px;
+      padding: .5px 2px;
+      background: color-mix(in srgb, var(--tone) 20%, transparent);
+      color: var(--tone-ink);
+      font-weight: 600;
+    }
+
+    /* 纯变色：只改文字色，最克制，适合大量关键字 */
+    .kw-ink {
+      border-radius: 0;
+      padding: 0;
+      background: none;
+      color: var(--tone-ink);
+      font-weight: 600;
+    }
+
+    /* 下划线：变色 + 底部 2px 线 */
+    .kw-line {
+      border-radius: 0;
+      padding: 0 1px;
+      background: none;
+      color: var(--tone-ink);
+      font-weight: 600;
+      border-bottom: 2px solid color-mix(in srgb, var(--tone) 48%, transparent);
+    }
+
+    /* 单字强调：给单字加一点底色，避免孤立字显得突兀 */
+    .kw-one {
+      border-radius: 3px;
+      padding: .5px 3.5px;
+      background: color-mix(in srgb, var(--tone) 20%, transparent);
+      color: var(--tone-ink);
+      font-weight: 700;
+    }
+
+    /* ── 选中态（模拟编辑器选区） ── */
+    .sel {
+      background: color-mix(in srgb, var(--acc, #4A5C7A) 22%, transparent);
+      border-radius: 2px;
+    }
+
+    /* ── 浮动选区工具条 ── */
+    .selbar {
+      position: absolute;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #1F1D1A;
+      color: #FAF8F3;
+      border-radius: 999px;
+      padding: 7px 9px;
+      box-shadow: 0 10px 28px -8px rgba(34, 31, 27, .6);
+      transform: translateX(-50%);
+    }
+
+    .selbar::after {
+      content: "";
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      margin-left: -5px;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 5px solid #1F1D1A;
+    }
+
+    .selbar .sb-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      font-size: 13px;
+      color: #FAF8F3;
+      transition: background .14s ease;
+    }
+
+    .selbar .sb-btn:hover {
+      background: rgba(255, 255, 255, .16);
+    }
+
+    .selbar .sb-sw {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform .14s ease;
+    }
+
+    .selbar .sb-sw:hover {
+      transform: scale(1.14);
+    }
+
+    .selbar .sb-sw.sel {
+      border-color: #FAF8F3;
+    }
+
+    .selbar .sb-sep {
+      width: 1px;
+      height: 16px;
+      background: rgba(250, 248, 243, .24);
+      margin: 0 3px;
+    }
+
+    .selbar .sb-more {
+      font-size: 11px;
+      padding: 0 4px;
+      color: rgba(250, 248, 243, .72);
+      cursor: pointer;
+    }
+
+    /* 公式 / 代码 / 分支（沿用上一版） */
+    .blk-latex .blk-body {
+      background: var(--paper-sunken);
+      text-align: center;
+      font-family: var(--serif);
+      font-style: italic;
+      font-size: 15px;
+      padding: 14px 8px;
+      margin: 2px 0;
+    }
+
+    .blk-code .blk-body {
+      border-left: 2px solid var(--outline);
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.7;
+      background: var(--paper-sunken);
+      padding: 9px 12px;
+    }
+
+    .blk-code .lang {
+      float: right;
+      font-family: var(--sans);
+      font-size: 10px;
+      letter-spacing: .6px;
+      color: var(--ink-faint);
+      background: var(--paper-raised);
+      border-radius: 4px;
+      padding: 1px 6px;
+    }
+
+    .branch-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink);
+      background: var(--paper-sunken);
+      border-radius: var(--r-sm);
+      padding: 7px 10px;
+      margin-left: -9px;
+      cursor: pointer;
+    }
+
+    .branch-head .caret {
+      color: var(--ink-faint);
+      font-size: 10px;
+      transition: transform .22s ease;
+    }
+
+    .branch.open .branch-head .caret {
+      transform: rotate(90deg);
+    }
+
+    .branch-head .bcount {
+      margin-left: auto;
+      font-size: 10.5px;
+      font-weight: 400;
+      color: var(--ink-faint);
+    }
+
+    .branch-kids {
+      margin-top: 6px;
+      padding-left: 14px;
+      overflow: hidden;
+      max-height: 400px;
+      transition: max-height .28s cubic-bezier(.2, .8, .3, 1), opacity .2s ease;
+    }
+
+    .branch:not(.open) .branch-kids {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0;
+    }
+
+    .kid {
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: var(--ink-body);
+      padding: 3px 0;
+      margin-bottom: 3px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .kid .knum {
+      flex: 0 0 auto;
+      font-size: 10.5px;
+      color: var(--ink-faint);
+      padding-top: 3px;
+    }
+
+    .insert-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 22px;
+      opacity: .45;
+      cursor: pointer;
+      margin-left: -42px;
+      padding-left: 42px;
+    }
+
+    .insert-line .ln {
+      flex: 1;
+      height: 1px;
+      background: var(--outline);
+    }
+
+    .insert-line .plus {
+      font-size: 11px;
+      color: var(--ink-faint);
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      border: 1px solid var(--outline);
+      display: grid;
+      place-items: center;
+      background: var(--paper-raised);
+      line-height: 1;
+    }
+
+    .insert-line:hover {
+      opacity: 1;
+    }
+
+    /* 右缘索引轨 */
+    .rail {
+      position: absolute;
+      right: 5px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: flex-end;
+      z-index: 20;
+      padding: 6px 4px;
+    }
+
+    .rail .tick {
+      width: 3px;
+      border-radius: 2px;
+      background: var(--acc);
+      opacity: .5;
+      cursor: pointer;
+      transition: all .18s ease;
+    }
+
+    .rail .tick:hover {
+      opacity: 1;
+      width: 6px;
+    }
+
+    .rail .tick.cur {
+      width: 5px;
+      opacity: 1;
+    }
+
+    .rail-bubble {
+      position: absolute;
+      right: 22px;
+      background: rgba(25, 25, 23, .9);
+      color: #fff;
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .16s ease;
+    }
+
+    .rail-bubble.show {
+      opacity: 1;
+    }
+
+    /* 底部工具栏 */
+    .bottombar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 66px;
+      background: var(--paper);
+      border-top: 1px solid var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-evenly;
+      z-index: 25;
+    }
+
+    .tool {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      color: var(--ink-body);
+      font-size: 15px;
+      cursor: pointer;
+      border-radius: 10px;
+      transition: background .16s ease;
+    }
+
+    .tool:hover {
+      background: rgba(25, 25, 23, .06);
+    }
+
+    .tool small {
+      font-size: 10px;
+      letter-spacing: .5px;
+      color: var(--ink-faint);
+    }
+
+    /* 目录浮层 */
+    .scrim {
+      position: absolute;
+      inset: 0;
+      background: rgba(25, 25, 23, .32);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .24s ease;
+      z-index: 40;
+    }
+
+    .scrim.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sheet {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--paper-raised);
+      border-radius: 20px 20px 0 0;
+      padding: 10px 18px 22px;
+      transform: translateY(102%);
+      transition: transform .3s cubic-bezier(.2, .85, .3, 1);
+      z-index: 45;
+      max-height: 74%;
+      overflow-y: auto;
+      box-shadow: 0 -12px 40px -18px rgba(34, 31, 27, .5);
+    }
+
+    .sheet.show {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 34px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--outline);
+      margin: 0 auto 14px;
+    }
+
+    .sheet-title {
+      font-size: 11px;
+      letter-spacing: 1.6px;
+      color: var(--ink-faint);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .outline-item {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 11px 10px;
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background .16s ease;
+    }
+
+    .outline-item:hover {
+      background: var(--paper-sunken);
+    }
+
+    .outline-item.cur {
+      background: color-mix(in srgb, var(--acc) 7%, transparent);
+      border-left-color: var(--acc);
+    }
+
+    .outline-item .num {
+      font-family: var(--serif);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--acc);
+      flex: 0 0 20px;
+    }
+
+    .outline-item .otitle {
+      flex: 1;
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    .outline-item .ocount {
+      font-size: 11px;
+      color: var(--ink-faint);
+    }
+
+    /* 块级标记选择器 */
+    .marker-pop {
+      position: absolute;
+      background: var(--paper-raised);
+      border-radius: 999px;
+      box-shadow: 0 8px 26px -8px rgba(34, 31, 27, .4), 0 0 0 1px var(--hairline);
+      padding: 6px 9px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      z-index: 35;
+      opacity: 0;
+      transform: translateY(4px) scale(.96);
+      pointer-events: none;
+      transition: all .18s cubic-bezier(.2, .9, .3, 1.1);
+    }
+
+    .marker-pop.show {
+      opacity: 1;
+      transform: none;
+      pointer-events: auto;
+    }
+
+    .swatch {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform .14s ease;
+    }
+
+    .swatch:hover {
+      transform: scale(1.16);
+    }
+
+    .swatch.sel {
+      border-color: var(--ink);
+    }
+
+    /* 行内等宽（语法片段） */
+    .mono {
+      font-family: var(--mono);
+      font-size: .92em;
+      color: var(--ink-body);
+    }
+
+    /* ============================================================
+     内联语法 {{ }} —— 编辑态 / 只读态对照
+     ============================================================ */
+    /* 语法字符：编辑态里淡化显示，不喧宾夺主 */
+    .syn {
+      font-family: var(--mono);
+      font-size: .84em;
+      font-weight: 400;
+      color: var(--ink-faint);
+      background: color-mix(in srgb, var(--ink-faint) 13%, transparent);
+      border-radius: 2px;
+      padding: 0 1.5px;
+      letter-spacing: -.2px;
+    }
+
+    /* 源码行：等宽原样展示存储形态 */
+    .src {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.85;
+      color: var(--ink-body);
+      background: var(--paper-sunken);
+      border-radius: var(--r-sm);
+      padding: 9px 11px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 8px 0 0 -9px;
+    }
+
+    .src .syn {
+      background: none;
+      color: var(--ink-muted);
+    }
+
+    .src-cap {
+      font-size: 10.5px;
+      letter-spacing: .6px;
+      color: var(--ink-faint);
+      margin: 14px 0 0 -9px;
+    }
+
+    /* 编辑态文本光标（原型示意）。注意别用 .caret —— 那是分支折叠箭头的类名 */
+    .tx-caret {
+      display: inline-block;
+      width: 1.5px;
+      height: 1.02em;
+      background: var(--ink);
+      vertical-align: -.14em;
+      margin: 0 1px;
+      animation: caretBlink 1.15s step-end infinite;
+    }
+
+    @keyframes caretBlink {
+
+      0%,
+      55% {
+        opacity: 1;
+      }
+
+      56%,
+      100% {
+        opacity: 0;
+      }
+    }
+
+    /* 工具条的行内（非浮动）形态：用于示意"当前工具条处于哪个状态" */
+    .selbar.flat {
+      position: static;
+      transform: none;
+      width: fit-content;
+      margin: 12px 0 0 -9px;
+    }
+
+    .selbar.flat::after {
+      display: none;
+    }
+
+    .mb-flag {
+      font-size: 10.5px;
+      letter-spacing: .5px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: #FAF8F3;
+      white-space: nowrap;
+      margin-left: 2px;
+    }
+
+    /* 编辑 / 只读 状态切换 */
+    #d5 .only-edit {
+      display: none;
+    }
+
+    #d5.show-edit .only-edit {
+      display: block;
+    }
+
+    #d5.show-edit .only-read {
+      display: none;
+    }
+
+    /* 对照表（宽幅区） */
+    .cmp {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+
+    .cmp th,
+    .cmp td {
+      text-align: left;
+      padding: 8px 10px 8px 0;
+      border-bottom: 1px solid var(--hairline);
+      vertical-align: top;
+      line-height: 1.7;
+    }
+
+    .cmp th {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: .5px;
+      color: var(--ink-faint);
+      border-bottom-color: var(--outline);
+    }
+
+    .cmp tr:last-child td {
+      border-bottom: none;
+    }
+
+    .cmp .mono {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--ink-body);
+    }
+
+    .cmp .verdict {
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    .cmp .verdict.no {
+      color: var(--ink-muted);
+    }
+
+    .cmp .verdict.yes {
+      color: var(--idea);
+    }
+
+    /* 宽幅规范区 */
+    .spec {
+      max-width: 1320px;
+      margin: 0 auto 64px;
+      padding: 0 32px;
+    }
+
+    .spec h2 {
+      font-family: var(--serif);
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -.2px;
+      margin: 0 0 8px;
+    }
+
+    .spec > p {
+      font-size: 13px;
+      line-height: 1.8;
+      color: var(--ink-muted);
+      max-width: 880px;
+      margin: 0 0 22px;
+    }
+
+    .spec > p b {
+      color: var(--ink-body);
+    }
+
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 18px;
+      align-items: start;
+    }
+
+    .spec-card {
+      background: #F6F4EF;
+      border: 1px solid var(--hairline);
+      border-radius: var(--r-md);
+      padding: 18px;
+    }
+
+    .spec-card h3 {
+      font-family: var(--serif);
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    .spec-card .sub {
+      font-size: 11.5px;
+      color: var(--ink-faint);
+      line-height: 1.6;
+      margin: 0 0 14px;
+    }
+
+    .spec-card.wide {
+      grid-column: 1 / -1;
+    }
+
+    /* token 图例 */
+    .tokens {
+      max-width: 1320px;
+      margin: 0 auto 80px;
+      padding: 0 32px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(246px, 1fr));
+      gap: 18px;
+    }
+
+    .token-card {
+      background: #F6F4EF;
+      border: 1px solid var(--hairline);
+      border-radius: var(--r-md);
+      padding: 18px 18px 16px;
+    }
+
+    .token-card h3 {
+      font-family: var(--serif);
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+
+    .token-card .sub {
+      font-size: 11.5px;
+      color: var(--ink-faint);
+      line-height: 1.6;
+      margin: 0 0 14px;
+    }
+
+    .swrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 0;
+      font-size: 12.5px;
+      color: var(--ink-body);
+    }
+
+    .swrow .chip {
+      width: 13px;
+      height: 13px;
+      border-radius: 3px;
+      flex: 0 0 13px;
+    }
+
+    .swrow .note {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--ink-faint);
+    }
+
+    .dotrow {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+
+    .dotrow i {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      display: block;
+      position: relative;
+    }
+
+    .dotrow i::after {
+      content: attr(data-n);
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      font-family: var(--serif);
+      font-size: 11px;
+      font-weight: 600;
+      color: #fff;
+      background: rgba(0, 0, 0, .22);
+      border-radius: 7px;
+    }
+
+    /* 行内样式示例行 */
+    .demo-line {
+      font-size: 13.5px;
+      line-height: 1.9;
+      color: var(--ink-body);
+      margin-bottom: 8px;
+    }
+
+    .demo-line:last-child {
+      margin-bottom: 0;
+    }
+
+    .demo-cap {
+      font-size: 10.5px;
+      color: var(--ink-faint);
+      letter-spacing: .6px;
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .legend-note {
+      max-width: 1320px;
+      margin: 0 auto 26px;
+      padding: 0 32px;
+      font-size: 12.5px;
+      color: var(--ink-faint);
+      line-height: 1.8;
+    }
+
+    .legend-note b {
+      color: var(--ink-body);
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="board-head">
+    <p class="kicker">Product Prototype · v4 · 2026-10-02</p>
+    <h1>知录 · 知识点记录模块重新设计</h1>
+    <p>
+      强调体系为三层：<b>L1 块级</b>（整条小点的左缘色条 + 8% 淡底 + 角色标签）、
+      <b>L2 行内</b>（选区 → 起色，<b>单个字也能变色</b>）、<b>L3 弱强调</b>（加粗 <span class="mono">**文字**</span>，无色）。
+      <b>v4 解决"语法用户写不来"这个根本可用性问题</b>：内联语法是<b>存储格式，不是交互</b> ——
+      用户在<b>任何状态</b>都看不到 <span class="mono">{{ }}</span>，也永远不需要打它。
+      机制不是"渲染时藏起来"，而是<b>标记根本不进编辑缓冲</b>：激活块时拆成
+      <span class="mono">可见文本 + span 表</span>，编辑全程发生在可见文本上，保存时才物化回
+      <span class="mono">content</span>。这样光标、选区、输入法全是原生文本行为，
+      退格不可能删到标记（详见画板下方的规范区）。<br>
+      屏 1 静态效果、屏 2 划词起色、屏 3 折叠扫描、屏 4 块级标记、
+      <b>屏 5 语法对照（只读 / 编辑 / 标记中，可切换）</b>。
+    </p>
+    <div class="rule"></div>
+  </header>
+
+  <div class="board">
+
+    <!-- ══════════════ 屏 1：主视图（含行内关键字着色） ══════════════ -->
+    <figure class="device-wrap">
+      <div class="device" id="d1">
+        <div class="statusbar"><span>9:41</span><span class="dots"><i></i><i></i><i></i><i></i></span></div>
+        <div class="topbar">
+          <div class="iconbtn">←</div>
+          <div class="title">知识详情</div>
+          <span class="badge-save">已保存</span>
+          <button class="outline-btn" id="outlineToggle"><span style="font-size:14px;line-height:1">☰</span> 目录</button>
+          <div class="iconbtn">⤴</div>
+        </div>
+
+        <div class="canvas" id="canvas1">
+          <h2 class="note-title">二次型与正定性</h2>
+          <div class="note-tags">
+            <span class="tagchip">数学</span><span class="tagchip">考研</span><span class="tagchip">线代</span>
+          </div>
+
+          <!-- 卡片 01 -->
+          <section class="card" data-card="1" style="--acc: var(--c1)">
+            <div class="card-head">
+              <div class="ident">01</div>
+              <div class="card-headtext">
+                <div class="card-title">惯性定理与规范形</div>
+                <div class="card-summary">标准形中正负平方项的个数由二次型唯一确定</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">5 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body">
+              <div class="blk">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body">
+                  <span class="kw kw-ink tone-key">惯性定理</span>：二次型的标准形中
+                  <span class="kw kw-one tone-idea">正</span>平方项与<span class="kw kw-one tone-idea">负</span>平方项的个数，
+                  由二次型本身<span class="kw kw-line tone-key">唯一确定</span>，与所用的可逆线性变换无关。
+                </div>
+              </div>
+
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">②</span></div>
+                <div class="blk-body emph tone-warn">
+                  <span class="emph-tag">注意</span>只判断顺序主子式全大于零并不充分，需同时确认矩阵
+                  <span class="kw kw tone-warn">对称</span>，否则一切判定失效。
+                </div>
+              </div>
+
+              <div class="blk cross blk-latex">
+                <div class="gutter"><span class="idx">③</span></div>
+                <div class="blk-body">f(x) = Σ<sub>i=1</sub><sup>n</sup> <span class="kw tone-todo">λ<sub>i</sub></span>
+                  y<sub>i</sub>²</div>
+              </div>
+
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">④</span></div>
+                <div class="branch open">
+                  <div class="branch-head">
+                    <span class="caret">▸</span> 正负惯性指数的三种情形
+                    <span class="bcount">2 子点</span>
+                  </div>
+                  <div class="branch-kids">
+                    <div class="kid"><span class="knum">1.1</span><span><span class="kw kw-one tone-idea">正</span>定：p =
+                        n，即全部特征值为正。</span></div>
+                    <div class="kid"><span class="knum">1.2</span><span><span class="kw kw-one tone-warn">负</span>定：q =
+                        n，等价于 −A 正定。</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">⑤</span></div>
+                <div class="blk-body emph tone-idea">
+                  <span class="emph-tag">想法</span>做题先算<span class="kw kw-ink tone-idea">特征值</span>判断符号，
+                  比直接展开顺序主子式更快也更不容易错。
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 卡片 02 -->
+          <section class="card" data-card="2" style="--acc: var(--c2)">
+            <div class="card-head">
+              <div class="ident">02</div>
+              <div class="card-headtext">
+                <div class="card-title">合同变换的性质</div>
+                <div class="card-summary">合同不保持特征值，只保持正负惯性指数</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">3 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body">
+              <div class="blk">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body emph tone-key">
+                  <span class="emph-tag">要点</span>若存在<span class="kw kw-line tone-key">可逆矩阵 C</span>
+                  使 B = CᵀAC，则称 A 与 B 合同。
+                </div>
+              </div>
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">②</span></div>
+                <div class="blk-body">
+                  合同的矩阵具有相同的<span class="kw kw tone-todo">正负惯性指数</span>，
+                  但<span class="kw kw-line tone-warn">特征值</span>一般不同——这是与「相似」最关键的区别。
+                </div>
+              </div>
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">③</span></div>
+                <div class="blk-body emph tone-todo">
+                  <span class="emph-tag">待办</span>补充整理「合同 / 相似 / 等价」三者的包含关系图。
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 卡片 03 -->
+          <section class="card" data-card="3" style="--acc: var(--c3)">
+            <div class="card-head">
+              <div class="ident">03</div>
+              <div class="card-headtext">
+                <div class="card-title">正定矩阵的判定</div>
+                <div class="card-summary">特征值法、顺序主子式法、定义法各自的适用边界</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">4 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body">
+              <div class="blk">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body">
+                  判定正定的三条常用路径：<span class="kw kw-ink tone-idea">特征值全正</span> →
+                  <span class="kw kw-ink tone-key">各阶顺序主子式全正</span> →
+                  <span class="kw kw-ink tone-todo">定义 xᵀAx &gt; 0</span>。
+                </div>
+              </div>
+              <div class="blk cross blk-code">
+                <div class="gutter"><span class="idx">②</span></div>
+                <div class="blk-body"><span class="lang">KOTLIN</span>fun isPositiveDefinite(a: Matrix): Boolean
+                  =<br>&nbsp;&nbsp;a.symmetric &amp;&amp; a.leadingMinors().all
+                  { it &gt; 0 }<br><span
+                    style="font-family:var(--sans);font-size:10.5px;color:var(--ink-faint);float:none;display:block;margin-top:6px">↑
+                    代码块内一律不解析 {{ }} / ** / $，原样显示</span></div>
+              </div>
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">③</span></div>
+                <div class="blk-body">
+                  半正定只要求顺序主子式 ≥ 0 且<span class="kw kw-one tone-idea">秩</span>等于 n，
+                  不能直接套用正定结论。
+                </div>
+              </div>
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">④</span></div>
+                <div class="blk-body emph tone-warn">
+                  <span class="emph-tag">注意</span>顺序主子式全正只是<span class="kw kw-one tone-warn">充</span>分条件之一，
+                  漏掉<span class="kw kw tone-warn">对称性</span>检查是最常见失分点。
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 卡片 04 -->
+          <section class="card" data-card="4" style="--acc: var(--c4)">
+            <div class="card-head">
+              <div class="ident">04</div>
+              <div class="card-headtext">
+                <div class="card-title">常见反例汇总</div>
+                <div class="card-summary">对称但非正定、非对称却正定等典型陷阱</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">2 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body">
+              <div class="blk">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body">
+                  对角线全为正但矩阵不正定：反例 [[1, 2], [2, 1]] 的特征值为
+                  <span class="kw kw-one tone-idea">3</span> 与 <span class="kw kw-one tone-warn">−1</span>。
+                </div>
+              </div>
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">②</span></div>
+                <div class="blk-body">
+                  非对称矩阵讨论正定<span class="kw kw-ink tone-warn">没有意义</span>，
+                  题目中必须先确认 <span class="kw kw-line tone-key">A = Aᵀ</span> 才能进入判定流程。
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div class="insert-line"><span class="ln"></span><span class="plus">+</span></div>
+        </div>
+
+        <div class="rail" id="rail1">
+          <div class="tick cur" style="height:20px;--acc: var(--c1)" data-goto="1"></div>
+          <div class="tick" style="height:13px;--acc: var(--c2)" data-goto="2"></div>
+          <div class="tick" style="height:17px;--acc: var(--c3)" data-goto="3"></div>
+          <div class="tick" style="height:10px;--acc: var(--c4)" data-goto="4"></div>
+          <div class="rail-bubble" id="bubble1">01 惯性定理与规范形</div>
+        </div>
+
+        <div class="scrim" id="scrim1"></div>
+        <div class="sheet" id="sheet1">
+          <div class="sheet-handle"></div>
+          <div class="sheet-title">目录 · 4 个知识点</div>
+          <div class="outline-item cur" style="--acc: var(--c1)" data-goto="1"><span class="num">01</span><span
+              class="otitle">惯性定理与规范形</span><span class="ocount">5</span></div>
+          <div class="outline-item" style="--acc: var(--c2)" data-goto="2"><span class="num">02</span><span
+              class="otitle">合同变换的性质</span><span class="ocount">3</span></div>
+          <div class="outline-item" style="--acc: var(--c3)" data-goto="3"><span class="num">03</span><span
+              class="otitle">正定矩阵的判定</span><span class="ocount">4</span></div>
+          <div class="outline-item" style="--acc: var(--c4)" data-goto="4"><span class="num">04</span><span
+              class="otitle">常见反例汇总</span><span class="ocount">2</span></div>
+        </div>
+
+        <div class="bottombar">
+          <div class="tool"><small>Aa</small></div>
+          <div class="tool" title="标记（选中文字后起色）" style="color:var(--key)">▮</div>
+          <div class="tool">▣</div>
+          <div class="tool">∑</div>
+          <div class="tool">&lt;/&gt;</div>
+          <div class="tool">🔗</div>
+          <div class="tool">▤</div>
+        </div>
+      </div>
+      <figcaption>
+        <b>屏 1 · 主视图（可交互）</b>
+        三种笔触同屏共存，且都写在语法里：
+        <span class="mono">{{k:惯性定理}}</span>、
+        <span class="mono">{{i:正}}</span>（单字）、
+        <span class="mono">{{k-u:唯一确定}}</span>（下划线）。<br>
+        代码块内不做任何解析（见卡片 03）。
+      </figcaption>
+    </figure>
+
+    <!-- ══════════════ 屏 2：划词起色（行内标记交互） ══════════════ -->
+    <figure class="device-wrap">
+      <div class="device" id="d2">
+        <div class="statusbar"><span>9:41</span><span class="dots"><i></i><i></i><i></i><i></i></span></div>
+        <div class="topbar">
+          <div class="iconbtn">←</div>
+          <div class="title">编辑记录</div>
+          <span class="badge-save">已保存</span>
+          <div class="iconbtn">⤴</div>
+        </div>
+
+        <div class="canvas" id="canvas2" style="padding-top:14px">
+          <div class="card focused" style="--acc: var(--c1); margin-top:4px">
+            <div class="card-head">
+              <div class="ident">01</div>
+              <div class="card-headtext">
+                <div class="card-title">惯性定理与规范形</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">5 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body">
+              <!-- 正在划词的小点 -->
+              <div class="blk active">
+                <div class="gutter"><span class="idx">①</span><span class="marker-dot empty"
+                    title="块级语义标记：未标记"></span></div>
+                <div class="blk-body" style="position:relative">
+                  <span class="selbar" style="left:150px; top:-46px">
+                    <span class="sb-sw tone-key" style="background:var(--key)"></span>
+                    <span class="sb-sw tone-idea" style="background:var(--idea)"></span>
+                    <span class="sb-sw tone-warn" style="background:var(--warn)"></span>
+                    <span class="sb-sw tone-todo" style="background:var(--todo)"></span>
+                    <span class="sb-sep"></span>
+                    <span class="sb-btn" title="加粗" style="font-weight:700">B</span>
+                    <span class="sb-btn" title="下划线" style="text-decoration:underline">U</span>
+                    <span class="sb-btn" title="清除格式">✕</span>
+                    <span class="sb-more">▾</span>
+                  </span>
+                  二次型的标准形中<span class="sel">正</span>平方项与负平方项的个数，由二次型本身唯一确定。
+                </div>
+              </div>
+
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">②</span></div>
+                <div class="blk-body emph tone-warn">
+                  <span class="emph-tag">注意</span>需同时确认矩阵<span class="kw kw tone-warn">对称</span>，否则判定失效。
+                </div>
+              </div>
+
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">③</span></div>
+                <div class="blk-body">
+                  做题先算<span class="kw kw-ink tone-idea">特征值</span>判断符号，比展开顺序主子式更快。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 效果对照 -->
+          <div style="margin-top:22px; padding:0 2px">
+            <div class="demo-cap">同一个字的三种强度</div>
+            <div class="demo-line">
+              <span class="kw kw-one tone-warn">秩</span>　·
+              <span class="kw kw-ink tone-warn">秩</span>　·
+              <span class="kw kw-line tone-warn">秩</span>
+            </div>
+            <div class="demo-cap" style="margin-top:12px">一句话里的多个关键字</div>
+            <div class="demo-line">
+              若 <span class="kw kw-line tone-key">A = Aᵀ</span> 且各阶
+              <span class="kw kw-ink tone-idea">顺序主子式</span>全正，
+              则 A 为 <span class="kw kw-one tone-idea">正</span>定矩阵。
+            </div>
+          </div>
+        </div>
+
+        <div class="bottombar">
+          <div class="tool"><small>Aa</small></div>
+          <div class="tool" title="标记（选中文字后起色）" style="color:var(--key)">▮</div>
+          <div class="tool">▣</div>
+          <div class="tool">∑</div>
+          <div class="tool">&lt;/&gt;</div>
+          <div class="tool">🔗</div>
+          <div class="tool">▤</div>
+        </div>
+      </div>
+      <figcaption>
+        <b>屏 2 · 划词起色（行内标记）</b>
+        选中任意字符（含<b>单个字</b>）→ 上方浮出工具条 → 点色即着色。<br>
+        工具条同时给「加粗 / 下划线 / 清除格式」与「更多」入口。
+      </figcaption>
+    </figure>
+
+    <!-- ══════════════ 屏 3：折叠扫描 ══════════════ -->
+    <figure class="device-wrap">
+      <div class="device">
+        <div class="statusbar"><span>9:41</span><span class="dots"><i></i><i></i><i></i><i></i></span></div>
+        <div class="topbar">
+          <div class="iconbtn">←</div>
+          <div class="title">知识详情</div>
+          <span class="badge-save">已保存</span>
+          <button class="outline-btn on">☰ 目录</button>
+          <div class="iconbtn">⤴</div>
+        </div>
+        <div class="canvas">
+          <h2 class="note-title">二次型与正定性</h2>
+          <div class="note-tags"><span class="tagchip">数学</span><span class="tagchip">考研</span><span
+              class="tagchip">线代</span></div>
+
+          <section class="card folded" style="--acc: var(--c1)">
+            <div class="card-head">
+              <div class="ident">01</div>
+              <div class="card-headtext">
+                <div class="card-title">惯性定理与规范形</div>
+                <div class="card-summary">标准形中正负平方项的个数由二次型唯一确定</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">5 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body"></div>
+          </section>
+          <section class="card folded" style="--acc: var(--c2)">
+            <div class="card-head">
+              <div class="ident">02</div>
+              <div class="card-headtext">
+                <div class="card-title">合同变换的性质</div>
+                <div class="card-summary">合同不保持特征值，只保持正负惯性指数</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">3 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body"></div>
+          </section>
+          <section class="card folded" style="--acc: var(--c3)">
+            <div class="card-head">
+              <div class="ident">03</div>
+              <div class="card-headtext">
+                <div class="card-title">正定矩阵的判定</div>
+                <div class="card-summary">特征值法、顺序主子式法、定义法各自的适用边界</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">4 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body"></div>
+          </section>
+          <section class="card folded" style="--acc: var(--c4)">
+            <div class="card-head">
+              <div class="ident">04</div>
+              <div class="card-headtext">
+                <div class="card-title">常见反例汇总</div>
+                <div class="card-summary">对称但非正定、非对称却正定等典型陷阱</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">2 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body"></div>
+          </section>
+          <section class="card folded" style="--acc: var(--c5)">
+            <div class="card-head">
+              <div class="ident">05</div>
+              <div class="card-headtext">
+                <div class="card-title">二次型与矩阵秩</div>
+                <div class="card-summary">秩等于非零特征值个数，与惯性指数联立使用</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">3 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body"></div>
+          </section>
+          <section class="card folded" style="--acc: var(--c6)">
+            <div class="card-head">
+              <div class="ident">06</div>
+              <div class="card-headtext">
+                <div class="card-title">配方法技巧</div>
+                <div class="card-summary">逐步配方化为标准形的完整流程与省略写法</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">6 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body"></div>
+          </section>
+        </div>
+        <div class="rail">
+          <div class="tick cur" style="height:20px;--acc: var(--c1)"></div>
+          <div class="tick" style="height:13px;--acc: var(--c2)"></div>
+          <div class="tick" style="height:17px;--acc: var(--c3)"></div>
+          <div class="tick" style="height:10px;--acc: var(--c4)"></div>
+          <div class="tick" style="height:13px;--acc: var(--c5)"></div>
+          <div class="tick" style="height:22px;--acc: var(--c6)"></div>
+        </div>
+        <div class="bottombar">
+          <div class="tool"><small>Aa</small></div>
+          <div class="tool" title="标记（选中文字后起色）" style="color:var(--key)">▮</div>
+          <div class="tool">▣</div>
+          <div class="tool">∑</div>
+          <div class="tool">&lt;/&gt;</div>
+          <div class="tool">🔗</div>
+          <div class="tool">▤</div>
+        </div>
+      </div>
+      <figcaption>
+        <b>屏 3 · 折叠扫描视图</b>
+        全部折叠后一屏可扫 6+ 个知识点，序号徽标 + 身份色 + 摘要构成骨架，与索引轨互为搭档。
+      </figcaption>
+    </figure>
+
+    <!-- ══════════════ 屏 4：块级标记（L1） ══════════════ -->
+    <figure class="device-wrap">
+      <div class="device">
+        <div class="statusbar"><span>9:41</span><span class="dots"><i></i><i></i><i></i><i></i></span></div>
+        <div class="topbar">
+          <div class="iconbtn">←</div>
+          <div class="title">编辑记录</div><button class="outline-btn">☰ 目录</button>
+        </div>
+        <div class="canvas">
+          <h2 class="note-title">二次型与正定性</h2>
+          <div class="note-tags"><span class="tagchip">数学</span><span class="tagchip">考研</span></div>
+
+          <section class="card focused" style="--acc: var(--c1)">
+            <div class="card-head">
+              <div class="ident">01</div>
+              <div class="card-headtext">
+                <div class="card-title">惯性定理与规范形</div>
+              </div>
+              <div class="card-meta"><span class="count-pill">5 点</span><span class="chev">▾</span></div>
+            </div>
+            <div class="card-body">
+              <div class="blk">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body">
+                  <span class="kw kw-ink tone-key">惯性定理</span>：标准形中正负平方项个数由二次型唯一确定。
+                </div>
+              </div>
+              <div class="insert-line"><span class="ln"></span><span class="plus">+</span></div>
+
+              <div class="blk active">
+                <div class="gutter"><span class="idx">②</span><span class="marker-dot tone-warn"
+                    title="块级语义标记：注意"></span></div>
+                <div class="blk-body emph tone-warn">
+                  <span class="emph-tag">注意</span>只判断顺序主子式全大于零并不充分，需同时确认矩阵
+                  <span class="kw kw tone-warn">对称</span>。
+                </div>
+                <div class="marker-pop show" style="left:-16px;top:40px">
+                  <span class="swatch" style="background:var(--key)" title="要点"></span>
+                  <span class="swatch" style="background:var(--idea)" title="想法"></span>
+                  <span class="swatch sel" style="background:var(--warn)" title="注意"></span>
+                  <span class="swatch" style="background:var(--todo)" title="待办"></span>
+                  <span style="width:1px;height:16px;background:var(--hairline);margin:0 2px"></span>
+                  <span style="font-size:11px;color:var(--ink-faint);padding-right:2px;cursor:pointer">移除</span>
+                </div>
+              </div>
+
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">③</span></div>
+                <div class="blk-body">点 gutter 序号下方的小圆点给整条小点标记语义角色；块内关键字则划词起色。</div>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div class="bottombar">
+          <div class="tool"><small>Aa</small></div>
+          <div class="tool" title="标记（选中文字后起色）" style="color:var(--key)">▮</div>
+          <div class="tool">▣</div>
+          <div class="tool">∑</div>
+          <div class="tool">&lt;/&gt;</div>
+          <div class="tool">🔗</div>
+          <div class="tool">▤</div>
+        </div>
+      </div>
+      <figcaption>
+        <b>屏 4 · 块级标记（L1）</b>
+        与行内标记分工：<b>整条小点</b>用 gutter 序号下方的<b>小圆点</b>标记角色
+        （选中后 = 左缘色条 + 8% 底 + 标签词）；<b>块内字词</b>用划词起色。两者可叠加。
+        <br>圆点位于 gutter 下方，不占用内容区，也不再抢 ⋮ 菜单的长按手势。
+      </figcaption>
+    </figure>
+
+    <!-- ══════════════ 屏 5：内联语法对照（可切换编辑 / 只读） ══════════════ -->
+    <figure class="device-wrap">
+      <div class="device" id="d5">
+        <div class="statusbar"><span>9:41</span><span class="dots"><i></i><i></i><i></i><i></i></span></div>
+        <div class="topbar">
+          <div class="iconbtn">←</div>
+          <div class="title">语法对照</div>
+          <button class="outline-btn" id="stateToggle">看编辑态</button>
+        </div>
+
+        <div class="canvas" id="canvas5">
+          <h2 class="note-title">内联语法 <span class="mono">{{ }}</span></h2>
+          <div class="note-tags">
+            <span class="tagchip">角色前缀必填</span><span class="tagchip">无嵌套</span><span
+              class="tagchip">非法写法原样显示</span>
+          </div>
+
+          <!-- 同一段文本的两个状态 -->
+          <section class="card" style="--acc: var(--c1)">
+            <div class="card-head">
+              <div class="ident">01</div>
+              <div class="card-headtext">
+                <div class="card-title">同一段文本的两个状态</div>
+                <div class="card-summary">两态的文字外观完全一致 —— 标记不在编辑缓冲里</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <!-- 只读态 -->
+              <div class="blk only-read">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body">
+                  <span class="kw kw-ink tone-key">惯性定理</span>：二次型的标准形中
+                  <span class="kw kw-one tone-idea">正</span>平方项的个数，由二次型本身
+                  <span class="kw kw-line tone-key">唯一确定</span>。
+                </div>
+              </div>
+
+              <!-- 编辑态：文字与只读态逐字相同，只多出光标与工具条 -->
+              <div class="blk only-edit active">
+                <div class="gutter"><span class="idx">①</span><span class="marker-dot tone-key"
+                    title="块级语义标记：要点"></span></div>
+                <div class="blk-body">
+                  <span class="kw kw-ink tone-key">惯性定理</span>：二次型的标准形中
+                  <span class="kw kw-one tone-idea">正</span><span class="tx-caret"></span>平方项的个数，由二次型本身
+                  <span class="kw kw-line tone-key">唯一确定</span>。
+                </div>
+                <div class="selbar flat">
+                  <span class="sb-sw tone-key" style="background:var(--key)" title="要点"></span>
+                  <span class="sb-sw sel tone-idea" style="background:var(--idea)" title="想法"></span>
+                  <span class="sb-sw tone-warn" style="background:var(--warn)" title="注意"></span>
+                  <span class="sb-sw tone-todo" style="background:var(--todo)" title="待办"></span>
+                  <span class="sb-sep"></span>
+                  <span class="sb-btn" title="加粗" style="font-weight:700">B</span>
+                  <span class="sb-btn" title="下划线">U</span>
+                  <span class="sb-btn" title="清除格式">✕</span>
+                </div>
+              </div>
+
+              <p class="src-cap">存储形态 —— <b>用户在界面上永远看不到这一段</b>，它只是本文档的说明</p>
+              <pre class="src"><span class="syn">{{k:</span><span
+                    style="color:var(--key-ink);font-weight:600">惯性定理</span><span class="syn">}}</span>：二次型的标准形中<span
+                    class="syn">{{i:</span><span
+                    style="color:var(--idea-ink);font-weight:600">正</span><span
+                    class="syn">}}</span>平方项的个数，由二次型本身<span
+                    class="syn">{{k-u:</span><span
+                    style="color:var(--key-ink);font-weight:600">唯一确定</span><span class="syn">}}</span>。</pre>
+              <p class="src-cap" style="margin-top:8px;line-height:1.75">
+                编辑缓冲里存的是<b>可见文本</b>，标记只在保存时才物化回 <span class="mono">content</span>。
+                所以光标、选区、输入法全是原生文本行为 —— <b>退格不可能删到标记</b>。
+                <br>光标此刻停在 <span class="kw kw-one tone-idea">正</span> 之后，
+                工具条因此<b>自动高亮「想法」</b>：这是用户唯一"看得见格式"的入口。
+              </p>
+            </div>
+          </section>
+
+          <!-- 标记中 -->
+          <section class="card" style="--acc: var(--c4)">
+            <div class="card-head">
+              <div class="ident">02</div>
+              <div class="card-headtext">
+                <div class="card-title">没选字就想用某个色</div>
+                <div class="card-summary">点色块 → 进入「标记中」→ 接着输入的字自动带上</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="blk active">
+                <div class="gutter"><span class="idx">①</span><span class="marker-dot tone-warn"
+                    title="块级语义标记：注意"></span></div>
+                <div class="blk-body">
+                  半正定只要求顺序主子式 ≥ 0 且<span class="kw kw-one tone-warn">秩</span><span
+                    class="tx-caret"></span>
+                </div>
+                <div class="selbar flat">
+                  <span class="sb-sw tone-key" style="background:var(--key)" title="要点"></span>
+                  <span class="sb-sw tone-idea" style="background:var(--idea)" title="想法"></span>
+                  <span class="sb-sw sel tone-warn" style="background:var(--warn)" title="注意"></span>
+                  <span class="sb-sw tone-todo" style="background:var(--todo)" title="待办"></span>
+                  <span class="mb-flag" style="background:var(--warn-ink)">标记中</span>
+                  <span class="sb-sep"></span>
+                  <span class="sb-btn" title="清除格式">✕</span>
+                </div>
+              </div>
+              <p class="src-cap" style="margin-top:10px;line-height:1.75">
+                实现：在光标处放一个<b>零长 span</b>，随后输入自动落入并扩展成形。
+                结束时（再点该色块 / 失焦 / 点别处）若仍为零长则<b>丢弃</b>，不留空标记。
+              </p>
+            </div>
+          </section>
+
+          <!-- 三种笔触 -->
+          <section class="card" style="--acc: var(--c3)">
+            <div class="card-head">
+              <div class="ident">03</div>
+              <div class="card-headtext">
+                <div class="card-title">三种笔触都在语法里</div>
+                <div class="card-summary">笔触是文本的一部分，不是全局显示偏好</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="blk">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body">
+                  <div class="demo-line"><span class="demo-cap">荧光笔（默认）· <span
+                        class="mono">{{k:文字}}</span></span><span class="kw tone-key">惯性定理</span></div>
+                  <div class="demo-line"><span class="demo-cap">纯变色 · <span
+                        class="mono">{{k-c:文字}}</span></span><span class="kw kw-ink tone-key">特征值</span></div>
+                  <div class="demo-line"><span class="demo-cap">下划线 · <span
+                        class="mono">{{k-u:文字}}</span></span><span class="kw kw-line tone-key">唯一确定</span>
+                  </div>
+                  <div class="demo-line"><span class="demo-cap">单字 · 收窄内边距防孤立</span><span
+                      class="kw kw-one tone-key">秩</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 不会被误解析 -->
+          <section class="card" style="--acc: var(--c6)">
+            <div class="card-head">
+              <div class="ident">04</div>
+              <div class="card-headtext">
+                <div class="card-title">这些正文不会被误解析</div>
+                <div class="card-summary">角色前缀必填，且内容不得含 }} —— 巧合写法一律原样</div>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="blk">
+                <div class="gutter"><span class="idx">①</span></div>
+                <div class="blk-body">
+                  对角线全为正但矩阵不正定：反例 <span class="mono">[[1, 2], [2, 1]]</span> 的特征值为
+                  <span class="kw kw-one tone-idea">3</span> 与 <span class="kw kw-one tone-warn">−1</span>。
+                </div>
+              </div>
+              <div class="blk cross">
+                <div class="gutter"><span class="idx">②</span></div>
+                <div class="blk-body">
+                  题目中必须先确认 <span class="mono">A = Aᵀ</span>；编程笔记里的
+                  <span class="mono">if (a == b)</span>、<span class="mono">{{1, 2}}</span> 也都原样显示。
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="bottombar">
+          <div class="tool"><small>Aa</small></div>
+          <div class="tool" title="标记（选中文字后起色）" style="color:var(--key)">▮</div>
+          <div class="tool">▣</div>
+          <div class="tool">∑</div>
+          <div class="tool">&lt;/&gt;</div>
+          <div class="tool">🔗</div>
+          <div class="tool">▤</div>
+        </div>
+      </div>
+      <figcaption>
+        <b>屏 5 · 内联语法对照（可切换）</b>
+        点右上角按钮切换<b>只读态 / 编辑态</b> —— 注意两态的<b>文字外观逐字相同</b>，
+        编辑态只多出光标与工具条，<b>看不到任何标记字符</b>；卡 02 演示"没选字就点色块"→「标记中」。
+        <br>底部工具栏新增第 7 个槽位「<span style="color:var(--key);font-weight:600">▮</span> 标记」：
+        选中文字后点它即可起色，不必长按。
+      </figcaption>
+    </figure>
+
+  </div>
+
+  <!-- ══════════════ 内联语法规范 ══════════════ -->
+  <section class="spec">
+    <h2>内联语法 <span class="mono">{{ }}</span></h2>
+    <p>
+      语法活在 <span class="mono">Block.content</span> 文本里，所以导出 / 导入 / 剪贴板 / AI 全部天然承载，
+      不存会随编辑漂移的字符 offset。<b>角色前缀必填</b>：没有裸写形式，也不存在"最近一次使用的角色"这类会话状态，
+      同一段文本在任何时候渲染结果都一样。
+    </p>
+
+    <div class="spec-grid">
+      <div class="spec-card">
+        <h3>语法定义</h3>
+        <p class="sub">统一用 <span class="mono">{{ }}</span> 包裹，一套符号管到底</p>
+        <table class="cmp">
+          <tr>
+            <td class="mono">{{k:文字}}</td>
+            <td>要点 KEY · 荧光笔（默认）</td>
+          </tr>
+          <tr>
+            <td class="mono">{{i:文字}}</td>
+            <td>想法 IDEA</td>
+          </tr>
+          <tr>
+            <td class="mono">{{w:文字}}</td>
+            <td>注意 WARN</td>
+          </tr>
+          <tr>
+            <td class="mono">{{t:文字}}</td>
+            <td>待办 TODO</td>
+          </tr>
+          <tr>
+            <td class="mono">{{k-c:文字}}</td>
+            <td>纯变色（只改字色，无底）</td>
+          </tr>
+          <tr>
+            <td class="mono">{{k-u:文字}}</td>
+            <td>下划线（变色 + 底线）</td>
+          </tr>
+          <tr>
+            <td class="mono">\{{ &nbsp; \}}</td>
+            <td>转义，输出字面量本身</td>
+          </tr>
+          <tr>
+            <td class="mono">**文字**</td>
+            <td>加粗 —— 既有语法，<b>不新增</b></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="spec-card">
+        <h3>解析优先级</h3>
+        <p class="sub">与既有行内格式<b>合并成一个词法器</b>，左起最先匹配者胜</p>
+        <table class="cmp">
+          <tr>
+            <td class="verdict">1</td>
+            <td class="mono">`代码`</td>
+            <td>内部一律不再解析</td>
+          </tr>
+          <tr>
+            <td class="verdict">2</td>
+            <td class="mono">$公式$</td>
+            <td>行内 LaTeX → 图片（既有）</td>
+          </tr>
+          <tr>
+            <td class="verdict">3</td>
+            <td class="mono">**粗体**</td>
+            <td>既有能力，不变</td>
+          </tr>
+          <tr>
+            <td class="verdict">4</td>
+            <td class="mono">{{角色:内容}}</td>
+            <td>本次新增</td>
+          </tr>
+        </table>
+        <p class="sub" style="margin:12px 0 0">
+          <span class="mono">{{...}}</span> 的内容内<b>不再解析</b>其它标记（含 <span class="mono">$公式$</span>）：
+          公式请写在标记之外，例如 <span class="mono">{{k:唯一确定}}$x^2$</span>。
+        </p>
+      </div>
+
+      <div class="spec-card">
+        <h3>为什么不是 <span class="mono">[[ ]]</span></h3>
+        <p class="sub">原稿断言"只有代码会冲突"，被本原型自己推翻了</p>
+        <div class="demo-line">数学里的嵌套数组：<span class="mono">[[1, 2], [2, 1]]</span></div>
+        <div class="demo-line">Obsidian / Markdown 的 wiki-link：<span class="mono">[[笔记名]]</span></div>
+        <div class="demo-line">C++ 属性：<span class="mono">[[nodiscard]]</span></div>
+        <div class="demo-line" style="color:var(--ink-faint);margin-top:10px">
+          按旧规则（<span class="mono">[[</span> 后可"直接是内容"），第一行会被解析成"把
+          <span class="mono">1, 2], [2, 1</span> 着色"——静默改变正文外观。
+        </div>
+      </div>
+
+      <div class="spec-card wide">
+        <h3>不会被误解析的正文（逐字原样显示）</h3>
+        <p class="sub">容错是硬要求：AI 与用户都可能写错，写错不能造成正文缺失或变形</p>
+        <table class="cmp">
+          <tr>
+            <th style="width:34%">正文写法</th>
+            <th style="width:18%">结果</th>
+            <th>原因</th>
+          </tr>
+          <tr>
+            <td class="mono">[[1, 2], [2, 1]]</td>
+            <td class="verdict no">原样显示</td>
+            <td>不以 <span class="mono">{{</span> 开头，不构成标记</td>
+          </tr>
+          <tr>
+            <td class="mono">A = Aᵀ</td>
+            <td class="verdict no">原样显示</td>
+            <td>等号不再是标记字符</td>
+          </tr>
+          <tr>
+            <td class="mono">if (a == b)</td>
+            <td class="verdict no">原样显示</td>
+            <td>同上（原稿担心过的 <span class="mono">==</span> 冲突已不存在）</td>
+          </tr>
+          <tr>
+            <td class="mono">{{1, 2}}</td>
+            <td class="verdict no">原样显示</td>
+            <td>角色字母不合法（必须为 k / i / w / t）</td>
+          </tr>
+          <tr>
+            <td class="mono">{{k:}}</td>
+            <td class="verdict no">原样显示</td>
+            <td>内容为空</td>
+          </tr>
+          <tr>
+            <td class="mono">{{k:未闭合</td>
+            <td class="verdict no">原样显示</td>
+            <td>未成对</td>
+          </tr>
+          <tr>
+            <td class="mono">{{k:含 }} 的内容}}</td>
+            <td class="verdict no">原样显示</td>
+            <td>内容不得包含 <span class="mono">}}</span>（不支持嵌套）</td>
+          </tr>
+          <tr>
+            <td class="mono">{{k:文字}}</td>
+            <td class="verdict yes">着色文字</td>
+            <td>唯一成立的形式</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="spec-card wide">
+        <h3>编辑期边界规则（<span class="mono">adjustSpans</span>）</h3>
+        <p class="sub">
+          标记不进编辑缓冲后，真正要定义清楚的是"这次编辑让已有的 span 怎么变"。
+          这张表是<b>穷举单测的规格</b>，不是"看起来合理就行"——边界语义不定死，"在标记末尾继续打字"就会时对时错。
+        </p>
+        <table class="cmp">
+          <tr>
+            <th style="width:46%">编辑动作</th>
+            <th style="width:18%">span 处理</th>
+            <th>理由</th>
+          </tr>
+          <tr>
+            <td>在 span <b>内部</b>插入</td>
+            <td class="verdict yes">扩展</td>
+            <td>明显</td>
+          </tr>
+          <tr>
+            <td>在 span <b>末尾</b>插入（caret == end）</td>
+            <td class="verdict yes">扩展</td>
+            <td>"我在接着写这个要点" —— 高频意图</td>
+          </tr>
+          <tr>
+            <td>在 span <b>起始</b>插入（caret == start）</td>
+            <td class="verdict no">不扩展</td>
+            <td>"新写的字不属于这个标记"</td>
+          </tr>
+          <tr>
+            <td>删除与 span 相交</td>
+            <td class="verdict no">按交叠长度收缩</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>删除完全覆盖 span</td>
+            <td class="verdict no">删除该 span</td>
+            <td>文字按用户选择删，意图明确</td>
+          </tr>
+          <tr>
+            <td><b>零长 span</b>（「标记中」）处的输入</td>
+            <td class="verdict yes">扩展</td>
+            <td>「标记中」就靠这一条实现</td>
+          </tr>
+          <tr>
+            <td>粘贴 / 输入含换行</td>
+            <td class="verdict no">在换行处断开</td>
+            <td>内联标记不跨行</td>
+          </tr>
+          <tr>
+            <td>全选删除</td>
+            <td class="verdict no">span 全清</td>
+            <td></td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="spec-card wide">
+        <h3>为什么不用 <span class="mono">VisualTransformation</span></h3>
+        <p class="sub">"让标记不可见"有两条路，这是被否掉的那条以及替代它的那条</p>
+        <table class="cmp">
+          <tr>
+            <th style="width:26%">方案</th>
+            <th>问题 / 结果</th>
+          </tr>
+          <tr>
+            <td class="mono">VisualTransformation<br>+ 自定义 OffsetMapping</td>
+            <td>
+              <b>它只改渲染与命中测试，不改编辑语义。</b>缓冲里仍是带标记的全文，退格按<b>原坐标</b>删字符 ——
+              光标停在内容开头按退格，删掉的是 <span class="mono">:</span> 而不是前面的字。
+              要修就得再叠一套"编辑意图修复"；而它与中文输入法组合输入（composing）的组合
+              是 Compose 文本里最容易出 bug 的地方，风险全落在只有真机能验的地方。
+            </td>
+          </tr>
+          <tr>
+            <td>可见文本缓冲<br>+ 会话内 span 表 <span class="verdict yes">采用</span></td>
+            <td>
+              编辑缓冲里<b>根本没有标记</b>，光标 / 选区 / 输入法全是原生文本行为。
+              落库仍是 <span class="mono">content</span> 文本（标记跟着字符走），
+              span 表是<b>会话内派生物</b>、随时可从文本重建 —— 因此<b>只有一个真相</b>，不是"offset 又回来了"。
+              全部风险集中在三个纯函数（<span class="mono">parseSpans</span> /
+              <span class="mono">materialize</span> / <span class="mono">adjustSpans</span>）上，可穷举单测。
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="spec-card wide">
+        <h3>色源与分工（v3 修正）</h3>
+        <p class="sub">一色一义：身份色与内容色必须同族、不同值、不同位置</p>
+        <table class="cmp">
+          <tr>
+            <th style="width:20%">用途</th>
+            <th style="width:24%">来源</th>
+            <th>取值</th>
+            <th style="width:26%">出现位置</th>
+          </tr>
+          <tr>
+            <td>语义角色（内容）</td>
+            <td class="mono">AccentPalette.primary</td>
+            <td>赭土 <span class="mono">#7C5C31</span> / 苔绿 <span class="mono">#4B6B4F</span> /
+              绛红 <span class="mono">#8A4550</span> / 松石 <span class="mono">#3D6E6B</span></td>
+            <td>行内底色 20%、块级左缘 3dp 条、角色标签词</td>
+          </tr>
+          <tr>
+            <td>卡片身份（容器）</td>
+            <td class="mono">TagColors</td>
+            <td>7 色低饱和批次（<span class="mono">#4A5C7A</span> 墨蓝起）</td>
+            <td>序号徽标底色 12%、心线 26%、折叠竖条</td>
+          </tr>
+          <tr>
+            <td>主题强调色（控件）</td>
+            <td class="mono">AccentColor</td>
+            <td>7 色，用户在设置里可换</td>
+            <td>聚焦描边、按钮、图标</td>
+          </tr>
+        </table>
+        <p class="sub" style="margin:14px 0 0;line-height:1.8">
+          卡片身份色<b>刻意不用</b> AccentPalette 的 primary：赭土 / 苔绿 / 绛红 / 松石 这 4 个 primary
+          与 4 个语义角色<b>逐值相同</b>，会让"卡片 02 的心线"和"这条小点的要点标记"变成同一个颜色。
+          TagColors 是同一色相家族的低饱和版本，既不与语义色撞值，也与标签胶囊一致，
+          而且"身份色比内容色更淡"正好符合「容器让位于内容」。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ token 图例 ══════════════ -->
+  <p class="legend-note">
+    <b>三层强调的分工：</b>L1 块级 = 一整条小点的性质（<b>要点 / 想法 / 注意 / 待办</b>）；
+    L2 行内 = 句中的关键字，字级生效，<b>单个字也能变色</b>，三种笔触都写在语法里；
+    L3 弱强调 = 加粗（<span class="mono">**文字**</span>），无色。
+    行内着色复用块级那套 4 角色色，但取「加深墨色」（<span class="kw kw-ink tone-key">--key-ink</span> 等）以保证小字可读。<br>
+    <b>v3 的两条修正：</b>语义色<b>派生自</b>既有 <span class="mono">AccentPalette</span>（不新写色值）；
+    卡片身份色改用 <span class="mono">TagColors</span> 低饱和批次（<span class="mono">AccentPalette.primary</span>
+    与 4 个语义角色逐值撞色）。<br>
+    <b>v4 的关键：</b>内联语法是<b>存储格式，不是交互</b> —— 用户在任何状态都看不到、也不需要打
+    <span class="mono">{{ }}</span>。所有着色动作都是"选字 → 点色块"或"点色块 → 接着打字"，
+    <b>全程零输入</b>；标记只在保存那一刻物化进 <span class="mono">content</span>。
+  </p>
+
+  <section class="tokens">
+    <div class="token-card">
+      <h3>行内着色的三种笔触</h3>
+      <p class="sub">同一角色色，三种笔触；<b>笔触写在语法里</b>，逐处指定</p>
+      <div class="demo-line"><span class="demo-cap">荧光笔（默认）· <span
+            class="mono">{{k:文字}}</span></span><span class="kw tone-key">惯性定理</span></div>
+      <div class="demo-line"><span class="demo-cap">纯变色 · <span
+            class="mono">{{k-c:文字}}</span></span><span class="kw kw-ink tone-key">特征值</span></div>
+      <div class="demo-line"><span class="demo-cap">下划线 · <span
+            class="mono">{{k-u:文字}}</span></span><span class="kw kw-line tone-key">唯一确定</span></div>
+      <div class="demo-line"><span class="demo-cap">单字 · 收窄内边距防孤立</span><span class="kw kw-one tone-key">秩</span>
+      </div>
+    </div>
+
+    <div class="token-card">
+      <h3>语义色 · 4 角色</h3>
+      <p class="sub">块级与行内共用；色值派生自 <span class="mono">AccentPalette</span></p>
+      <div class="swrow"><span class="chip" style="background:var(--key)"></span>要点 · 定义 / 结论<span
+          class="note">OCHRE</span>
+      </div>
+      <div class="swrow"><span class="chip" style="background:var(--idea)"></span>想法 · 理解 / 灵感<span
+          class="note">MOSS</span>
+      </div>
+      <div class="swrow"><span class="chip" style="background:var(--warn)"></span>注意 · 易错 / 存疑<span
+          class="note">CRIMSON</span>
+      </div>
+      <div class="swrow"><span class="chip" style="background:var(--todo)"></span>待办 · 跟进 / 延伸<span
+          class="note">TEAL</span>
+      </div>
+      <div class="demo-line" style="margin-top:10px">
+        <span class="kw tone-key">要点</span> <span class="kw tone-idea">想法</span>
+        <span class="kw tone-warn">注意</span> <span class="kw tone-todo">待办</span>
+      </div>
+    </div>
+
+    <div class="token-card">
+      <h3>卡片身份色 · 显式轮转序</h3>
+      <p class="sub">取自 <span class="mono">TagColors</span> 低饱和批次；仅作用于徽标底色 / 心线 / 折叠竖条，不整卡染色</p>
+      <div class="dotrow">
+        <i style="background:var(--c1)" data-n="01"></i><i style="background:var(--c2)" data-n="02"></i>
+        <i style="background:var(--c3)" data-n="03"></i><i style="background:var(--c4)" data-n="04"></i>
+        <i style="background:var(--c5)" data-n="05"></i><i style="background:var(--c6)" data-n="06"></i>
+        <i style="background:var(--c7)" data-n="07"></i>
+      </div>
+      <p class="sub" style="margin:12px 0 0">
+        墨蓝 → 赭土 → 松石 → 绛红 → 苔绿 → 石墨 → 黛紫。前 5 张覆盖 5 个色族；
+        <b>不用取模公式</b>——按真实色板代入 <span class="mono">(i×3)%7</span> 会让前 4 张卡落在
+        苔绿 / 石墨 / 松石这段低对比区间。
+      </p>
+    </div>
+
+    <div class="token-card">
+      <h3>使用约束</h3>
+      <p class="sub">防止"处处高亮 = 没有高亮"</p>
+      <div class="swrow">行内着色占比<span class="note">建议 ≤ 20%</span></div>
+      <div class="swrow">单块最多角色数<span class="note">2 种</span></div>
+      <div class="swrow">WARN 与报错红<span class="note">不同时出现</span></div>
+      <div class="swrow">语义色随主题变<span class="note">不跟随</span></div>
+      <div class="swrow">身份色与内容色<span class="note">同族不同值</span></div>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      // ── 屏 1：目录 / 索引轨 / 折叠 ──
+      var d1 = document.getElementById('d1');
+      var canvas = document.getElementById('canvas1');
+      var sheet = document.getElementById('sheet1');
+      var scrim = document.getElementById('scrim1');
+      var toggle = document.getElementById('outlineToggle');
+      var rail = document.getElementById('rail1');
+      var bubble = document.getElementById('bubble1');
+
+      function openSheet(open) {
+        sheet.classList.toggle('show', open);
+        scrim.classList.toggle('show', open);
+        toggle.classList.toggle('on', open);
+      }
+      toggle.addEventListener('click', function () { openSheet(!sheet.classList.contains('show')); });
+      scrim.addEventListener('click', function () { openSheet(false); });
+
+      function gotoCard(n) {
+        var card = canvas.querySelector('.card[data-card="' + n + '"]');
+        if (!card) return;
+        canvas.scrollTo({ top: card.offsetTop - 12, behavior: 'smooth' });
+        card.classList.add('focused');
+        setTimeout(function () { card.classList.remove('focused'); }, 900);
+        rail.querySelectorAll('.tick').forEach(function (t) { t.classList.toggle('cur', t.dataset.goto === String(n)); });
+        sheet.querySelectorAll('.outline-item').forEach(function (t) { t.classList.toggle('cur', t.dataset.goto === String(n)); });
+      }
+      sheet.querySelectorAll('.outline-item').forEach(function (item) {
+        item.addEventListener('click', function () { gotoCard(item.dataset.goto); openSheet(false); });
+      });
+      rail.querySelectorAll('.tick').forEach(function (tick) {
+        tick.addEventListener('click', function () { gotoCard(tick.dataset.goto); });
+        tick.addEventListener('mouseenter', function () {
+          var n = tick.dataset.goto;
+          var item = sheet.querySelector('.outline-item[data-goto="' + n + '"]');
+          bubble.textContent = item ? item.querySelector('.num').textContent + ' ' + item.querySelector('.otitle').textContent : '';
+          bubble.style.top = (tick.offsetTop - 4) + 'px';
+          bubble.classList.add('show');
+        });
+        tick.addEventListener('mouseleave', function () { bubble.classList.remove('show'); });
+      });
+      canvas.addEventListener('scroll', function () {
+        var cards = canvas.querySelectorAll('.card[data-card]');
+        var mid = canvas.scrollTop + 120, cur = '1';
+        cards.forEach(function (c) { if (c.offsetTop <= mid) cur = c.dataset.card; });
+        rail.querySelectorAll('.tick').forEach(function (t) { t.classList.toggle('cur', t.dataset.goto === cur); });
+        sheet.querySelectorAll('.outline-item').forEach(function (t) { t.classList.toggle('cur', t.dataset.goto === cur); });
+      });
+
+      // 折叠 / 分支（全画板生效）
+      document.querySelectorAll('.card-head').forEach(function (head) {
+        head.addEventListener('click', function () { head.closest('.card').classList.toggle('folded'); });
+      });
+      document.querySelectorAll('.branch-head').forEach(function (h) {
+        h.addEventListener('click', function (e) { e.stopPropagation(); h.closest('.branch').classList.toggle('open'); });
+      });
+
+      // ── 屏 2：划词起色演示（点工具条色块，给选中字着色） ──
+      var selbar = document.querySelector('#d2 .selbar');
+      if (selbar) {
+        selbar.querySelectorAll('.sb-sw').forEach(function (sw) {
+          sw.addEventListener('click', function () {
+            var toneClass = sw.classList.contains('tone-key') ? 'tone-key'
+              : sw.classList.contains('tone-idea') ? 'tone-idea'
+                : sw.classList.contains('tone-warn') ? 'tone-warn' : 'tone-todo';
+            selbar.querySelectorAll('.sb-sw').forEach(function (s) { s.classList.remove('sel'); });
+            sw.classList.add('sel');
+            // 找到选中字，套用对应色（先清旧角色类）
+            var target = document.querySelector('#d2 .sel');
+            if (target) {
+              ['tone-key', 'tone-idea', 'tone-warn', 'tone-todo'].forEach(function (c) { target.classList.remove(c); });
+              target.classList.add(toneClass);
+              target.dataset.picked = '1';
+            }
+          });
+        });
+        var bold = selbar.querySelector('[title="加粗"]');
+        if (bold) bold.addEventListener('click', function () {
+          var t = document.querySelector('#d2 .sel');
+          if (t) t.style.fontWeight = t.style.fontWeight === '700' ? '' : '700';
+        });
+        var clear = selbar.querySelector('[title="清除格式"]');
+        if (clear) clear.addEventListener('click', function () {
+          var t = document.querySelector('#d2 .sel');
+          if (t) { ['tone-key', 'tone-idea', 'tone-warn', 'tone-todo'].forEach(function (c) { t.classList.remove(c); }); t.style.fontWeight = ''; }
+        });
+      }
+
+      // 点任意 .kw 提示（仅屏 2 的对照区做个小反馈）
+      document.querySelectorAll('#d2 .demo-line .kw').forEach(function (k) {
+        k.style.cursor = 'pointer';
+        k.addEventListener('click', function () {
+          k.classList.toggle('kw-one');
+          k.classList.toggle('kw-ink');
+        });
+      });
+
+      // ── 屏 5：只读态 / 编辑态切换 ──
+      var d5 = document.getElementById('d5');
+      var stateToggle = document.getElementById('stateToggle');
+      if (d5 && stateToggle) {
+        stateToggle.addEventListener('click', function () {
+          var editing = d5.classList.toggle('show-edit');
+          stateToggle.classList.toggle('on', editing);
+          stateToggle.textContent = editing ? '看只读态' : '看编辑态';
+        });
+      }
+    })();
+  </script>
+</body>
+
+</html>
