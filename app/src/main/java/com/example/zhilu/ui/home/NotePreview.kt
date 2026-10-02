@@ -27,19 +27,22 @@ fun formatTime(timestamp: Long): String {
 }
 
 fun notePreviewText(note: Note): String? {
-    note.blocks.firstOrNull { it.type == BlockType.TEXT && it.content.isNotBlank() }?.let {
+    // 统一走 contentBlocks：有知识卡片的笔记块挂在卡片下，note.blocks 是空的，
+    // 直接读会让这类笔记在列表里没有摘要。
+    val blocks = note.contentBlocks
+    blocks.firstOrNull { it.type == BlockType.TEXT && it.content.isNotBlank() }?.let {
         return it.content.trim()
     }
-    note.blocks.firstOrNull { it.type == BlockType.BRANCH && it.content.isNotBlank() }?.let {
+    blocks.firstOrNull { it.type == BlockType.BRANCH && it.content.isNotBlank() }?.let {
         return it.content.trim()
     }
-    note.blocks.firstOrNull { it.type == BlockType.CODE && it.content.isNotBlank() }?.let {
+    blocks.firstOrNull { it.type == BlockType.CODE && it.content.isNotBlank() }?.let {
         return it.content.trim().lineSequence().first().take(80)
     }
-    note.blocks.firstOrNull { it.type == BlockType.LINK && it.content.isNotBlank() }?.let {
+    blocks.firstOrNull { it.type == BlockType.LINK && it.content.isNotBlank() }?.let {
         return it.content.trim()
     }
-    note.blocks.firstOrNull { it.type == BlockType.LATEX && it.content.isNotBlank() }?.let {
+    blocks.firstOrNull { it.type == BlockType.LATEX && it.content.isNotBlank() }?.let {
         return it.content.trim()
     }
     return null

@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
@@ -33,11 +32,13 @@ import com.example.zhilu.ui.theme.ZhiLuType
 enum class NoteRowVariant { Document, Card }
 
 /**
- * 全站统一的笔记列表行：左侧通高标签色书脊 + 标题 + 摘要 + 标签 + 元信息行。
+ * 全站统一的笔记列表行：标题 + 摘要 + 标签 + 元信息行。
  * Home / Tags / 搜索结果共用。
  *
- * @param variant Document 为纯文档行（无卡片、无描边、无阴影）；Card 为白纸卡片。
- * @param accentColor 书脊颜色，默认取首个标签色。
+ * @param variant Document 为纯文档行（无卡片、无描边、无阴影，左缘带通高色书脊）；
+ *   Card 为圆角纸卡——书脊在卡片上会被圆角切成一枚两头收窄的细条，看着像渲染瑕疵，
+ *   因此卡片形态不带书脊，标签色在标签行里照样看得到。
+ * @param accentColor 书脊颜色，默认取首个标签色；仅 Document 形态使用。
  * @param dense 紧凑模式：摘要收为单行、隐藏标签与元信息。
  */
 @Composable
@@ -52,10 +53,6 @@ fun NoteRow(
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null
 ) {
-    val accent = rememberTagAccent(
-        tagColor = note.tags.firstOrNull()?.color,
-        colorOverride = accentColor
-    )
     val titleStyle = when (variant) {
         NoteRowVariant.Document -> ZhiLuType.rowTitle
         NoteRowVariant.Card -> ZhiLuType.cardTitle
@@ -66,32 +63,21 @@ fun NoteRow(
             modifier = modifier,
             onClick = onClick,
             onLongClick = onLongClick,
-            contentPadding = PaddingValues(0.dp)
+            contentPadding = PaddingValues(Spacing.CardPadding)
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .accentSpine(accent),
-                verticalAlignment = Alignment.Top
-            ) {
-                NoteRowBody(
-                    note = note,
-                    titleStyle = titleStyle,
-                    highlightQuery = highlightQuery,
-                    dense = dense,
-                    trailing = trailing,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(
-                            start = DocumentSpineGap,
-                            end = Spacing.CardPadding,
-                            top = Spacing.CardPadding,
-                            bottom = Spacing.CardPadding
-                        )
-                )
-            }
+            NoteRowBody(
+                note = note,
+                titleStyle = titleStyle,
+                highlightQuery = highlightQuery,
+                dense = dense,
+                trailing = trailing
+            )
         }
     } else {
+        val accent = rememberTagAccent(
+            tagColor = note.tags.firstOrNull()?.color,
+            colorOverride = accentColor
+        )
         DocumentRow(
             accent = accent,
             modifier = modifier,
@@ -156,8 +142,10 @@ private fun NoteRowBody(
 }
 
 private fun noteMetaParts(note: Note): List<String> = buildList {
-    val imageCount = note.blocks.count { it.type == BlockType.IMAGE }
-    val linkCount = note.blocks.count { it.type == BlockType.LINK }
+    // contentBlocks 而非 blocks：有知识卡片的笔记，直接读 blocks 会让图/链计数恒为 0。
+    val blocks = note.contentBlocks
+    val imageCount = blocks.count { it.type == BlockType.IMAGE }
+    val linkCount = blocks.count { it.type == BlockType.LINK }
     if (imageCount > 0) add("图 $imageCount")
     if (linkCount > 0) add("链 $linkCount")
     add(formatTime(note.updatedAt))

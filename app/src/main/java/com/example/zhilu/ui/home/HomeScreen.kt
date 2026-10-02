@@ -70,6 +70,9 @@ fun HomeScreen(
         if (listState.isScrollInProgress) reveal = null
     }
 
+    // 进入 / 退出搜索等于换了一套列表，露出态同样作废。
+    LaunchedEffect(uiState.isSearchActive) { reveal = null }
+
     // 收藏是可逆动作，不需要二次确认，但必须给一个看得见、能退回的反馈。
     val onToggleFavorite: (Note) -> Unit = { note ->
         val target = !note.isFavorite
@@ -125,7 +128,12 @@ fun HomeScreen(
                     mediaCount = uiState.mediaCount,
                     viewMode = uiState.viewMode,
                     onSelectViewMode = { mode ->
-                        if (mode != uiState.viewMode) viewModel.toggleViewMode()
+                        if (mode != uiState.viewMode) {
+                            // 换视图等于换一套列表，露出态跟着作废——否则新视图里第一行
+                            // 会莫名其妙带着上一次的「删除」槽出现。
+                            reveal = null
+                            viewModel.toggleViewMode()
+                        }
                     }
                 )
                 if (searchFocused && uiState.recentQueries.isNotEmpty()) {
