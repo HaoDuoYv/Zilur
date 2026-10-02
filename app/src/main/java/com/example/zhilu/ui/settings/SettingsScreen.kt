@@ -99,7 +99,9 @@ fun SettingsScreen(
 
             AppearanceSection(
                 themeMode = state.themeMode,
-                onSelect = viewModel::setThemeMode
+                accentColor = state.accentColor,
+                onSelectThemeMode = viewModel::setThemeMode,
+                onSelectAccent = viewModel::setAccentColor
             )
 
             DataSection(

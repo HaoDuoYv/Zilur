@@ -10,6 +10,7 @@ import com.example.zhilu.data.ai.dto.ChatCompletionRequest
 import com.example.zhilu.data.ai.dto.ChatMessageDto
 import com.example.zhilu.data.ai.dto.textContent
 import com.example.zhilu.domain.model.AiConfig
+import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.BlockType
@@ -63,6 +64,11 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            userPreferences.accentColor.collect { accent ->
+                _uiState.update { it.copy(accentColor = accent) }
+            }
+        }
+        viewModelScope.launch {
             userPreferences.remindersEnabled.collect { enabled ->
                 _uiState.update { it.copy(remindersEnabled = enabled) }
             }
@@ -77,6 +83,12 @@ class SettingsViewModel @Inject constructor(
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch {
             userPreferences.setThemeMode(mode)
+        }
+    }
+
+    fun setAccentColor(accent: AccentColor) {
+        viewModelScope.launch {
+            userPreferences.setAccentColor(accent)
         }
     }
 

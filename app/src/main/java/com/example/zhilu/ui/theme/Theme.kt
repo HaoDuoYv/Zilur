@@ -7,6 +7,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -14,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 
 private val LightColorScheme = lightColorScheme(
@@ -73,6 +75,7 @@ private val DarkColorScheme = darkColorScheme(
 @Composable
 fun ZhiLuTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
+    accentColor: AccentColor = AccentColor.INK,
     // Disabled by default to preserve the editorial brand palette across devices.
     dynamicColor: Boolean = false,
     content: @Composable () -> Unit
@@ -90,7 +93,7 @@ fun ZhiLuTheme(
         }
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
-    }
+    }.withAccent(accentColor = accentColor, darkTheme = darkTheme)
 
     val view = LocalView.current
     val context = LocalContext.current
@@ -116,6 +119,26 @@ fun ZhiLuTheme(
             content = content
         )
     }
+}
+
+/**
+ * 把用户选的强调色盖到基线方案上。
+ *
+ * 只替换 `primary` 这一族（含各自的 `on*`）：它是 M3 里「应用强调色」的落点，
+ * FAB、进度条、开关、选中态、顶部操作都挂在它上面。
+ * 其余角色保持纸墨基线不变——见 [accentPaint] 关于为什么不整体换色的说明。
+ *
+ * 注意 [dynamicColor] 分支也走这里：动态色生效时用户选的强调色优先，
+ * 否则设置里的选择会神秘失效。
+ */
+private fun ColorScheme.withAccent(accentColor: AccentColor, darkTheme: Boolean): ColorScheme {
+    val roles = accentRoles(accent = accentColor, darkTheme = darkTheme)
+    return copy(
+        primary = roles.primary,
+        onPrimary = roles.onPrimary,
+        primaryContainer = roles.primaryContainer,
+        onPrimaryContainer = roles.onPrimaryContainer
+    )
 }
 
 private fun Context.isReduceMotionEnabled(): Boolean {

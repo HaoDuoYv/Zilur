@@ -30,11 +30,51 @@ enum class ThemeMode {
     }
 }
 
+/**
+ * 应用强调色。
+ *
+ * 这里只放「标识」，具体色值在 ui 层的 `AccentPalette` 里。之所以分开：
+ * DataStore 只需要一个稳定的名字来持久化，色值随设计调整时不应该动到存储层。
+ *
+ * [INK] 是出厂默认，色值等于主题原本的主色；追加新色时请把新项放在末尾，
+ * 避免打乱既有用户的持久化值（存的是 [name]）。
+ */
+enum class AccentColor {
+    /** 墨蓝：出厂默认，与最初的纸墨主题一致。 */
+    INK,
+
+    /** 黛紫。 */
+    VIOLET,
+
+    /** 松石青。 */
+    TEAL,
+
+    /** 苔绿。 */
+    MOSS,
+
+    /** 赭土黄。 */
+    OCHRE,
+
+    /** 绛红。 */
+    CRIMSON,
+
+    /** 石墨灰：最接近「无彩色」的一档。 */
+    GRAPHITE;
+
+    companion object {
+        val DEFAULT: AccentColor = INK
+
+        fun fromRaw(raw: String?): AccentColor =
+            entries.firstOrNull { it.name == raw } ?: DEFAULT
+    }
+}
+
 @Singleton
 class UserPreferences @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val themeModeKey = stringPreferencesKey("theme_mode")
+    private val accentColorKey = stringPreferencesKey("accent_color")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val aiProviderKey = stringPreferencesKey("ai_provider")
     private val aiEndpointKey = stringPreferencesKey("ai_endpoint")
@@ -44,6 +84,10 @@ class UserPreferences @Inject constructor(
 
     val themeMode: Flow<ThemeMode> = context.userPreferencesStore.data.map { prefs ->
         ThemeMode.fromRaw(prefs[themeModeKey])
+    }
+
+    val accentColor: Flow<AccentColor> = context.userPreferencesStore.data.map { prefs ->
+        AccentColor.fromRaw(prefs[accentColorKey])
     }
 
     val remindersEnabled: Flow<Boolean> = context.userPreferencesStore.data.map { prefs ->
@@ -63,6 +107,12 @@ class UserPreferences @Inject constructor(
     suspend fun setThemeMode(mode: ThemeMode) {
         context.userPreferencesStore.edit { prefs ->
             prefs[themeModeKey] = mode.name
+        }
+    }
+
+    suspend fun setAccentColor(accent: AccentColor) {
+        context.userPreferencesStore.edit { prefs ->
+            prefs[accentColorKey] = accent.name
         }
     }
 

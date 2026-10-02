@@ -11,6 +11,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.zhilu.ai.AiTaskManager
 import com.example.zhilu.ai.AiTaskNotifications
 import com.example.zhilu.common.AppForegroundTracker
+import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.reminder.ReminderNotifier
@@ -39,9 +40,11 @@ class MainActivity : ComponentActivity() {
         val initialRoute = routeFromIntent(intent) ?: Destination.Home.path
         setContent {
             val themeMode by userPreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+            val accentColor by userPreferences.accentColor
+                .collectAsState(initial = AccentColor.DEFAULT)
             val controller = rememberNavController()
             navController = controller
-            ZhiLuTheme(themeMode = themeMode) {
+            ZhiLuTheme(themeMode = themeMode, accentColor = accentColor) {
                 AppShell(
                     navController = controller,
                     startDestination = initialRoute,

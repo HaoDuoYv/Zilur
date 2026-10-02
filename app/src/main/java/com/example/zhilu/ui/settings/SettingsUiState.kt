@@ -2,6 +2,7 @@ package com.example.zhilu.ui.settings
 
 import android.net.Uri
 import com.example.zhilu.domain.model.AiConfig
+import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 
@@ -12,6 +13,7 @@ data class SettingsUiState(
     val totalMediaSize: Long = 0L,
     val notificationPermissionGranted: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val accentColor: AccentColor = AccentColor.DEFAULT,
     val remindersEnabled: Boolean = true,
     val aiConfig: AiConfig = AiConfig(),
     val aiTestInProgress: Boolean = false,

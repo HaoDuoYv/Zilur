@@ -24,7 +24,6 @@ import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.ui.home.formatTime
 import com.example.zhilu.ui.home.notePreviewText
-import com.example.zhilu.ui.theme.SemanticColors
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 
@@ -161,7 +160,12 @@ private fun HighlightedText(
     color: Color = Color.Unspecified,
     maxLines: Int = Int.MAX_VALUE
 ) {
-    val annotated = remember(text, query) { highlightMatches(text, query) }
+    // 高亮跟着强调色走：这里必须显式取值再传给纯函数，
+    // highlightMatches 本身是不可组合的（便于单测），读不到 CompositionLocal。
+    val highlightColor = MaterialTheme.colorScheme.primary
+    val annotated = remember(text, query, highlightColor) {
+        highlightMatches(text, query, highlightColor)
+    }
     Text(
         text = annotated,
         style = style,
@@ -173,7 +177,13 @@ private fun HighlightedText(
     )
 }
 
-fun highlightMatches(text: String, query: String): AnnotatedString {
+/**
+ * 给 [highlightColor] 加粗着色，其余文字保持原样。
+ *
+ * @param highlightColor 命中词的字色，由调用方从当前色彩方案取（= 强调色）。
+ *   不接受默认值——默认色会让「换了强调色搜索高亮还是蓝的」这种不一致悄悄溜过去。
+ */
+fun highlightMatches(text: String, query: String, highlightColor: Color): AnnotatedString {
     val trimmed = query.trim().removePrefix("#")
     if (trimmed.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {
@@ -187,12 +197,10 @@ fun highlightMatches(text: String, query: String): AnnotatedString {
                 break
             }
             append(text.substring(start, index))
-            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = HighlightColor))
+            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = highlightColor))
             append(text.substring(index, index + trimmed.length))
             pop()
             start = index + trimmed.length
         }
     }
 }
-
-private val HighlightColor = SemanticColors.Highlight
