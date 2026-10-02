@@ -2,6 +2,8 @@ package com.example.zhilu.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.zhilu.ai.AiTaskHost
+import com.example.zhilu.ai.AndroidAiTaskHost
 import com.example.zhilu.data.local.dao.AiConversationDao
 import com.example.zhilu.data.local.dao.AiMessageDao
 import com.example.zhilu.data.local.dao.MediaDao
@@ -159,4 +161,8 @@ object AppModule {
         aiToolExecutor: AiToolExecutor,
         mediaFileManager: MediaFileManager
     ): AiAssistantRepository = AiAssistantRepositoryImpl(llmApiClient, aiToolExecutor, mediaFileManager)
+
+    @Provides
+    @Singleton
+    fun provideAiTaskHost(impl: AndroidAiTaskHost): AiTaskHost = impl
 }

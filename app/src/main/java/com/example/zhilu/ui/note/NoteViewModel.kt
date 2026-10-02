@@ -966,7 +966,7 @@ class NoteViewModel @Inject constructor(
                 // 精确匹配：优先按块里登记的 mediaId，其次按块是否内嵌该媒体的 URI。
                 // 早期用 content.contains(m.id.toString()) 做子串匹配，一旦 URL 里碰巧出现相同数字
                 // 就会误收无关媒体，而真正引用的媒体反而可能漏掉。
-                note.blocks.any { block ->
+                note.contentBlocks.any { block ->
                     block.type == BlockType.IMAGE && (
                         ImageBlockContent.mediaId(block.content) == m.id ||
                             block.content.contains(m.uri)

@@ -60,7 +60,9 @@ object JsonExporter {
         appendJsonField("isFavorite", note.isFavorite).append(",")
         append("\"deletedAt\":").append(note.deletedAt ?: "null").append(",")
         append("\"blocks\":")
-        appendArray(note.blocks) { appendBlock(it) }
+        // contentBlocks 而非 blocks：导出的笔记来自 getAllNotes()，是有卡片结构的对象，
+        // 直接读 blocks 会让「有知识卡片的笔记」在 JSON 备份里块全丢。
+        appendArray(note.contentBlocks) { appendBlock(it) }
         append(",\"tags\":")
         appendArray(note.tags) { appendTag(it) }
         append("}")

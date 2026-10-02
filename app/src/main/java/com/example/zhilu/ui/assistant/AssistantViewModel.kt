@@ -291,6 +291,15 @@ class AssistantViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 停止当前生成任务。输入区在生成中会把「发送」换成「停止」——
+     * 任务现在能活到页面之外（前台服务保活），没有一个随时可点的出口就会变成只能等。
+     */
+    fun stopGeneration() {
+        val taskId = _uiState.value.activeTask?.id ?: return
+        taskManager.cancel(taskId)
+    }
+
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }

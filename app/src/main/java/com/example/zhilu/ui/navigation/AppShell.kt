@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.Scaffold
@@ -59,7 +60,17 @@ fun AppShell(
     // 全局 AI 状态条以「占位」方式挂在最上方（而非浮层叠加）：出现时把整页内容下移，
     // 避免压住各页自带的顶栏。状态条自身已消费状态栏 inset，因此下方子树需要
     // 显式 consumeWindowInsets(statusBars)，否则各页会再让位一次导致顶部留白翻倍。
-    Column(modifier = Modifier.fillMaxSize()) {
+    //
+    // IME 也在这里收口：键盘高度只让整棵树缩一次，各页不必各自 imePadding。
+    // 这与 API 30 以下「窗口被 IME 顶掉一块」的原生行为一致，于是不必再为不同版本写分支。
+    // 前提是 Activity 声明了 windowSoftInputMode="adjustResize"——否则系统会把默认的
+    // adjustUnspecified 解析成 adjustPan，由框架先把窗口表面整体上推一次，
+    // 这里的 padding 再推一次，输入框与键盘之间就会空出「与键盘等高」的一整块。
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+    ) {
         if (hasActiveTask) {
             GlobalAiStatusBar(
                 activeTasks = aiState.activeTasks,

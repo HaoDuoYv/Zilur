@@ -222,7 +222,7 @@ class SettingsViewModel @Inject constructor(
                 val mediaIdMap = importMedia(backup.media)
                 backup.notes.forEach { note ->
                     val tags = importTags(note.tags)
-                    val cleanBlocks = note.blocks.map { block ->
+                    val cleanBlocks = note.contentBlocks.map { block ->
                         val contentValue = if (block.type == BlockType.IMAGE) {
                             val oldMediaId = ImageBlockContent.mediaId(block.content)
                             val oldUri = ImageBlockContent.displayUri(block.content)

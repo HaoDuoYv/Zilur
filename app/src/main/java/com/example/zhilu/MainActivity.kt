@@ -9,6 +9,8 @@ import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.example.zhilu.ai.AiTaskManager
+import com.example.zhilu.ai.AiTaskNotifications
+import com.example.zhilu.common.AppForegroundTracker
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.reminder.ReminderNotifier
@@ -28,6 +30,9 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var aiTaskManager: AiTaskManager
 
+    @Inject
+    lateinit var foregroundTracker: AppForegroundTracker
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -44,6 +49,17 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    // 单 Activity 应用，用它的 started/stopped 作为前后台判据（见 AppForegroundTracker）。
+    override fun onStart() {
+        super.onStart()
+        foregroundTracker.onActivityStarted()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        foregroundTracker.onActivityStopped()
     }
 
     override fun onNewIntent(intent: android.content.Intent) {
@@ -68,6 +84,8 @@ class MainActivity : ComponentActivity() {
         return when {
             noteId != null -> Destination.NoteEdit.createRoute(noteId)
             intent.getBooleanExtra(ReminderNotifier.EXTRA_REMINDER_CENTER, false) -> Destination.Reminders.path
+            // AI 任务通知点击：直接回到助手页看结果 / 继续对话。
+            intent.getBooleanExtra(AiTaskNotifications.EXTRA_OPEN_ASSISTANT, false) -> Destination.Assistant.path
             else -> null
         }
     }

@@ -13,7 +13,8 @@ import androidx.compose.runtime.Composable
  *
  * 与普通 Scaffold 的区别：**不再承载底栏与 SnackbarHost**（由根层 [AppShell] 提供），
  * 且 contentWindowInsets 只保留顶部与横向系统栏——纵向底部由根层底栏让位，避免 inset 双计。
- * [bottomBar] 供平级页自带的底部操作区使用（如助手页输入栏），需由调用方自行处理 IME padding。
+ * [bottomBar] 供平级页自带的底部操作区使用（如助手页输入栏）。
+ * IME 已在根层 [AppShell] 统一让位，本页不需要（也不要）再自行处理键盘内边距。
  */
 @Composable
 fun AppTabScaffold(

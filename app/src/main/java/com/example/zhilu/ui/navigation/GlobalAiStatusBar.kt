@@ -16,8 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ai.toolNameLabel
 import com.example.zhilu.domain.ai.model.AiTask
-import com.example.zhilu.ui.assistant.toolNameLabel
 import com.example.zhilu.ui.theme.ZhiLuType
 
 /**

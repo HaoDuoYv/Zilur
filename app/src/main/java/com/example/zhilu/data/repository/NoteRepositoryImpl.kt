@@ -158,7 +158,10 @@ class NoteRepositoryImpl(
         cardMap: Map<Long, KnowledgeCard>
     ): List<Block> {
         noteBlockDao.deleteByNoteId(noteId)
-        val sourceBlocks = note.blocks
+        // 取块必须走 Note.contentBlocks：hydrate 读出来的笔记只会填 blocks / cards 中的一处，
+        // 有卡片的笔记 blocks 是空的。早先这里直接读 note.blocks，于是「只改标题」「只改标签」
+        // 「切换收藏」这类 copy() 往返都会把正文整段删掉（读回来是空 → 写回去也是空）。
+        val sourceBlocks = note.contentBlocks
         val entities = sourceBlocks.mapIndexed { index, block ->
             BlockMapper.toEntity(
                 block.copy(

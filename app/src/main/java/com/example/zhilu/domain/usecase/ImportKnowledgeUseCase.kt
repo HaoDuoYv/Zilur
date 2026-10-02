@@ -45,7 +45,7 @@ class ImportKnowledgeUseCase @Inject constructor(
             val imageCount = if (imagesDir.exists()) imagesDir.listFiles()?.count { it.isFile } ?: 0 else 0
             Preview(
                 title = note.title.ifBlank { "未命名笔记" },
-                blockCount = note.blocks.size,
+                blockCount = note.contentBlocks.size,
                 imageCount = imageCount
             )
         }
@@ -83,7 +83,7 @@ class ImportKnowledgeUseCase @Inject constructor(
                 uriMapping["media/${file.name}"] = importedUri
             }
 
-            val updatedBlocks = note.blocks.map { block ->
+            val updatedBlocks = note.contentBlocks.map { block ->
                 if (block.type != BlockType.IMAGE) return@map block
                 val storedUri = uriMapping.entries.find { block.content.contains(it.key) }?.value
                     ?: block.content

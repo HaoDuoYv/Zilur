@@ -16,10 +16,13 @@ import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.repository.AiConversationRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,13 +56,25 @@ class AiTaskManager @Inject constructor(
     private val aiAssistantRepository: AiAssistantRepository,
     private val conversationRepository: AiConversationRepository,
     private val noteRepository: NoteRepository,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val taskHost: AiTaskHost
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _state = MutableStateFlow(AiTaskState())
     val state: StateFlow<AiTaskState> = _state.asStateFlow()
+
+    /** 正在跑的生成协程，按任务 id 索引——「停止」要能精确掐掉其中一条。 */
+    private val jobs = ConcurrentHashMap<String, Job>()
+
+    init {
+        // 任务是唯一事实源，前台服务与通知只是它的投影。统一在这里同步，
+        // 免得每处 _state.update 都得记得手动通知一次（漏一处就会出现「进度不动了」）。
+        scope.launch {
+            _state.collect { snapshot -> taskHost.sync(snapshot) }
+        }
+    }
 
     /** 提交任务（非挂起）：立即入队并返回任务 id，生成在后台 scope 执行。 */
     fun submit(request: AiSubmitRequest): String {
@@ -74,8 +89,33 @@ class AiTaskManager @Inject constructor(
                 )
             )
         }
-        scope.launch { run(taskId, request) }
+        jobs[taskId] = scope.launch {
+            try {
+                run(taskId, request)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 兜底：异常逃出去的话任务会永远停在「生成中」，那既锁住目标，
+                // 也会让前台服务一直挂着。
+                fail(taskId, e.message ?: "生成失败，请重试")
+            } finally {
+                jobs.remove(taskId)
+            }
+        }
         return taskId
+    }
+
+    /**
+     * 停止一个任务：掐掉协程并把它从任务表里移除。
+     *
+     * 用「移除」而不是标成「已取消」——任务表同时是目标占用锁与流式气泡的数据源，
+     * 移出即可让两者一起收干净。半截回复留在会话里只会被当成结果看，不如不留。
+     * 已完成的任务（协程早已结束、不在 [jobs] 里）不动，避免误删真结果。
+     */
+    fun cancel(taskId: String) {
+        val job = jobs.remove(taskId) ?: return
+        job.cancel()
+        _state.update { s -> s.copy(tasks = s.tasks.filterNot { it.id == taskId }) }
     }
 
     private suspend fun run(taskId: String, request: AiSubmitRequest) {
@@ -213,14 +253,16 @@ class AiTaskManager @Inject constructor(
     }
 
     private fun formatRef(ref: AiRef, note: Note): String = when (ref.kind) {
-        AiRefKind.NOTE -> "笔记(id=${note.id})《${note.title}》\n${formatBlocks(note.blocks)}"
+        // 统一走 contentBlocks：有知识卡片的笔记，块挂在卡片下，note.blocks 是空的，
+        // 直接读会把引用内容变成空白，模型据此以为笔记没内容。
+        AiRefKind.NOTE -> "笔记(id=${note.id})《${note.title}》\n${formatBlocks(note.contentBlocks)}"
         AiRefKind.CARD -> {
             val card = note.cards.firstOrNull { it.id == ref.cardId }
             if (card == null) "笔记(id=${note.id})的卡片 ${ref.cardId} 不存在"
             else "笔记(id=${note.id})卡片(id=${card.id})《${card.title}》\n${formatBlocks(card.blocks)}"
         }
         AiRefKind.BLOCK -> {
-            val block = note.blocks.firstOrNull { it.id == ref.blockId }
+            val block = note.contentBlocks.firstOrNull { it.id == ref.blockId }
             if (block == null) "笔记(id=${note.id})的块 ${ref.blockId} 不存在"
             else "笔记(id=${note.id})的块(id=${block.id})：\n${formatBlock(block)}"
         }

@@ -41,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
+import com.example.zhilu.ai.toolNameLabel
 import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.domain.model.AiRole
 import com.example.zhilu.ui.theme.Spacing

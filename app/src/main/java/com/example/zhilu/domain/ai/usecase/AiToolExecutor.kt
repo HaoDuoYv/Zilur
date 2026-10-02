@@ -179,7 +179,7 @@ class AiToolExecutor @Inject constructor(
         val tags = resolveTags(args.optStringArray("tags"))
         return when (val result = noteRepository.insertNote(Note(title = title, blocks = parsed.blocks, tags = tags))) {
             is RepositoryResult.Success ->
-                "已创建笔记「${result.data.title}」(id=${result.data.id})，共 ${result.data.blocks.size} 个内容块。" +
+                "已创建笔记「${result.data.title}」(id=${result.data.id})，共 ${result.data.contentBlocks.size} 个内容块。" +
                     droppedImageHint(parsed.droppedImages)
             is RepositoryResult.Error -> "创建失败：${result.message}"
         }
@@ -338,7 +338,9 @@ class AiToolExecutor @Inject constructor(
         }
 
     private fun formatNote(note: Note): String {
-        val body = note.blocks.joinToString("\n\n") { block ->
+        // 必须用 contentBlocks：有知识卡片的笔记，块挂在卡片下，note.blocks 是空的。
+        // 直接读 note.blocks 会让模型以为笔记是空的，进而回复「该笔记正文为空，需要我重新写入吗」。
+        val body = note.contentBlocks.joinToString("\n\n") { block ->
             when (block.type) {
                 BlockType.CODE -> "```${block.language.ifBlank { "text" }}\n${block.content}\n```"
                 BlockType.LATEX -> "\$\$${block.content}\$\$"
@@ -357,7 +359,7 @@ class AiToolExecutor @Inject constructor(
     }
 
     private fun snippetOf(note: Note): String {
-        val text = note.blocks.firstOrNull { it.type == BlockType.TEXT }?.content
+        val text = note.contentBlocks.firstOrNull { it.type == BlockType.TEXT }?.content
             ?.replace('\n', ' ')
             ?.take(60)
         return if (text.isNullOrBlank()) "" else "｜$text"
