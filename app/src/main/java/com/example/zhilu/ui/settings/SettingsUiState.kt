@@ -14,6 +14,8 @@ data class SettingsUiState(
     val notificationPermissionGranted: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentColor: AccentColor = AccentColor.DEFAULT,
+    /** 无障碍语义色板（§3.9）。 */
+    val accessibleEmphasis: Boolean = false,
     val remindersEnabled: Boolean = true,
     val aiConfig: AiConfig = AiConfig(),
     val aiTestInProgress: Boolean = false,

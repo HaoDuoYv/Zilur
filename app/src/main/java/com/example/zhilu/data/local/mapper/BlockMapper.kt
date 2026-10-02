@@ -3,6 +3,7 @@ package com.example.zhilu.data.local.mapper
 import com.example.zhilu.data.local.entity.NoteBlockEntity
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.EmphasisTone
 
 object BlockMapper {
     fun toDomain(entity: NoteBlockEntity): Block = Block(
@@ -13,7 +14,8 @@ object BlockMapper {
         content = entity.content,
         language = entity.language,
         sortOrder = entity.sortOrder,
-        parentBranchId = entity.parentBranchId
+        parentBranchId = entity.parentBranchId,
+        emphasis = EmphasisTone.fromValue(entity.emphasis)
     )
 
     fun toEntity(domain: Block): NoteBlockEntity = NoteBlockEntity(
@@ -24,6 +26,7 @@ object BlockMapper {
         content = domain.content,
         language = domain.language,
         sortOrder = domain.sortOrder,
-        parentBranchId = domain.parentBranchId
+        parentBranchId = domain.parentBranchId,
+        emphasis = EmphasisTone.toValue(domain.emphasis)
     )
 }

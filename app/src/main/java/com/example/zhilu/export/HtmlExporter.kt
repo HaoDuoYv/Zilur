@@ -64,7 +64,7 @@ class HtmlExporter(
                 val paragraphs = block.content.split("\n\n")
                 paragraphs.forEach { paragraph ->
                     if (paragraph.isNotBlank()) {
-                        appendLine("<p>${escapeHtml(paragraph).replace("\n", "<br>")}</p>")
+                        appendLine("<p>${htmlInline(paragraph).replace("\n", "<br>")}</p>")
                     }
                 }
             }
@@ -106,7 +106,7 @@ class HtmlExporter(
             }
             BlockType.BRANCH -> {
                 appendLine("<details open>")
-                appendLine("<summary>${escapeHtml(block.content.ifBlank { "分支" })}</summary>")
+                appendLine("<summary>${if (block.content.isBlank()) "分支" else htmlInline(block.content)}</summary>")
                 appendLine("</details>")
             }
         }
@@ -137,6 +137,22 @@ class HtmlExporter(
                 text.startsWith("- [ ] ") -> false to text.removePrefix("- [ ] ")
                 text.startsWith("[ ] ") -> false to text.removePrefix("[ ] ")
                 else -> false to text
+            }
+        }
+    }
+
+    /**
+     * 行内标记 → HTML。文本照常转义，标记转成带配色的 `<span>`。
+     */
+    private fun htmlInline(content: String): String = buildString {
+        inlineMarkupSegments(content).forEach { segment ->
+            when (segment) {
+                is InlineMarkupSegment.Plain -> append(escapeHtml(segment.text))
+                is InlineMarkupSegment.Marked -> append("<span style=\"")
+                    .append(InlineMarkupExportStyle.styleOf(segment.tone, segment.brush))
+                    .append("\">")
+                    .append(escapeHtml(segment.text))
+                    .append("</span>")
             }
         }
     }

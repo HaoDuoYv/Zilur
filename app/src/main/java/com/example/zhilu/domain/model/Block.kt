@@ -23,7 +23,14 @@ data class Block(
     val content: String = "",
     val language: String = "",
     val sortOrder: Int = 0,
-    val parentBranchId: Long? = null
+    val parentBranchId: Long? = null,
+    /**
+     * 块级语义标记（L1）。`null` = 未标记。
+     *
+     * 行内标记（L2）不存在这里 —— 它活在 [content] 文本里（`{{k:文字}}`），
+     * 因此导出/导入/剪贴板/AI 全都天然承载。
+     */
+    val emphasis: EmphasisTone? = null
 ) {
     fun copyWithFreshId(newId: Long): Block = copy(
         id = newId,

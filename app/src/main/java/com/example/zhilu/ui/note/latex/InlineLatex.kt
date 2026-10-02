@@ -22,6 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import com.example.zhilu.domain.markup.InlineMarkup
+import com.example.zhilu.ui.component.FindHighlight
+import com.example.zhilu.ui.theme.inlineToneSpanStyle
 
 /**
  * 行内富文本渲染支持。
@@ -50,47 +53,147 @@ class InlineLatexParts(
     val formulas: List<String>
 )
 
-private val inlineTokenRegex = Regex("\\*\\*(.+?)\\*\\*|`(.+?)`|\\$([^$]+?)\\$")
+/**
+ * 行内 token 词法器：`` `行内代码` `` 与 `$行内公式$`。
+ *
+ * **加粗不在其中** —— `**…**` 已由 `InlineMarkup.parseSpans` 拆成 `InlineBrush.BOLD` 的 span
+ * （设计文档 §10 P3），走到这里时可见文本里已经没有 `**` 了。留着那条分支只会制造
+ * "两处都在管加粗"的第二真相来源。
+ */
+private val inlineTokenRegex = Regex("`(.+?)`|\\$([^$]+?)\\$")
 
 /**
- * 解析行内格式：`**粗体**`、`` `行内代码` ``、`$行内公式$`。
- * 公式替换为 inlineContent 占位片段，交由 [rememberInlineLatexContent] 渲染成图片，
- * 不再原样显示 `$...$`。
+ * 解析行内格式：`**粗体**`、`` `行内代码` ``、`$行内公式$`，**并套用语义标记的着色**。
+ *
+ * 优先级固定为：行内代码 > 行内公式 > 加粗 > 语义标记（`{{k:…}}`）。
+ * 语义标记由 `InlineMarkup.parseSpans` 先拆出来 → 得到"可见文本 + 标记区间"，
+ * 再在每段区间内跑既有词法器，所以两种语法不会互相吃掉。
+ *
+ * @param darkTheme 决定标记用浅色还是深色那套语义色；调用方从主题取。
  */
-fun buildInlineLatexText(raw: String, textColor: Color): InlineLatexParts {
+fun buildInlineLatexText(
+    raw: String,
+    textColor: Color,
+    darkTheme: Boolean = false,
+    /** 页内查找的命中高亮（§6.4）。为 null 时完全不影响既有渲染。 */
+    highlight: FindHighlight? = null,
+    /** 无障碍色板（§3.9）。 */
+    accessibleEmphasis: Boolean = false
+): InlineLatexParts {
+    val parsed = InlineMarkup.parseSpans(raw)
+    val visible = parsed.visibleText
+    val toneSpans = parsed.spans
     val formulas = mutableListOf<String>()
+
+    // 命中区间一律在**可见文本**坐标系上算：标记字符已经被 parseSpans 剥掉，
+    // 若拿原文下标去高亮，只要块里有一个 `{{…}}`，后面所有高亮都会整体偏移。
+    val matchRanges = if (highlight == null) {
+        emptyList()
+    } else {
+        findMatchRanges(visible, highlight.query)
+    }
+    val highlightStyle = highlight?.let {
+        SpanStyle(
+            background = it.background,
+            color = it.textColor,
+            fontWeight = FontWeight.Bold
+        )
+    }
+
     val annotated = buildAnnotatedString {
-        var rest = raw
-        while (true) {
-            val match = inlineTokenRegex.find(rest)
-            if (match == null) {
-                append(rest)
-                break
+        /** 追加普通文字；有命中时按命中边界切开并套高亮。 */
+        fun emitPlain(from: Int, to: Int) {
+            if (from >= to) return
+            if (highlightStyle == null || matchRanges.isEmpty()) {
+                append(visible.substring(from, to))
+                return
             }
-            append(rest.substring(0, match.range.first))
-            when {
-                match.groupValues[1].isNotEmpty() ->
-                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(match.groupValues[1]) }
-
-                match.groupValues[2].isNotEmpty() ->
-                    withStyle(
-                        SpanStyle(
-                            fontFamily = FontFamily.Monospace,
-                            background = textColor.copy(alpha = 0.08f)
-                        )
-                    ) { append(match.groupValues[2]) }
-
-                else -> {
-                    val latex = match.groupValues[3].trim()
-                    // 退化文案保留原始写法：万一图片渲染不出来，用户看到的仍是「可读」的公式源码。
-                    appendInlineContent(inlineLatexId(formulas.size), alternateText = "\$$latex\$")
-                    formulas += latex
+            var cursor = from
+            while (cursor < to) {
+                val hit = matchRanges.firstOrNull { cursor >= it.first && cursor < it.second }
+                val nextStart = matchRanges.firstOrNull { it.first > cursor }?.first ?: to
+                val end = if (hit != null) minOf(hit.second, to) else minOf(nextStart, to)
+                if (end <= cursor) {
+                    append(visible.substring(cursor, to))
+                    return
                 }
+                if (hit != null) {
+                    withStyle(highlightStyle) { append(visible.substring(cursor, end)) }
+                } else {
+                    append(visible.substring(cursor, end))
+                }
+                cursor = end
             }
-            rest = rest.substring(match.range.last + 1)
+        }
+
+        // 把可见文本按"是否落在标记区间内"切成若干段，段内再解析既有 tokens。
+        fun emitTokens(from: Int, to: Int) {
+            var cursor = from
+            while (cursor < to) {
+                val match = inlineTokenRegex.find(visible, cursor)
+                if (match == null || match.range.first >= to) {
+                    emitPlain(cursor, to)
+                    return
+                }
+                if (match.range.first > cursor) {
+                    emitPlain(cursor, match.range.first)
+                }
+                when {
+                    match.groupValues[1].isNotEmpty() ->
+                        withStyle(
+                            SpanStyle(
+                                fontFamily = FontFamily.Monospace,
+                                background = textColor.copy(alpha = 0.08f)
+                            )
+                        ) { append(match.groupValues[1]) }
+
+                    else -> {
+                        val latex = match.groupValues[2].trim()
+                        // 退化文案保留原始写法：万一图片渲染不出来，用户看到的仍是「可读」的公式源码。
+                        appendInlineContent(inlineLatexId(formulas.size), alternateText = "\$$latex\$")
+                        formulas += latex
+                    }
+                }
+                cursor = match.range.last + 1
+            }
+        }
+
+        var index = 0
+        while (index < visible.length) {
+            val span = toneSpans.firstOrNull { it.contains(index) }
+            val segmentEnd = span?.end?.coerceIn(0, visible.length)
+                ?: (toneSpans.firstOrNull { it.start > index }?.start ?: visible.length)
+                .coerceIn(index, visible.length)
+            val end = segmentEnd.coerceAtLeast(index + 1).coerceAtMost(visible.length)
+            if (span != null) {
+                pushStyle(
+                    inlineToneSpanStyle(span.tone, span.brush, darkTheme, accessibleEmphasis)
+                )
+                emitTokens(index, end)
+                pop()
+            } else {
+                emitTokens(index, end)
+            }
+            index = end
         }
     }
     return InlineLatexParts(annotated, formulas)
+}
+
+/** 在 [text] 里找出 [query] 的全部命中区间（大小写不敏感、允许重叠推进）。 */
+private fun findMatchRanges(text: String, query: String): List<Pair<Int, Int>> {
+    val needle = query.trim().lowercase()
+    if (needle.isEmpty() || text.isEmpty()) return emptyList()
+    val haystack = text.lowercase()
+    val ranges = mutableListOf<Pair<Int, Int>>()
+    var from = 0
+    while (true) {
+        val at = haystack.indexOf(needle, from)
+        if (at < 0) break
+        ranges += at to (at + needle.length)
+        from = at + needle.length
+    }
+    return ranges
 }
 
 /**

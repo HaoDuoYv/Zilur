@@ -59,7 +59,13 @@ enum class AccentColor {
     CRIMSON,
 
     /** 石墨灰：最接近「无彩色」的一档。 */
-    GRAPHITE;
+    GRAPHITE,
+
+    /**
+     * 正红：唯一"喊出来"的一档，用于需要一眼看到重点的场合。
+     * 它同时也是「注意」语义色的来源，所以卡片身份色用的是另一个更暗的红（朱红）。
+     */
+    SCARLET;
 
     companion object {
         val DEFAULT: AccentColor = INK
@@ -75,6 +81,7 @@ class UserPreferences @Inject constructor(
 ) {
     private val themeModeKey = stringPreferencesKey("theme_mode")
     private val accentColorKey = stringPreferencesKey("accent_color")
+    private val accessibleEmphasisKey = booleanPreferencesKey("accessible_emphasis")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
     private val aiProviderKey = stringPreferencesKey("ai_provider")
     private val aiEndpointKey = stringPreferencesKey("ai_endpoint")
@@ -92,6 +99,11 @@ class UserPreferences @Inject constructor(
 
     val remindersEnabled: Flow<Boolean> = context.userPreferencesStore.data.map { prefs ->
         prefs[remindersEnabledKey] ?: true
+    }
+
+    /** 无障碍语义色板（设计文档 §3.9）。默认关闭。 */
+    val accessibleEmphasis: Flow<Boolean> = context.userPreferencesStore.data.map { prefs ->
+        prefs[accessibleEmphasisKey] ?: false
     }
 
     val aiConfig: Flow<AiConfig> = context.userPreferencesStore.data.map { prefs ->
@@ -113,6 +125,12 @@ class UserPreferences @Inject constructor(
     suspend fun setAccentColor(accent: AccentColor) {
         context.userPreferencesStore.edit { prefs ->
             prefs[accentColorKey] = accent.name
+        }
+    }
+
+    suspend fun setAccessibleEmphasis(enabled: Boolean) {
+        context.userPreferencesStore.edit { prefs ->
+            prefs[accessibleEmphasisKey] = enabled
         }
     }
 

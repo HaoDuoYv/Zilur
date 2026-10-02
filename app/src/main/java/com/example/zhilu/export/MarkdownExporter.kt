@@ -92,7 +92,7 @@ object MarkdownExporter {
         latexResolver: ((String) -> String?)?
     ) {
         when (block.type) {
-            BlockType.TEXT -> append(block.content)
+            BlockType.TEXT -> append(markdownInline(block.content))
             BlockType.IMAGE -> {
                 val base64 = imageResolver?.invoke(block)
                 val target = base64 ?: ImageBlockContent.resolveUri(block.content, mediaById)
@@ -113,7 +113,27 @@ object MarkdownExporter {
                 append("```").append(language).append("\n").append(block.content.trimEnd()).append("\n```")
             }
             BlockType.TODO -> append(todoMarkdown(block.content, todoItems))
-            BlockType.BRANCH -> append(block.content)
+            BlockType.BRANCH -> append(markdownInline(block.content))
+        }
+    }
+
+    /**
+     * 行内标记 → Markdown。
+     *
+     * Markdown 标准不支持着色，因此走内联 HTML 的 `<span>` —— 这是唯一在
+     * GitHub / Typora / VS Code 预览里都能显示颜色的写法。
+     * 普通文本保持原样输出（与既有行为一致，不额外引入 Markdown 转义）。
+     */
+    private fun markdownInline(content: String): String = buildString {
+        inlineMarkupSegments(content).forEach { segment ->
+            when (segment) {
+                is InlineMarkupSegment.Plain -> append(segment.text)
+                is InlineMarkupSegment.Marked -> append("<span style=\"")
+                    .append(InlineMarkupExportStyle.styleOf(segment.tone, segment.brush))
+                    .append("\">")
+                    .append(segment.text)
+                    .append("</span>")
+            }
         }
     }
 

@@ -50,6 +50,7 @@ fun BlockContent(
                 TextBlockEditor(
                     value = block.content,
                     onValueChange = onValueChange,
+                    blockId = block.id,
                     modifier = modifier
                 )
             } else {
@@ -166,7 +167,11 @@ private fun TodoBlockContent(
     onCompleteTodo: ((Long) -> Unit)?,
     onToggleCompletedTodos: (() -> Unit)?
 ) {
-    if (todoItems != null) {
+    // `todo_items` 是 TODO 块的正式内容源，但**块自身也可能带正文** ——
+    // AI 的 create_note / add_blocks 就会写 `type=todo` + content。
+    // 原先只要 todoItems 非 null 就无条件渲染 TodoBlock，于是"表为空 + 块有正文"
+    // 这种组合会显示成「暂无待办」，AI 写进去的待办整条看不见（真机测试发现）。
+    if (todoItems != null && (todoItems.isNotEmpty() || block.content.isBlank())) {
         val supportsEditing = onCreateTodo != null &&
             onUpdateTodo != null &&
             onCompleteTodo != null

@@ -16,10 +16,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.AppCardStyle
@@ -27,8 +30,10 @@ import com.example.zhilu.ui.component.ElevationTokens
 import com.example.zhilu.ui.component.GeneratingBadge
 import com.example.zhilu.ui.component.rememberGeneratingPulse
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalExtendedColors
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.cardAccentColor
 import com.example.zhilu.ui.theme.motionEnterTween
 
 /**
@@ -38,11 +43,14 @@ import com.example.zhilu.ui.theme.motionEnterTween
 @Composable
 fun KnowledgeCardItem(
     card: KnowledgeCard,
+    /** 卡片在笔记里的序号，用于身份色回退与序号坐标。 */
+    cardIndex: Int,
     isEditing: Boolean,
     canDelete: Boolean,
     onFocus: () -> Unit,
     onTitleChange: (String) -> Unit,
     onDelete: () -> Unit,
+    onSetBlockEmphasis: (Long, EmphasisTone?) -> Unit,
     onBlockContentChange: (Long, String) -> Unit,
     onBlockLanguageClick: (Long) -> Unit,
     onRemoveBlock: (Long) -> Unit,
@@ -71,6 +79,10 @@ fun KnowledgeCardItem(
     onDragStateChange: (Boolean) -> Unit = {},
     onCiteToAi: () -> Unit = {},
     onCiteBlockToAi: (Long) -> Unit = {},
+    /** 折叠 / 展开本卡（会话内状态，不落库）。 */
+    onToggleCollapsed: () -> Unit = {},
+    /** 长按折叠箭头：全部折叠 / 全部展开。 */
+    onToggleAllCollapsed: () -> Unit = {},
     isGenerating: Boolean = false,
     generatingBlockIds: Set<Long> = emptySet(),
     modifier: Modifier = Modifier
@@ -80,7 +92,9 @@ fun KnowledgeCardItem(
     val generatingPulse = rememberGeneratingPulse()
 
     val borderWidth by animateDpAsState(
-        targetValue = if (isFocused) 2.dp else AppCardStyle.borderWidth,
+        // 常态**不再描边**（§5.5）：卡片的静息身份由阴影 + 序号徽标 + 心线表达，
+        // 描边只留给聚焦态，这样"聚焦"这件事才有对比度可用。
+        targetValue = if (isFocused) 2.dp else 0.dp,
         animationSpec = motionEnterTween(MotionDuration.Medium, enabled = !reducedMotion),
         label = "KnowledgeCardBorderWidth"
     )
@@ -94,16 +108,34 @@ fun KnowledgeCardItem(
         label = "KnowledgeCardBorderColor"
     )
     val shadowElevation by animateDpAsState(
-        targetValue = if (isFocused) ElevationTokens.Overlay else AppCardStyle.elevation,
+        // 常态描边已经撤掉，卡片靠**阴影**分层；聚焦时再抬一档（§5.5）。
+        // 注意这里不再复用 AppCardStyle.elevation：那个对象与「新增卡片」按钮共用，
+        // 改它会把按钮一起改掉。
+        targetValue = if (isFocused) ElevationTokens.Overlay else ElevationTokens.Raised,
         animationSpec = motionEnterTween(MotionDuration.Medium, enabled = !reducedMotion),
         label = "KnowledgeCardShadowElevation"
     )
 
     val shape = MaterialTheme.shapes.medium
+    val darkTheme = LocalExtendedColors.current.isDark
+    // 卡片身份色：用户改过就用存的，没改过按序号回退到轮转色（§5.2）。
+    val accent = cardAccentColor(card.accent, cardIndex, darkTheme)
+    val isCollapsed = !card.isExpanded
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            // 折叠态的左侧 3dp 身份色竖条：折叠后卡片只剩头部，
+            // 这条竖条是它唯一的颜色身份（§5.2 的三处作用范围之一）。
+            .then(
+                if (isCollapsed) {
+                    Modifier.drawBehind {
+                        drawRect(color = accent, size = Size(3.dp.toPx(), size.height))
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .shadow(shadowElevation, shape)
             .border(borderWidth, borderColor, shape)
             .clickable(enabled = isEditing && !isGenerating, onClick = onFocus),
@@ -118,6 +150,13 @@ fun KnowledgeCardItem(
                 CardHeader(
                     title = card.title,
                     onTitleChange = onTitleChange,
+                    cardIndex = cardIndex,
+                    accent = accent,
+                    blockCount = card.blocks.count { it.parentBranchId == null },
+                    summary = cardSummary(card),
+                    isCollapsed = isCollapsed,
+                    onToggleCollapsed = onToggleCollapsed,
+                    onToggleAllCollapsed = onToggleAllCollapsed,
                     readOnly = !(isEditing && isFocused) || isGenerating,
                     showDelete = isEditing && isFocused && !isGenerating,
                     canDelete = canDelete,
@@ -126,16 +165,19 @@ fun KnowledgeCardItem(
                     onCiteToAi = onCiteToAi
                 )
 
-                HorizontalDivider(
-                    modifier = Modifier.fillMaxWidth(),
-                    thickness = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Border)
-                )
+                if (!isCollapsed) {
+                    HorizontalDivider(
+                        modifier = Modifier.fillMaxWidth(),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Border)
+                    )
 
-                CardBlockList(
-                    card = card,
-                    isEditing = isEditing,
-                    onBlockContentChange = onBlockContentChange,
+                    CardBlockList(
+                        card = card,
+                        cardIndex = cardIndex,
+                        isEditing = isEditing,
+                        onSetBlockEmphasis = onSetBlockEmphasis,
+                        onBlockContentChange = onBlockContentChange,
                     onBlockLanguageClick = onBlockLanguageClick,
                     onRemoveBlock = onRemoveBlock,
                     onMoveBlockUp = onMoveBlockUp,
@@ -165,6 +207,7 @@ fun KnowledgeCardItem(
                     generatingBlockIds = generatingBlockIds,
                     isCardGenerating = isGenerating
                 )
+                }
             }
             if (isGenerating) {
                 GeneratingBadge(

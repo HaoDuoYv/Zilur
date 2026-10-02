@@ -1,6 +1,5 @@
 package com.example.zhilu.ui.note.blocks
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,12 +34,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
+import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.emphasisToneColor
 
 private val BlockTypeIconSize = 20.dp
 private val BlockTypeIconSpacing = 8.dp
@@ -79,16 +84,7 @@ fun BlockCard(
     onRemoveBranchChild: (Long) -> Unit = {},
     onAddBranchChild: (BlockType) -> Unit = {}
 ) {
-    val borderColor = when {
-        isDragging -> MaterialTheme.colorScheme.primary
-        isActive -> MaterialTheme.colorScheme.outlineVariant
-        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Divider)
-    }
-    val backgroundColor = if (isDragging) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = AlphaTokens.DragTint)
-    } else {
-        MaterialTheme.colorScheme.surface
-    }
+    val darkTheme = LocalExtendedColors.current.isDark
     val showDecorations = isEditing && isActive
     val showsMenu = shouldShowBlockActionMenu(
         isEditing = isEditing,
@@ -99,19 +95,50 @@ fun BlockCard(
     val hasDecorations = showDecorations &&
         (showDragHandle || blockTypeIcon(block.type) != null || showsMenu)
 
+    // L1 块级语义标记：左缘 3dp 色条 + 8% 淡底 + 块首角色标签词（设计文档 §3.3）。
+    // 刻意不做整块染色（可读性差、像报错），也不加图标（4 个图标反而增加识别成本）。
+    val tone = block.emphasis
+    val toneColor = tone?.let {
+        emphasisToneColor(it, darkTheme, LocalAccessibleEmphasis.current)
+    }
+    val dragTint = MaterialTheme.colorScheme.primaryContainer.copy(alpha = AlphaTokens.DragTint)
+    val focusTint = MaterialTheme.colorScheme.onSurface.copy(alpha = AlphaTokens.BlockFocus)
+
+    // 去掉常态描边：块的边界改由 gutter 序号 + 心线 + 间距节奏表达（§4.1）。
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.medium,
-        color = backgroundColor,
+        shape = MaterialTheme.shapes.small,
+        // 底色**必须不透明**：块外层套着 SwipeToDismissBox（滑动删除），
+        // 透明底色会把那层红底透出来，看起来像整块被标记为待删除（真机踩过）。
+        // 焦点淡底与语义淡底都画在这层之上（见内层 Box 的 drawBehind）。
+        color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp,
-        shadowElevation = 0.dp,
-        border = BorderStroke(1.dp, borderColor)
+        shadowElevation = 0.dp
     ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    if (isDragging) drawRect(dragTint) else if (isActive) drawRect(focusTint)
+                    if (toneColor != null) {
+                        drawRect(color = toneColor.copy(alpha = AlphaTokens.EmphasisWash))
+                        drawRect(
+                            color = toneColor,
+                            size = androidx.compose.ui.geometry.Size(3.dp.toPx(), size.height)
+                        )
+                    }
+                }
+        ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(
+                    start = if (toneColor != null) 13.dp else 10.dp,
+                    end = 10.dp,
+                    top = 10.dp,
+                    bottom = 10.dp
+                ),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (hasDecorations) {
                 Row(
@@ -153,28 +180,68 @@ fun BlockCard(
                     }
                 }
             }
-            BlockContent(
-                block = block,
-                isEditing = isEditing,
-                onValueChange = onValueChange,
-                onLanguageClick = onLanguageClick,
-                modifier = Modifier.fillMaxWidth(),
-                todoItems = todoItems,
-                showCompletedTodos = showCompletedTodos,
-                onCreateTodo = onCreateTodo,
-                onUpdateTodo = onUpdateTodo,
-                onCompleteTodo = onCompleteTodo,
-                onToggleCompletedTodos = onToggleCompletedTodos,
-                onImageClick = onImageClick,
-                branchChildBlocks = branchChildBlocks,
-                isBranchExpanded = isBranchExpanded,
-                onBranchTitleChange = onBranchTitleChange,
-                onToggleBranchExpanded = onToggleBranchExpanded,
-                onBranchChildValueChange = onBranchChildValueChange,
-                onBranchChildLanguageClick = onBranchChildLanguageClick,
-                onRemoveBranchChild = onRemoveBranchChild,
-                onAddBranchChild = onAddBranchChild
-            )
+            if (tone != null && toneColor != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Text(
+                        text = tone.label,
+                        style = ZhiLuType.label,
+                        color = toneColor,
+                        modifier = Modifier.padding(top = 3.dp)
+                    )
+                    Spacer(Modifier.width(7.dp))
+                    Box(modifier = Modifier.weight(1f)) {
+                        BlockContent(
+                            block = block,
+                            isEditing = isEditing,
+                            onValueChange = onValueChange,
+                            onLanguageClick = onLanguageClick,
+                            modifier = Modifier.fillMaxWidth(),
+                            todoItems = todoItems,
+                            showCompletedTodos = showCompletedTodos,
+                            onCreateTodo = onCreateTodo,
+                            onUpdateTodo = onUpdateTodo,
+                            onCompleteTodo = onCompleteTodo,
+                            onToggleCompletedTodos = onToggleCompletedTodos,
+                            onImageClick = onImageClick,
+                            branchChildBlocks = branchChildBlocks,
+                            isBranchExpanded = isBranchExpanded,
+                            onBranchTitleChange = onBranchTitleChange,
+                            onToggleBranchExpanded = onToggleBranchExpanded,
+                            onBranchChildValueChange = onBranchChildValueChange,
+                            onBranchChildLanguageClick = onBranchChildLanguageClick,
+                            onRemoveBranchChild = onRemoveBranchChild,
+                            onAddBranchChild = onAddBranchChild
+                        )
+                    }
+                }
+            } else {
+                BlockContent(
+                    block = block,
+                    isEditing = isEditing,
+                    onValueChange = onValueChange,
+                    onLanguageClick = onLanguageClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    todoItems = todoItems,
+                    showCompletedTodos = showCompletedTodos,
+                    onCreateTodo = onCreateTodo,
+                    onUpdateTodo = onUpdateTodo,
+                    onCompleteTodo = onCompleteTodo,
+                    onToggleCompletedTodos = onToggleCompletedTodos,
+                    onImageClick = onImageClick,
+                    branchChildBlocks = branchChildBlocks,
+                    isBranchExpanded = isBranchExpanded,
+                    onBranchTitleChange = onBranchTitleChange,
+                    onToggleBranchExpanded = onToggleBranchExpanded,
+                    onBranchChildValueChange = onBranchChildValueChange,
+                    onBranchChildLanguageClick = onBranchChildLanguageClick,
+                    onRemoveBranchChild = onRemoveBranchChild,
+                    onAddBranchChild = onAddBranchChild
+                )
+            }
+        }
         }
     }
 }

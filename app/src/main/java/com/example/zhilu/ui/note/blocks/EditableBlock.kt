@@ -60,7 +60,6 @@ fun EditableBlock(
     isActive: Boolean = false,
     /** 长按/交互时将本块置为激活块。 */
     onActivate: () -> Unit = {},
-    showTopDivider: Boolean = false,
     modifier: Modifier = Modifier,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
@@ -113,6 +112,9 @@ fun EditableBlock(
 
     val tapModifier = Modifier.pointerInput(block.id) {
         detectTapGestures(
+            // 注意：这里**不能**加 onTap 来激活块。块外层是 SwipeToDismissBox，
+            // 内层再消费一次指针事件会让横向滑动手势错乱（真机上出现过"轻点一下
+            // 就把删除红底拉出来且卡住"）。激活改由 gutter 的序号承担（见 BlockGutter）。
             onLongPress = { offsetPx ->
                 menuOffset = with(density) {
                     DpOffset(offsetPx.x.toDp(), offsetPx.y.toDp())
@@ -165,16 +167,6 @@ fun EditableBlock(
                     visible = showTopIndicator,
                     onClick = onInsertAbove,
                     modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            if (showTopDivider) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .height(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Divider))
                 )
             }
 

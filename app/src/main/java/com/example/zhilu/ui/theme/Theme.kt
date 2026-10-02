@@ -78,6 +78,8 @@ fun ZhiLuTheme(
     accentColor: AccentColor = AccentColor.INK,
     // Disabled by default to preserve the editorial brand palette across devices.
     dynamicColor: Boolean = false,
+    /** 无障碍语义色板（§3.9）：开启后四个语义角色换成色盲友好 + 明度分级的一套。 */
+    accessibleEmphasis: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -110,7 +112,8 @@ fun ZhiLuTheme(
 
     CompositionLocalProvider(
         LocalReducedMotion provides reducedMotion,
-        LocalExtendedColors provides extendedColors
+        LocalExtendedColors provides extendedColors,
+        LocalAccessibleEmphasis provides accessibleEmphasis
     ) {
         MaterialTheme(
             colorScheme = colorScheme,

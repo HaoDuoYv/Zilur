@@ -16,6 +16,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.ui.theme.ZhiLuType
 
@@ -47,7 +48,11 @@ fun AppTopBar(
                     Text(
                         text = title,
                         style = titleStyle,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        // 必须限一行：动作位一多（查找 / 目录 / 分享 / 编辑 + 状态胶囊），
+                        // 标题列会被压窄，不限行就会折成两行把顶栏撑高（真机踩过）。
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     if (subtitle != null) {
                         Text(

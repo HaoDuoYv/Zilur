@@ -100,8 +100,10 @@ fun SettingsScreen(
             AppearanceSection(
                 themeMode = state.themeMode,
                 accentColor = state.accentColor,
+                accessibleEmphasis = state.accessibleEmphasis,
                 onSelectThemeMode = viewModel::setThemeMode,
-                onSelectAccent = viewModel::setAccentColor
+                onSelectAccent = viewModel::setAccentColor,
+                onToggleAccessibleEmphasis = viewModel::setAccessibleEmphasis
             )
 
             DataSection(

@@ -2,6 +2,7 @@ package com.example.zhilu.domain.usecase.clipboard
 
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.EmphasisTone
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -26,6 +27,13 @@ private data class ClipboardBlockDto(
     val type: BlockType,
     val content: String,
     val language: String,
+    /**
+     * 块级语义标记（`EmphasisTone.value`，0 = 未标记）。
+     *
+     * 行内标记（L2）不需要字段 —— 它就在 [content] 里，跟着文本一起搬。
+     * 块级标记是块自己的属性，不带上就会「复制过去发现标记没了」。
+     */
+    val emphasis: Int = 0,
     val children: List<ClipboardBlockDto> = emptyList()
 )
 
@@ -68,6 +76,7 @@ private fun BlockClipboardData.toDto(): ClipboardBlockDto = ClipboardBlockDto(
     type = block.type,
     content = block.content,
     language = block.language,
+    emphasis = EmphasisTone.toValue(block.emphasis),
     children = children.map { it.toDto() }
 )
 
@@ -80,7 +89,8 @@ private fun ClipboardBlockDto.toDomain(): BlockClipboardData = BlockClipboardDat
         content = content,
         language = language,
         sortOrder = 0,
-        parentBranchId = null
+        parentBranchId = null,
+        emphasis = EmphasisTone.fromValue(emphasis)
     ),
     children = children.map { it.toDomain() }
 )

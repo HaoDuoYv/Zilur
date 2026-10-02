@@ -84,8 +84,58 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate5To6_addsEmphasisAndCardAccentWithDefaults() {
+        helper.createDatabase(TEST_DB_V6, 5).apply {
+            execSQL(
+                """
+                INSERT INTO notes (id, title, createdAt, updatedAt, isFavorite)
+                VALUES (1, '老笔记', 100, 101, 0)
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO note_cards (id, noteId, title, sortOrder)
+                VALUES (20, 1, '老卡片', 0)
+                """.trimIndent()
+            )
+            execSQL(
+                """
+                INSERT INTO note_blocks (id, noteId, cardId, type, content, language, sortOrder)
+                VALUES (30, 1, 20, 1, '老正文', '', 0)
+                """.trimIndent()
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB_V6, 6, true, Migration.MIGRATION_5_6).apply {
+            // 既有块的 emphasis 拿默认值 0（未标记），正文不能动
+            query("SELECT content, emphasis FROM note_blocks WHERE id = 30").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("老正文", cursor.getString(0))
+                assertEquals(0, cursor.getInt(1))
+                assertFalse(cursor.moveToNext())
+            }
+            // 既有卡片的 accent 为 NULL，渲染时回退到轮转色
+            query("SELECT title, accent FROM note_cards WHERE id = 20").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("老卡片", cursor.getString(0))
+                assertTrue(cursor.isNull(1))
+                assertFalse(cursor.moveToNext())
+            }
+            // 新写入能带上真正的值
+            execSQL("UPDATE note_blocks SET emphasis = 3 WHERE id = 30")
+            query("SELECT emphasis FROM note_blocks WHERE id = 30").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(3, cursor.getInt(0))
+            }
+            close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
         const val TEST_DB_V5 = "migration-test-v5"
+        const val TEST_DB_V6 = "migration-test-v6"
     }
 }

@@ -14,6 +14,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.isSpecified
 import com.example.zhilu.ui.note.latex.buildInlineLatexText
 import com.example.zhilu.ui.note.latex.rememberInlineLatexContent
+import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
+import com.example.zhilu.ui.theme.LocalExtendedColors
 
 /**
  * 支持行内公式的文本组件：在普通文本里把 `$...$` 真正渲染成 LaTeX 图片，
@@ -36,7 +38,12 @@ fun RichText(
     overflow: TextOverflow = TextOverflow.Clip,
     onTextLayout: ((TextLayoutResult) -> Unit)? = null
 ) {
-    val parts = remember(text, color) { buildInlineLatexText(text, color) }
+    val isDark = LocalExtendedColors.current.isDark
+    val highlight = LocalFindHighlight.current
+    val accessibleEmphasis = LocalAccessibleEmphasis.current
+    val parts = remember(text, color, isDark, highlight, accessibleEmphasis) {
+        buildInlineLatexText(text, color, isDark, highlight, accessibleEmphasis)
+    }
     val inlineContent = rememberInlineLatexContent(
         formulas = parts.formulas,
         textSizeSp = if (style.fontSize.isSpecified) style.fontSize.value else 14f,

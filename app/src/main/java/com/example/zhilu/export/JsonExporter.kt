@@ -2,6 +2,7 @@ package com.example.zhilu.export
 
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
@@ -75,7 +76,9 @@ object JsonExporter {
         appendJsonField("type", block.type.name).append(",")
         appendJsonField("content", block.content).append(",")
         appendJsonField("language", block.language).append(",")
-        appendJsonField("sortOrder", block.sortOrder)
+        appendJsonField("sortOrder", block.sortOrder).append(",")
+        // 块级语义标记。行内标记（L2）在 content 里，天然随这一行一起走。
+        appendJsonField("emphasis", EmphasisTone.toValue(block.emphasis))
         append("}")
     }
 
@@ -162,7 +165,9 @@ object JsonExporter {
                 ?: BlockType.fromValue(int("type", BlockType.TEXT.value)),
             content = string("content"),
             language = string("language"),
-            sortOrder = int("sortOrder")
+            sortOrder = int("sortOrder"),
+            // 老备份没有这个字段 → 取 0 → 未标记
+            emphasis = EmphasisTone.fromValue(int("emphasis", EmphasisTone.NONE_VALUE))
         )
     }
 

@@ -1,5 +1,6 @@
 package com.example.zhilu.ui.home
 
+import com.example.zhilu.domain.markup.InlineMarkup
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
 import java.text.SimpleDateFormat
@@ -30,11 +31,13 @@ fun notePreviewText(note: Note): String? {
     // 统一走 contentBlocks：有知识卡片的笔记块挂在卡片下，note.blocks 是空的，
     // 直接读会让这类笔记在列表里没有摘要。
     val blocks = note.contentBlocks
+    // 正文与分支标题先剥离行内语法：列表里不该出现 {{k: 这类标记字符。
+    // 代码 / 链接 / 公式块的 content 本身就是字面内容，不做剥离。
     blocks.firstOrNull { it.type == BlockType.TEXT && it.content.isNotBlank() }?.let {
-        return it.content.trim()
+        return InlineMarkup.stripMarkup(it.content).trim()
     }
     blocks.firstOrNull { it.type == BlockType.BRANCH && it.content.isNotBlank() }?.let {
-        return it.content.trim()
+        return InlineMarkup.stripMarkup(it.content).trim()
     }
     blocks.firstOrNull { it.type == BlockType.CODE && it.content.isNotBlank() }?.let {
         return it.content.trim().lineSequence().first().take(80)

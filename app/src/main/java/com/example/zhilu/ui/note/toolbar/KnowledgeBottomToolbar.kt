@@ -1,5 +1,6 @@
 package com.example.zhilu.ui.note.toolbar
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -9,8 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Brush
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Functions
@@ -33,11 +37,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.component.pressScale
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
+import com.example.zhilu.ui.theme.LocalExtendedColors
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.emphasisToneColor
 
 /**
  * 知识卡片编辑态底部工具栏：6 个 48dp 图标（无文字标签），
@@ -53,6 +61,12 @@ fun KnowledgeBottomToolbar(
     onAddCode: () -> Unit,
     onAddLink: () -> Unit,
     onAddBranch: () -> Unit,
+    /** 选了一个语义角色 → 让当前块的编辑器进入「标记中」（§3.8）。 */
+    onPickMarkTone: (EmphasisTone) -> Unit = {},
+    /** 取消「标记中」。 */
+    onClearMark: () -> Unit = {},
+    /** 没有可标记的目标块时置灰，避免点了没反应。 */
+    markEnabled: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val enabled = activeCardId != null
@@ -117,6 +131,16 @@ fun KnowledgeBottomToolbar(
                     contentDescription = "折叠分支",
                     icon = Icons.Default.Folder
                 )
+
+                // 第 7 格：「标记」（§3.8）。
+                // 这条路径的价值是"**不必先选中文字**"——正文旁那条划词工具条要先聚焦、
+                // 再点色块才能起标记，对"我刚写完一句想补个角色"的场景多一步。
+                // 这里的代价是屏幕层看不到编辑器的「标记中」状态，所以不做回显。
+                MarkToolbarItem(
+                    enabled = enabled && markEnabled,
+                    onPickTone = onPickMarkTone,
+                    onClearMark = onClearMark
+                )
             }
         }
     }
@@ -152,6 +176,65 @@ private fun ToolbarIcon(
             )
         } else {
             content?.invoke()
+        }
+    }
+}
+
+@Composable
+private fun MarkToolbarItem(
+    enabled: Boolean,
+    onPickTone: (EmphasisTone) -> Unit,
+    onClearMark: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val darkTheme = LocalExtendedColors.current.isDark
+
+    Box(modifier = modifier) {
+        ToolbarIcon(
+            onClick = { if (enabled) expanded = true },
+            enabled = enabled,
+            contentDescription = "标记",
+            icon = Icons.Default.Brush
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            for (tone in EmphasisTone.entries) {
+                DropdownMenuItem(
+                    text = { Text("标记为${tone.label}") },
+                    leadingIcon = {
+                        Box(
+                            modifier = Modifier
+                                .size(12.dp)
+                                .background(
+                                    color = emphasisToneColor(
+                                        tone,
+                                        darkTheme,
+                                        LocalAccessibleEmphasis.current
+                                    ),
+                                    shape = CircleShape
+                                )
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onPickTone(tone)
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = { Text("取消标记中") },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                },
+                onClick = {
+                    expanded = false
+                    onClearMark()
+                }
+            )
         }
     }
 }

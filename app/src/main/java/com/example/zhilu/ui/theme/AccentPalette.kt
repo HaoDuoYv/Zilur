@@ -157,6 +157,27 @@ fun accentPaint(accent: AccentColor): AccentPaint = when (accent) {
             onPrimaryContainer = Color(0xFFE5E4E0)
         )
     )
+
+    // 正红：色板里唯一"喊出来"的颜色。
+    // 既有的绛红 `#8A4550` 是低饱和玫瑰调，当"注意"标记够用，但当强调色时压不住场；
+    // 正红补的就是这一档 —— 需要一眼看到重点时选它。
+    // 它同时是「注意」语义色的来源（见 EmphasisTones.accent），所以
+    // 卡片身份色**不能**再用这个值（一色一义），那一档是更暗的朱红 `#B23B32`。
+    AccentColor.SCARLET -> AccentPaint(
+        label = "正红",
+        light = AccentRoles(
+            primary = Color(0xFFC0392B),
+            onPrimary = Color(0xFFFFFFFF),
+            primaryContainer = Color(0xFFF7DEDB),
+            onPrimaryContainer = Color(0xFF4A1310)
+        ),
+        dark = AccentRoles(
+            primary = Color(0xFFF2938A),
+            onPrimary = Color(0xFF4A1310),
+            primaryContainer = Color(0xFF5C1F19),
+            onPrimaryContainer = Color(0xFFF7DAD6)
+        )
+    )
 }
 
 /** 取某一套（浅 / 深）的角色色。 */

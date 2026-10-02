@@ -16,6 +16,7 @@ import com.example.zhilu.domain.ai.model.AiTask
 import com.example.zhilu.domain.ai.model.AiTaskPhase
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Media
@@ -334,6 +335,31 @@ class NoteViewModel @Inject constructor(
         scheduleSave()
     }
 
+    /**
+     * 折叠 / 展开一张小节。
+     *
+     * 用的是 `KnowledgeCard.isExpanded` —— 这个字段此前是**死字段**（所有构造点都传 `true`、
+     * 没有任何地方读它）。折叠态是**会话内状态**：数据库里没有这一列，
+     * `CardMapper.toDomain` 每次都从 `true` 起步，所以重开笔记就是全展开，符合设计（§5.4）。
+     */
+    fun toggleCardExpanded(cardId: Long) {
+        _uiState.update { state ->
+            state.copy(
+                cards = state.cards.map { card ->
+                    if (card.id == cardId) card.copy(isExpanded = !card.isExpanded) else card
+                }
+            )
+        }
+    }
+
+    /** 全部折叠 / 全部展开（长按折叠箭头触发）。任一展开 → 全部折叠，否则全部展开。 */
+    fun toggleAllCardsExpanded() {
+        _uiState.update { state ->
+            val anyExpanded = state.cards.any { it.isExpanded }
+            state.copy(cards = state.cards.map { it.copy(isExpanded = !anyExpanded) })
+        }
+    }
+
     fun addBlock(type: BlockType, parentBranchId: Long? = null) {
         val content = defaultContentFor(type)
         val blockId = nextBlockId--
@@ -554,6 +580,21 @@ class NoteViewModel @Inject constructor(
         }
         syncBlocksToState()
         if (!_isDragging) scheduleSave()
+    }
+
+    /**
+     * 设置 / 取消某一条块的**块级语义标记**（L1）。
+     *
+     * 块级标记是块自己的属性，不涉及文本，所以直接改内存块表再落盘即可。
+     * `null` 表示取消标记。分支子块也能标记（`_blocks` 里是扁平的，含子块）。
+     */
+    fun setBlockEmphasis(blockId: Long, tone: EmphasisTone?) {
+        val index = _blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        if (_blocks[index].emphasis == tone) return
+        _blocks[index] = _blocks[index].copy(emphasis = tone)
+        syncBlocksToState()
+        scheduleSave()
     }
 
     fun removeBlock(blockId: Long) {

@@ -24,6 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.AnnotatedString
+import com.example.zhilu.domain.markup.InlineMarkup
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.GeneratingBadge
@@ -36,7 +37,6 @@ fun ReadOnlyBlock(
     onCopy: () -> Unit,
     modifier: Modifier = Modifier,
     onLanguageClick: () -> Unit = {},
-    showTopDivider: Boolean = false,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
     onCreateTodo: (suspend (String, Long?) -> Boolean)? = null,
@@ -66,15 +66,6 @@ fun ReadOnlyBlock(
         }
     ) {
         Column {
-            if (showTopDivider) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                        .height(1.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Divider))
-                )
-            }
             BlockCard(
                 block = block,
                 isEditing = false,
@@ -132,14 +123,23 @@ fun ReadOnlyBlock(
 
 fun readOnlyBlockCopyMenuLabel(): String = "复制此块"
 
+/**
+ * 复制到系统剪贴板的纯文本。
+ *
+ * 正文与分支标题要**先剥离行内语法**：这是给"人读、往别处粘"的出口，
+ * 粘到聊天/邮件里带一串 `{{k:` 没有意义。块剪贴板（应用内粘贴）走的是另一条路，
+ * 那条保留原文，因为标记要跟着块一起搬走。
+ */
 fun readOnlyBlockClipboardText(block: Block): AnnotatedString {
     val text = when (block.type) {
         com.example.zhilu.domain.model.BlockType.IMAGE -> "[图片]"
         com.example.zhilu.domain.model.BlockType.DIVIDER -> "----"
         com.example.zhilu.domain.model.BlockType.BRANCH ->
-            block.content.ifBlank { "[分支]" }
+            InlineMarkup.stripMarkup(block.content).ifBlank { "[分支]" }
         com.example.zhilu.domain.model.BlockType.LATEX ->
             block.content.ifBlank { "[公式]" }
+        com.example.zhilu.domain.model.BlockType.TEXT ->
+            InlineMarkup.stripMarkup(block.content)
         else -> block.content
     }
     return AnnotatedString(text)

@@ -38,6 +38,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -54,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -64,7 +66,19 @@ import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.ImageViewer
+import com.example.zhilu.ui.component.LocalFindHighlight
+import com.example.zhilu.ui.component.FindHighlight
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.note.blocks.LocalMarkChannel
+import com.example.zhilu.ui.note.blocks.MarkChannel
+import com.example.zhilu.ui.note.blocks.MarkRequest
+import com.example.zhilu.ui.note.find.NoteFindBar
+import com.example.zhilu.ui.note.find.findMatches
+import com.example.zhilu.ui.note.knowledge.CardIndexRail
+import com.example.zhilu.ui.note.knowledge.CardOutlineSheet
+import com.example.zhilu.ui.note.knowledge.CardStickyBar
+import com.example.zhilu.ui.note.knowledge.CardStickyThreshold
+import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.navigation.navigateToAssistant
@@ -90,9 +104,21 @@ fun NoteEditScreen(
     var activeBlockId by remember { mutableStateOf<Long?>(null) }
     var showShareSheet by remember { mutableStateOf(false) }
     var showReviewSheet by remember { mutableStateOf(false) }
+    var showOutlineSheet by remember { mutableStateOf(false) }
+    var showFindBar by remember { mutableStateOf(false) }
+    var findQuery by remember { mutableStateOf("") }
+    var findIndex by remember { mutableIntStateOf(0) }
+    val findHits = remember(state.cards, findQuery) { findMatches(state.cards, findQuery) }
+    // 命中数变化（改关键词、切笔记）时把指针收回有效范围
+    LaunchedEffect(findHits.size) {
+        if (findIndex >= findHits.size) findIndex = 0
+    }
     var viewingImageUri by remember { mutableStateOf<String?>(null) }
     var pendingBranchImageBlockId by remember { mutableStateOf<Long?>(null) }
     val coroutineScope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    // 底部工具栏「标记」→ 编辑器 的指令通道（§3.8）
+    val markChannel = remember { MarkChannel() }
     var previousCardCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(state.cards.size) {
@@ -232,20 +258,92 @@ fun NoteEditScreen(
                 onSave = viewModel::saveNow,
                 onShare = { showShareSheet = true },
                 onStartEditing = viewModel::startEditing,
-                onReviewClick = { showReviewSheet = true }
+                onReviewClick = { showReviewSheet = true },
+                // 卡片数 ≥ 3 才露出目录入口；跳转要把标题头那一项算进去（+1）
+                showOutline = state.cards.size >= 3,
+                onOpenOutline = { showOutlineSheet = true },
+                onOpenFind = { showFindBar = true }
             )
         }
     ) { padding ->
+        // 命中高亮：与行内语义标记叠加时，查找高亮优先（后加的 style 覆盖 background）（§6.4）
+        val findHighlight = if (showFindBar && findQuery.isNotBlank() && findHits.isNotEmpty()) {
+            FindHighlight(
+                query = findQuery,
+                background = MaterialTheme.colorScheme.primary.copy(alpha = 0.28f),
+                textColor = MaterialTheme.colorScheme.onSurface
+            )
+        } else {
+            null
+        }
+
+        fun jumpToFindHit(index: Int) {
+            val hit = findHits.getOrNull(index) ?: return
+            coroutineScope.launch {
+                listState.animateScrollToItem((hit.cardIndex + 1).coerceAtMost(state.cards.size))
+            }
+        }
+
+        // 底部「标记」的目标块：优先当前激活块；否则退回聚焦卡片的第一个顶层文本块。
+        // 回退是必要的 —— 否则用户必须先点 gutter 激活某块才能用这个入口，按钮常灰。
+        val markTargetBlockId: Long? = activeBlockId
+            ?: state.cards
+                .firstOrNull { it.isFocused }
+                ?.blocks
+                ?.firstOrNull { it.parentBranchId == null && it.type == BlockType.TEXT }
+                ?.id
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            if (showFindBar) {
+                NoteFindBar(
+                    query = findQuery,
+                    onQueryChange = {
+                        findQuery = it
+                        findIndex = 0
+                    },
+                    currentIndex = findIndex,
+                    total = findHits.size,
+                    onPrev = {
+                        if (findHits.isNotEmpty()) {
+                            findIndex = (findIndex - 1 + findHits.size) % findHits.size
+                            jumpToFindHit(findIndex)
+                        }
+                    },
+                    onNext = {
+                        if (findHits.isNotEmpty()) {
+                            findIndex = (findIndex + 1) % findHits.size
+                            jumpToFindHit(findIndex)
+                        }
+                    },
+                    onClose = {
+                        showFindBar = false
+                        findQuery = ""
+                        findIndex = 0
+                    }
+                )
+            }
+
+            // 边打边跳：关键词一变就滚到第一处命中（§6.4）
+            LaunchedEffect(findQuery, findHits.size) {
+                if (findHits.isNotEmpty()) jumpToFindHit(findIndex)
+            }
+
+            // 高亮经 CompositionLocal 下发，避免穿透六层到 RichText（§6.4）
+            CompositionLocalProvider(
+                LocalFindHighlight provides findHighlight,
+                LocalMarkChannel provides markChannel
+            ) {
+            // 用 Box 包住列表，好把「右缘索引轨」浮在页面右缘（§6.2）
+            Box(modifier = Modifier.weight(1f)) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(Spacing.SectionGap),
                 contentPadding = PaddingValues(vertical = 16.dp)
             ) {
                 item {
@@ -271,7 +369,7 @@ fun NoteEditScreen(
                 itemsIndexed(
                     items = state.cards,
                     key = { _, card -> card.id }
-                ) { _, card ->
+                ) { cardIndex, card ->
                     var showPasteDialog by remember { mutableStateOf(false) }
                     Box(
                         modifier = Modifier
@@ -288,11 +386,13 @@ fun NoteEditScreen(
                     ) {
                         KnowledgeCardItem(
                             card = card,
+                            cardIndex = cardIndex,
                             isEditing = state.isEditing,
                             canDelete = state.cards.size > 1,
                             onFocus = { viewModel.focusCard(card.id) },
                             onTitleChange = { viewModel.onCardTitleChange(card.id, it) },
                             onDelete = { viewModel.removeKnowledgeCard(card.id) },
+                            onSetBlockEmphasis = viewModel::setBlockEmphasis,
                             onBlockContentChange = viewModel::onBlockContentChange,
                             onBlockLanguageClick = { },
                             onRemoveBlock = viewModel::removeBlock,
@@ -336,6 +436,8 @@ fun NoteEditScreen(
                                 viewModel.citeCardToAi(card)
                                 navController.navigateToAssistant()
                             },
+                            onToggleCollapsed = { viewModel.toggleCardExpanded(card.id) },
+                            onToggleAllCollapsed = viewModel::toggleAllCardsExpanded,
                             onCiteBlockToAi = { blockId ->
                                 card.blocks.firstOrNull { it.id == blockId }?.let {
                                     viewModel.citeBlockToAi(it)
@@ -383,6 +485,44 @@ fun NoteEditScreen(
                 }
             }
 
+                // 当前小节吸附条：卡片头滚出视口后浮出（§6.3）
+                CardStickyBar(
+                    cards = state.cards,
+                    currentIndex = (listState.firstVisibleItemIndex - 1)
+                        .coerceIn(0, (state.cards.size - 1).coerceAtLeast(0)),
+                    visible = state.cards.isNotEmpty() &&
+                        listState.firstVisibleItemIndex >= 1 &&
+                        (
+                            listState.firstVisibleItemIndex > 1 ||
+                                listState.firstVisibleItemScrollOffset >
+                                with(density) { CardStickyThreshold.toPx() }
+                            ),
+                    onJump = { index ->
+                        coroutineScope.launch {
+                            listState.animateScrollToItem((index + 1).coerceAtMost(state.cards.size))
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+
+                // 右缘索引轨：一个刻度 = 一张卡片，拖动连续跳转（§6.2）
+                CardIndexRail(
+                    cards = state.cards,
+                    currentIndex = (listState.firstVisibleItemIndex - 1)
+                        .coerceIn(0, (state.cards.size - 1).coerceAtLeast(0)),
+                    scrollActive = listState.isScrollInProgress,
+                    onJump = { index ->
+                        coroutineScope.launch {
+                            listState.scrollToItem((index + 1).coerceAtMost(state.cards.size))
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 4.dp)
+                )
+            }
+            }
+
             if (state.isEditing) {
                 KnowledgeBottomToolbar(
                     activeCardId = state.activeCardId,
@@ -392,7 +532,14 @@ fun NoteEditScreen(
                     onAddLatex = { viewModel.addBlockToActiveCard(BlockType.LATEX) },
                     onAddCode = { viewModel.addBlockToActiveCard(BlockType.CODE) },
                     onAddLink = { viewModel.addBlockToActiveCard(BlockType.LINK) },
-                    onAddBranch = { viewModel.addBlockToActiveCard(BlockType.BRANCH) }
+                    onAddBranch = { viewModel.addBlockToActiveCard(BlockType.BRANCH) },
+                    markEnabled = markTargetBlockId != null,
+                    onPickMarkTone = { tone ->
+                        markTargetBlockId?.let { markChannel.request = MarkRequest(it, tone) }
+                    },
+                    onClearMark = {
+                        markTargetBlockId?.let { markChannel.request = MarkRequest(it, null) }
+                    }
                 )
                 if (state.isProcessingImage) {
                     Row(
@@ -438,6 +585,22 @@ fun NoteEditScreen(
                 showReviewSheet = false
             },
             onDismiss = { showReviewSheet = false }
+        )
+    }
+
+    if (showOutlineSheet) {
+        CardOutlineSheet(
+            cards = state.cards,
+            // 列表第 0 项是标题头，卡片从第 1 项开始；滚动定位时同理 +1
+            currentIndex = (listState.firstVisibleItemIndex - 1)
+                .coerceIn(0, (state.cards.size - 1).coerceAtLeast(0)),
+            onDismiss = { showOutlineSheet = false },
+            onPick = { index ->
+                showOutlineSheet = false
+                coroutineScope.launch {
+                    listState.animateScrollToItem((index + 1).coerceAtMost(state.cards.size))
+                }
+            }
         )
     }
 

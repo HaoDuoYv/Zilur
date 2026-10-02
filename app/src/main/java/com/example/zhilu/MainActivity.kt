@@ -42,9 +42,15 @@ class MainActivity : ComponentActivity() {
             val themeMode by userPreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val accentColor by userPreferences.accentColor
                 .collectAsState(initial = AccentColor.DEFAULT)
+            val accessibleEmphasis by userPreferences.accessibleEmphasis
+                .collectAsState(initial = false)
             val controller = rememberNavController()
             navController = controller
-            ZhiLuTheme(themeMode = themeMode, accentColor = accentColor) {
+            ZhiLuTheme(
+                themeMode = themeMode,
+                accentColor = accentColor,
+                accessibleEmphasis = accessibleEmphasis
+            ) {
                 AppShell(
                     navController = controller,
                     startDestination = initialRoute,

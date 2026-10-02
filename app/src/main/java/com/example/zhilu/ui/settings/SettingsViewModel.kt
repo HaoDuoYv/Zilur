@@ -69,6 +69,11 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            userPreferences.accessibleEmphasis.collect { enabled ->
+                _uiState.update { it.copy(accessibleEmphasis = enabled) }
+            }
+        }
+        viewModelScope.launch {
             userPreferences.remindersEnabled.collect { enabled ->
                 _uiState.update { it.copy(remindersEnabled = enabled) }
             }
@@ -89,6 +94,12 @@ class SettingsViewModel @Inject constructor(
     fun setAccentColor(accent: AccentColor) {
         viewModelScope.launch {
             userPreferences.setAccentColor(accent)
+        }
+    }
+
+    fun setAccessibleEmphasis(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferences.setAccessibleEmphasis(enabled)
         }
     }
 

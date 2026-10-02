@@ -116,6 +116,25 @@ object AlphaTokens {
     const val Hint = 0.7f         // placeholder / hint text
     const val SecondaryText = 0.85f // 次级正文
     const val Scrim = 0.32f       // sheet / dialog 遮罩
+
+    /** 行内语义标记的荧光笔底色。 */
+    const val InlineMark = 0.20f
+
+    /**
+     * 块级语义标记（L1）的淡底。
+     *
+     * 与 [Subtle] 同值但**语义不同**，因此单独命名：`Subtle` 是中性墨的透明度层级，
+     * 这里是"语义色铺底"，将来任何一方要调都不会牵动另一方。
+     */
+    const val EmphasisWash = 0.08f
+
+    /**
+     * 编辑态焦点块的底色。
+     *
+     * 刻意比 [EmphasisWash] 更淡：焦点底是 4%、语义标记底是 8%，
+     * 两者若同值，"正在编辑的块"和"已标记的块"就分不出来了。
+     */
+    const val BlockFocus = 0.04f
 }
 
 /**

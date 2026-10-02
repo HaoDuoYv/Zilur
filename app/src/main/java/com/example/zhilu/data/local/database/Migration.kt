@@ -78,5 +78,23 @@ object Migration {
         }
     }
 
-    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+    /**
+     * v6：块级语义标记 + 卡片身份色。
+     *
+     * 用户明确表示本次不需要兼容老数据，但仍走正规迁移 ——
+     * 两条 `ALTER TABLE ADD COLUMN` 的成本比破坏性迁移更低，也不违反项目对
+     * `fallbackToDestructiveMigration()` 的禁令。既有行拿到
+     * `emphasis = 0`（未标记）与 `accent = NULL`（按序号回退轮转色），外观立刻合理。
+     *
+     * ⚠️ `emphasis` 的 `DEFAULT 0` 必须与 `NoteBlockEntity` 上的
+     * `@ColumnInfo(defaultValue = "0")` 逐字一致；`accent` 可空且两边都不给默认值。
+     */
+    internal val MIGRATION_5_6: androidx.room.migration.Migration = object : androidx.room.migration.Migration(5, 6) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE note_blocks ADD COLUMN emphasis INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE note_cards ADD COLUMN accent INTEGER")
+        }
+    }
+
+    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
 }

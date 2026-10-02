@@ -34,4 +34,27 @@ class CardMapperTest {
 
         assertEquals(0L, entity.id)
     }
+
+    @Test
+    fun `accent 为 null 表示用户没改过 落库后仍为 null`() {
+        val entity = CardMapper.toNewEntity(
+            domain = KnowledgeCard(id = 0L, title = "卡片", accent = null),
+            noteId = 7L,
+            sortOrder = 0
+        )
+        assertEquals(null, entity.accent)
+        assertEquals(null, CardMapper.toDomain(entity).accent)
+    }
+
+    @Test
+    fun `用户显式选的身份色能往返`() {
+        val custom = 0xFF4A7A7A.toInt()
+        val entity = CardMapper.toNewEntity(
+            domain = KnowledgeCard(id = 0L, title = "卡片", accent = custom),
+            noteId = 7L,
+            sortOrder = 1
+        )
+        assertEquals(custom, entity.accent)
+        assertEquals(custom, CardMapper.toDomain(entity).accent)
+    }
 }

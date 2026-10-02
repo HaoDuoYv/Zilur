@@ -10,14 +10,16 @@ object CardMapper {
             title = entity.title,
             blocks = blocks,
             isExpanded = true,
-            isFocused = false
+            isFocused = false,
+            accent = entity.accent
         )
 
     fun toEntity(domain: KnowledgeCard, noteId: Long = 0, sortOrder: Int = 0): NoteCardEntity = NoteCardEntity(
         id = domain.id,
         noteId = noteId,
         title = domain.title,
-        sortOrder = sortOrder
+        sortOrder = sortOrder,
+        accent = domain.accent
     )
 
     /**

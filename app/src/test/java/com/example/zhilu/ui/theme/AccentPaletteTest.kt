@@ -19,8 +19,9 @@ class AccentPaletteTest {
     private val minContrast = 4.5
 
     @Test
-    fun paletteHasSevenAccents() {
-        assertEquals(7, AccentColor.entries.size)
+    fun paletteHasEightAccents() {
+        // 7 → 8：新增「正红」。追加在枚举末尾，避免打乱既有用户按 name 持久化的值。
+        assertEquals(8, AccentColor.entries.size)
     }
 
     @Test
