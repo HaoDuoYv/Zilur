@@ -2,6 +2,7 @@ package com.example.zhilu.ui.home
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Star
@@ -28,6 +29,7 @@ import com.example.zhilu.ui.component.NoteRowVariant
 import com.example.zhilu.ui.component.RevealAction
 import com.example.zhilu.ui.component.RevealSide
 import com.example.zhilu.ui.component.SwipeRevealRow
+import com.example.zhilu.ui.theme.Radius
 import com.example.zhilu.ui.theme.Spacing
 
 /**
@@ -47,6 +49,10 @@ import com.example.zhilu.ui.theme.Spacing
  * 即使方向判定偶尔把一次斜向滚动认成横滑，用户最多看到一个按钮露出来，
  * 不会凭空多出一条收藏或一个删除确认框。
  *
+ * 露出时**卡片不动**，是操作槽从行外滑进来盖在卡片右侧。
+ * 早先是「整行平移 92dp 让出下方槽位」，短标题行（`红黑树`）的标题 / 标签 / 时间
+ * 整段会被推出可视区，滑开了却看不出在操作哪一行。
+ *
  * 展开状态由列表层持有（[revealedSide]），因此天然互斥：同一时刻至多一行露出。
  */
 @Composable
@@ -62,6 +68,8 @@ fun HomeNoteItem(
     var menuOpen by remember { mutableStateOf(false) }
 
     // 文档行铺满整宽，露出槽也跟着铺满；纸卡有外距与圆角，露出槽要对齐卡片。
+    // 槽位现在压在卡片之上（而不是把卡片平移走），所以圆角必须取卡片同值：
+    // 槽位右缘与卡片右缘重合，圆角差 2dp 就会在角上露出一条白边。
     val revealInsets: PaddingValues
     val revealShape: Shape
     if (variant == NoteRowVariant.Document) {
@@ -72,7 +80,7 @@ fun HomeNoteItem(
             horizontal = Spacing.PageGutter,
             vertical = Spacing.CardGap / 2
         )
-        revealShape = MaterialTheme.shapes.medium
+        revealShape = RoundedCornerShape(Radius.Card)
     }
 
     val favoriteLabel = if (note.isFavorite) "取消收藏" else "收藏"

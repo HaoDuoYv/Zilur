@@ -1,5 +1,10 @@
 package com.example.zhilu.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,8 +45,13 @@ import com.example.zhilu.ui.component.RowReveal
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.MotionEasing
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.motionEnterTween
+import com.example.zhilu.ui.theme.motionExitTween
 import kotlinx.coroutines.launch
 
 @Composable
@@ -53,6 +63,7 @@ fun HomeScreen(
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val motion = !LocalReducedMotion.current
     var pendingDeleteNoteId by remember { mutableStateOf<Long?>(null) }
     var searchFocused by remember { mutableStateOf(false) }
     // 滑动露出的操作槽：同一时刻至多一行，列表层统一持有。
@@ -98,9 +109,37 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            HomeCreateFab(
-                onClick = { navController.navigate(Destination.NoteEdit.createRoute()) }
-            )
+            // 有行处于露出态时收起 FAB。它常驻右下，正好压在最后一行露出的操作槽上
+            // 并且会抢走点击——露出态是一次性的「行操作」，全局新建入口此时让位。
+            // 用 AnimatedVisibility 而不是单纯的条件组合：退出动画结束后内容才真正移出，
+            // 移出后 FAB 不再占据触摸区，点击才能落到槽位上。
+            AnimatedVisibility(
+                visible = reveal == null,
+                enter = fadeIn(
+                    motionEnterTween(MotionDuration.Short, easing = MotionEasing.Enter, enabled = motion)
+                ) + scaleIn(
+                    initialScale = 0.85f,
+                    animationSpec = motionEnterTween(
+                        MotionDuration.Short,
+                        easing = MotionEasing.Enter,
+                        enabled = motion
+                    )
+                ),
+                exit = fadeOut(
+                    motionExitTween(MotionDuration.Quick, easing = MotionEasing.Exit, enabled = motion)
+                ) + scaleOut(
+                    targetScale = 0.85f,
+                    animationSpec = motionExitTween(
+                        MotionDuration.Quick,
+                        easing = MotionEasing.Exit,
+                        enabled = motion
+                    )
+                )
+            ) {
+                HomeCreateFab(
+                    onClick = { navController.navigate(Destination.NoteEdit.createRoute()) }
+                )
+            }
         }
     ) { padding ->
         Column(

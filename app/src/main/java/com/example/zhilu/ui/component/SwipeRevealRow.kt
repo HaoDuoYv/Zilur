@@ -118,6 +118,14 @@ private const val LockBias = 1.6f
  * | 滑到底 | **立即执行动作** | 只露出按钮，不执行 |
  * | 误触后果 | 收藏被静默切换 / 弹出删除确认 | 什么都不发生 |
  *
+ * ## 行内容不位移，槽位压上来
+ *
+ * 露出是「槽位从行外滑进来盖在行上」，而不是「把整行平移走」。
+ * 旧实现整行平移 92dp，行首那一截（页面留白 20dp + 卡片内边距 16dp 起）会被裁掉，
+ * 短标题行（`红黑树`）的标题 / 标签 / 时间整段正好落在被裁掉的区域里，
+ * 用户滑开了却看不出自己在操作哪一行。内容不动后，行首信息始终完整可读，
+ * 被盖住的只有行尾那一块（通常只有收藏星标与空白）。
+ *
  * ## 交互契约
  *
  * - 展开状态由调用方持有（[revealedSide]），因此天然支持「同时只允许一行展开」与
@@ -252,8 +260,20 @@ fun SwipeRevealRow(
         }
     }
 
+    // 两侧槽位各自的滑入进度：0 = 完全在行外（被裁掉），1 = 完全到位。
+    // 一正一负，任何时刻至多一侧在动。
+    val leadingProgress = (offsetPx / revealPx).coerceIn(0f, 1f)
+    val trailingProgress = (-offsetPx / revealPx).coerceIn(0f, 1f)
+
     Box(modifier = modifier.clipToBounds().then(gestureModifier)) {
-        // 露出槽层：被内容层完全遮住，只有拖动后才会显形。
+        // 内容层：**不位移**。整行铺满，行首信息永远完整可见。
+        Box(modifier = Modifier.background(containerColor)) {
+            content()
+        }
+
+        // 露出槽层：盖在内容之上，随手指从行外滑入。
+        // 顺序上必须在内容之后——旧实现把它放在下面靠「内容平移让位」显形，
+        // 代价就是行首内容被推出可视区。
         Row(
             modifier = Modifier
                 .matchParentSize()
@@ -263,8 +283,10 @@ fun SwipeRevealRow(
             if (swipeRightAction != null) {
                 RevealSlot(
                     action = swipeRightAction,
+                    enabled = revealedSide == RevealSide.Leading,
                     horizontalAlignment = Alignment.Start,
                     modifier = Modifier
+                        .offset { IntOffset((-revealPx * (1f - leadingProgress)).roundToInt(), 0) }
                         .fillMaxHeight()
                         .width(RevealWidth)
                         .background(swipeRightAction.containerColor)
@@ -274,35 +296,37 @@ fun SwipeRevealRow(
             if (swipeLeftAction != null) {
                 RevealSlot(
                     action = swipeLeftAction,
+                    enabled = revealedSide == RevealSide.Trailing,
                     horizontalAlignment = Alignment.End,
                     modifier = Modifier
+                        .offset { IntOffset((revealPx * (1f - trailingProgress)).roundToInt(), 0) }
                         .fillMaxHeight()
                         .width(RevealWidth)
                         .background(swipeLeftAction.containerColor)
                 )
             }
         }
-
-        // 内容层：不透明底色，拖动时才会让出下方的槽位。
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(offsetPx.roundToInt(), 0) }
-                .background(containerColor)
-        ) {
-            content()
-        }
     }
 }
 
+/**
+ * 露出槽。
+ *
+ * [enabled] 必须跟着「这一侧是否真的处于露出态」走，不能省：
+ * 未露出时槽位被 `offset` 推到行外只做视觉裁剪，[Modifier.clip] 并不裁剪触摸区，
+ * 若槽位仍可点击，行首 / 行尾那一整个 [RevealWidth] 宽的区域会在静息态下悄悄接走点击、
+ * 并直接执行动作（用户以为点的是卡片，实际触发了删除）。
+ */
 @Composable
 private fun RevealSlot(
     action: RevealAction,
+    enabled: Boolean,
     horizontalAlignment: Alignment.Horizontal,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier
-            .clickable(role = Role.Button) { action.onAction() }
+            .clickable(enabled = enabled, role = Role.Button) { action.onAction() }
             .padding(horizontal = Spacing.Sm, vertical = Spacing.Sm),
         horizontalAlignment = horizontalAlignment,
         verticalArrangement = Arrangement.Center
