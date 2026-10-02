@@ -1,19 +1,31 @@
 package com.example.zhilu.ui.assistant
 
+import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,16 +42,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -53,6 +73,8 @@ import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.navigation.LocalSuppressBottomBar
+import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 import kotlinx.coroutines.delay
@@ -70,16 +92,79 @@ fun AssistantScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // 附件弹层：加号入口不再用下拉菜单，改成底部弹层（一排功能 + 最近图片）。
-    // sheetState 由这里持有，关闭时先 hide 走完动画再移出组合。
+    // ── 键盘 / 附件面板：两者共用同一块「底部高度」 ──────────────────────────
+    //
+    // 契约：面板高度恒等于键盘高度，且面板顶部与键盘顶部重合。
+    // 于是「键盘 → 面板」只是把同一块高度里的东西换掉，输入栏一像素都不动。
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var attachSheetVisible by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val view = LocalView.current
+    val reducedMotion = LocalReducedMotion.current
+    var attachPanelVisible by remember { mutableStateOf(false) }
 
-    // 弹层打开会让主窗口失焦、键盘收起，但输入框的 Compose 焦点未必被清掉；
-    // 直接 requestFocus 会因「已经聚焦」而失效。先 clearFocus 强制走一遍
-    // unfocused→focused，输入框才会重新拉起 IME。中间隔一小段时间让清焦点落地。
+    /**
+     * 面板是否仍占着底部那块高度——**不能**直接用 [attachPanelVisible]。
+     *
+     * 收起面板时键盘是**从 0 长起来**的：如果同一帧就把占位撤掉，输入栏会先掉下去、
+     * 再被升起的键盘顶回来，肉眼就是跳一下。所以收起之后面板要继续「握着」这块高度，
+     * 直到键盘长到同样高再放手；期间 `面板高 - 键盘高` 会自己缩到 0，两者始终互补。
+     */
+    var panelEngaged by remember { mutableStateOf(false) }
+    LaunchedEffect(attachPanelVisible) {
+        if (attachPanelVisible) {
+            panelEngaged = true
+        } else {
+            // 交棒窗口：键盘升起动画一般 250ms 内走完，给足一点余量。
+            // 真没升起来（例如输入框拿不到焦点）也只是多留一会儿，到点照样放手。
+            delay(PanelHandOffTimeout)
+            panelEngaged = false
+        }
+    }
+
+    // 键盘当前高度（px）。WindowInsets.ime 在 API 30+ 是**随键盘动画逐帧更新**的，
+    // 因此下面那块底部占位会跟着键盘一起长、一起收，天然与键盘动画同步。
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    // 记住键盘高度：面板要在键盘不在场时替它顶上同样一块高度。
+    // 用 rememberSaveable 只是为了让旋转后不必重新量一次，掉了也不影响正确性。
+    var lastImeHeight by rememberSaveable { mutableIntStateOf(0) }
+    LaunchedEffect(imeBottom) {
+        if (imeBottom > lastImeHeight) lastImeHeight = imeBottom
+    }
+    val panelHeightPx = lastImeHeight.takeIf { it > 0 }
+        ?: with(density) { FallbackPanelHeight.roundToPx() }
+
+    /**
+     * 输入栏下方那块占位的高度。
+     *
+     * `imePadding()` 已经在根层 `AppShell` 让整棵树缩掉了 [imeBottom]，
+     * 所以这里只需要补上「键盘还欠着的那一截」：`面板高 - 当前键盘高`。
+     * 两者相加恒等于面板高度，键盘收起的过程中正好此消彼长——
+     * 这就是「输入栏不跳」的全部秘密，不需要另外再算一次动画时长。
+     */
+    val bottomSpacePx = (panelHeightPx - imeBottom).coerceAtLeast(0)
+    val bottomSpaceDp = with(density) { bottomSpacePx.toDp() }
+    // 只有在「从没量到过键盘高度」的冷启动时才自己补动画：
+    // 那种情况下没有键盘动画可蹭，不补的话占位会从 0 直接跳到目标高度。
+    // 量到过键盘高度时一律 snap，交给 IME 动画逐帧驱动，避免两段动画互相拉扯。
+    val bottomSpace by animateDpAsState(
+        targetValue = if (panelEngaged) bottomSpaceDp else 0.dp,
+        animationSpec = if (reducedMotion || lastImeHeight > 0) snap() else tween(PanelRiseDuration),
+        label = "attach_panel_space"
+    )
+
+    // 面板展开时把键盘让出来——面板与键盘等高，两个都显示只会互相挤。
+    fun hideKeyboard() {
+        focusManager.clearFocus()
+        runCatching {
+            WindowCompat.getInsetsController((view.context as Activity).window, view)
+                .hide(WindowInsetsCompat.Type.ime())
+        }
+    }
+
+    // 弹层 / 面板收起后唤回键盘：直接 requestFocus 会因「已经聚焦」而失效
+    // （关闭面板只是让窗口失焦，Compose 的焦点未必被清掉），
+    // 必须先 clearFocus 强制走一遍 unfocused→focused。
     fun restoreComposerFocus() {
         focusManager.clearFocus()
         scope.launch {
@@ -88,12 +173,25 @@ fun AssistantScreen(
         }
     }
 
-    // 无跳转的关闭（点遮罩 / 下滑）：动画收起后要回焦点、唤回键盘。
-    fun dismissAttachSheet() {
-        scope.launch { sheetState.hide() }.invokeOnCompletion {
-            attachSheetVisible = false
+    /** 加号：面板展开 / 收起的唯一裁决点。 */
+    fun toggleAttachPanel() {
+        if (attachPanelVisible) {
+            attachPanelVisible = false
             restoreComposerFocus()
+        } else {
+            attachPanelVisible = true
+            hideKeyboard()
         }
+    }
+
+    // 面板展开期间压住底部导航：AppShell 只在「键盘可见」时才藏底栏，
+    // 而面板展开时键盘是收着的，底栏会冒出来把内容区顶矮一截——输入栏就跳了。
+    // 这里跟 [panelEngaged] 而不是 [attachPanelVisible]：交棒的那 320ms 里键盘还没起来，
+    // 底栏同样会冒头，必须一起压住。
+    val setBottomBarSuppressed = LocalSuppressBottomBar.current
+    DisposableEffect(panelEngaged, setBottomBarSuppressed) {
+        setBottomBarSuppressed(panelEngaged)
+        onDispose { setBottomBarSuppressed(false) }
     }
 
     // 拍照结果回传：相机页把 mediaId|uri 写回 savedStateHandle，助手页在 ON_RESUME 消费。
@@ -121,7 +219,7 @@ fun AssistantScreen(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted -> hasGalleryAccess = granted }
     val recentImages = rememberRecentGalleryImages(
-        enabled = attachSheetVisible && hasGalleryAccess,
+        enabled = attachPanelVisible && hasGalleryAccess,
         limit = 8
     )
 
@@ -200,13 +298,61 @@ fun AssistantScreen(
                     attachedRefs = state.attachedRefs,
                     isGenerating = state.isGenerating,
                     focusRequester = focusRequester,
+                    attachPanelOpen = attachPanelVisible,
                     onTextChange = viewModel::updateInput,
-                    onOpenAttachSheet = { attachSheetVisible = true },
+                    onToggleAttachPanel = ::toggleAttachPanel,
+                    // 面板开着时点输入框 = 要打字：收起面板，键盘自然回来。
+                    onComposerFocused = {
+                        if (attachPanelVisible) attachPanelVisible = false
+                    },
                     onRemoveImage = viewModel::removeImage,
                     onRemoveFile = viewModel::removeFile,
                     onRemoveRef = viewModel::removeRef,
                     onSend = viewModel::sendMessage,
                     onStop = viewModel::stopGeneration
+                )
+
+                // 键盘位：高度恒等于键盘高度的一块容器，面板就在这里面升起。
+                // 它**跟着输入栏一起**被 imePadding 抬着，因此键盘收、面板起，
+                // 两者对输入栏的净位移为零。
+                AttachPanelSlot(
+                    visible = attachPanelVisible,
+                    height = bottomSpace,
+                    reducedMotion = reducedMotion,
+                    canReadGallery = hasGalleryAccess,
+                    recentImages = recentImages,
+                    onRequestGalleryAccess = {
+                        galleryPermissionLauncher.launch(galleryReadPermission)
+                    },
+                    onTakePhoto = {
+                        attachPanelVisible = false
+                        navController.navigate(Destination.Camera.path)
+                    },
+                    onPickFromGallery = {
+                        attachPanelVisible = false
+                        runCatching { imagePicker.launch("image/*") }.onFailure {
+                            scope.launch { snackbar.showSnackbar("未找到可用的图片选择器") }
+                        }
+                    },
+                    onPickFile = {
+                        attachPanelVisible = false
+                        runCatching {
+                            filePicker.launch(
+                                arrayOf("text/plain", "text/markdown", "application/octet-stream")
+                            )
+                        }.onFailure {
+                            scope.launch { snackbar.showSnackbar("未找到可用的文件选择器") }
+                        }
+                    },
+                    onPickRef = {
+                        attachPanelVisible = false
+                        viewModel.openRefPicker()
+                    },
+                    onPickRecentImage = { uri ->
+                        attachPanelVisible = false
+                        viewModel.attachImages(listOf(uri.toString()))
+                        restoreComposerFocus()
+                    }
                 )
             }
         }
@@ -265,45 +411,91 @@ fun AssistantScreen(
         )
     }
 
-    if (attachSheetVisible) {
-        AttachSheet(
-            sheetState = sheetState,
-            canReadGallery = hasGalleryAccess,
-            recentImages = recentImages,
-            onRequestGalleryAccess = { galleryPermissionLauncher.launch(galleryReadPermission) },
-            onTakePhoto = {
-                attachSheetVisible = false
-                navController.navigate(Destination.Camera.path)
-            },
-            onPickFromGallery = {
-                attachSheetVisible = false
-                runCatching { imagePicker.launch("image/*") }.onFailure {
-                    scope.launch { snackbar.showSnackbar("未找到可用的图片选择器") }
-                }
-            },
-            onPickFile = {
-                attachSheetVisible = false
-                runCatching {
-                    filePicker.launch(
-                        arrayOf("text/plain", "text/markdown", "application/octet-stream")
-                    )
-                }.onFailure {
-                    scope.launch { snackbar.showSnackbar("未找到可用的文件选择器") }
-                }
-            },
-            onPickRef = {
-                attachSheetVisible = false
-                viewModel.openRefPicker()
-            },
-            onPickRecentImage = { uri ->
-                attachSheetVisible = false
-                viewModel.attachImages(listOf(uri.toString()))
-                restoreComposerFocus()
-            },
-            onDismissRequest = ::dismissAttachSheet
-        )
+}
+
+/**
+ * 键盘位：一块高度由 [height] 决定的容器，面板在其中滑入 / 滑出。
+ *
+ * 单独抽成一个无作用域的组合函数是有原因的：直接写在 `Column` 里时，
+ * `AnimatedVisibility` 会解析到 `ColumnScope` 的那个重载（content 不带
+ * `AnimatedVisibilityScope`），随后内容里的可组合调用就报「只能在 @Composable 上下文」。
+ * 抽出来之后作用域干净，解析回到标准的那一个。
+ */
+@Composable
+private fun AttachPanelSlot(
+    visible: Boolean,
+    height: Dp,
+    reducedMotion: Boolean,
+    canReadGallery: Boolean,
+    recentImages: List<Uri>,
+    onRequestGalleryAccess: () -> Unit,
+    onTakePhoto: () -> Unit,
+    onPickFromGallery: () -> Unit,
+    onPickFile: () -> Unit,
+    onPickRef: () -> Unit,
+    onPickRecentImage: (Uri) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            // 面板高度恒等于键盘高度，内容超了就滚动——
+            // 这里必须裁剪，否则内容会溢出去顶到输入栏。
+            .clipToBounds()
+    ) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = if (reducedMotion) snap() else tween(PanelRiseDuration)
+            ) + fadeIn(
+                animationSpec = if (reducedMotion) snap() else tween(PanelRiseDuration)
+            ),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = if (reducedMotion) snap() else tween(PanelFallDuration)
+            ) + fadeOut(
+                animationSpec = if (reducedMotion) snap() else tween(PanelFallDuration)
+            )
+        ) {
+            AttachPanel(
+                canReadGallery = canReadGallery,
+                recentImages = recentImages,
+                onRequestGalleryAccess = onRequestGalleryAccess,
+                onTakePhoto = onTakePhoto,
+                onPickFromGallery = onPickFromGallery,
+                onPickFile = onPickFile,
+                onPickRef = onPickRef,
+                onPickRecentImage = onPickRecentImage
+            )
+        }
     }
 }
+
+/**
+ * 面板升起 / 落下的时长。
+ *
+ * 键盘（API 30+）的进出场动画大约是 220~250ms，取同一量级才能让
+ * 「键盘落、面板起」读起来像同一个动作而不是两件事。
+ */
+private const val PanelRiseDuration = 240
+private const val PanelFallDuration = 200
+
+/**
+ * 收起面板后，还留多久等键盘把高度接过去（毫秒）。
+ *
+ * 这段时间里底部占位按 `面板高 - 键盘高` 自己缩到 0，输入栏不动；
+ * 到点无条件放手，避免键盘因为任何原因没弹起来时占位卡住。
+ */
+private const val PanelHandOffTimeout = 320L
+
+/**
+ * 从没量到过键盘高度时的兜底面板高度。
+ *
+ * 冷启动直接点加号时系统还没给过我们键盘高度，只能先按常见键盘高度（约 260dp）顶上；
+ * 一旦键盘真正弹出过一次，就以实测值为准。
+ */
+private val FallbackPanelHeight = 260.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

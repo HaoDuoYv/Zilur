@@ -129,7 +129,7 @@ class NoteViewModelKnowledgeCardTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("应存在三张卡片（原卡片、兜底卡片、新卡片）", 3, state.cards.size)
+        assertEquals("应存在两张卡片（原卡片、新卡片）", 2, state.cards.size)
         assertNotNull("新建卡片后应有活跃卡片", state.activeCardId)
 
         val newCard = state.cards.last()
@@ -201,8 +201,46 @@ class NoteViewModelKnowledgeCardTest {
         assertNull("分支展开状态应被清理", afterRemove.branchExpandedStates[branchId])
     }
 
+    /**
+     * 保存**不能**改动卡片 / 块的 id。
+     *
+     * 编辑页 `LazyColumn` 的 key 就是 `card.id`。一旦保存把本地临时 id 换成数据库主键，
+     * key 就变了，正在输入的那个 `BasicTextField` 会被 Compose 当成新条目销毁重建：
+     * 焦点丢失 → 键盘被收起。自动保存每 500ms 一次，表现就是「打字打到一半键盘自己没了」。
+     *
+     * 这条用例同时守着「不回写也不会破坏持久化」的另一半：第二次保存必须走 update 而不是
+     * 又插一条——`NoteRepositoryImpl.updateNote` 是「按 noteId 全删再插」，
+     * 主键由数据库重新分配，所以本地根本不需要记住上一次返回的主键，只要记住 noteId。
+     */
+    /**
+     * 从浏览态进编辑态，**不能**凭空多出一张卡。
+     *
+     * 浏览态下 `currentCardId` 还是 init 里的临时负值，startEditing 里如果直接
+     * `focusCard(第一张卡)`，会走到「切换卡片」分支并触发 `ensureCurrentCardExists`
+     * 误判「当前卡片不存在」，兜出一张 title 同笔记标题的空卡——每进一次编辑就多一张。
+     * 修复后 startEditing 先把 currentCardId 对齐到真实卡片，focusCard 命中快速路径。
+     */
     @Test
-    fun saveReplacesTemporaryNegativeIdsWithDatabaseIds() = runTest(dispatcher) {
+    fun startEditingDoesNotDuplicateCards() = runTest(dispatcher) {
+        val note = noteWithTwoCards()
+        val viewModel = createViewModel(note)
+        advanceUntilIdle()
+
+        val cardsBefore = viewModel.uiState.value.cards.size
+        assertEquals("初始应有两张卡片", 2, cardsBefore)
+
+        viewModel.startEditing()
+        advanceUntilIdle()
+
+        assertEquals(
+            "进入编辑态不应新增卡片",
+            cardsBefore,
+            viewModel.uiState.value.cards.size
+        )
+    }
+
+    @Test
+    fun saveKeepsLocalCardAndBlockIdsStable() = runTest(dispatcher) {
         val noteRepository = IdAssigningNoteRepository(note = null)
         val viewModel = NoteViewModel(
             noteRepository = noteRepository,
@@ -239,31 +277,56 @@ class NoteViewModelKnowledgeCardTest {
         }.id
         assertTrue("子块 ID 应为临时负数", childId < 0)
 
+        val cardIdBeforeSave = viewModel.uiState.value.cards.single().id
+
         viewModel.saveNow()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
+        // 笔记 id 是唯一需要采纳的返回值：它决定下次走 insert 还是 update。
         assertTrue("保存后笔记 ID 应为正数", state.noteId > 0)
-        assertEquals("活跃卡片 ID 应被替换为正数", 1, state.cards.size)
+        assertEquals("活跃卡片数量不变", 1, state.cards.size)
 
         val savedCard = state.cards.single()
-        assertTrue("卡片 ID 应被替换为正数", savedCard.id > 0)
-        assertEquals("活跃卡片 ID 应与当前卡片同步", savedCard.id, state.activeCardId)
+        assertEquals(
+            "卡片 ID 必须原地不动：它是 LazyColumn 的 key，变了就会把输入框换掉（键盘被收起）",
+            cardIdBeforeSave,
+            savedCard.id
+        )
+        assertEquals("活跃卡片 ID 应仍指向同一张卡", savedCard.id, state.activeCardId)
 
         val savedBranch = savedCard.blocks.find { it.type == BlockType.BRANCH }
         assertNotNull(savedBranch)
-        assertTrue("分支块 ID 应被替换为正数", savedBranch!!.id > 0)
+        assertEquals(
+            "分支块 ID 必须原地不动",
+            branchId,
+            savedBranch!!.id
+        )
 
         val savedChild = savedCard.blocks.find {
             it.type == BlockType.TEXT && it.parentBranchId != null
         }
         assertNotNull(savedChild)
-        assertTrue("子块 ID 应被替换为正数", savedChild!!.id > 0)
+        assertEquals("子块 ID 必须原地不动", childId, savedChild!!.id)
         assertEquals(
-            "子块的 parentBranchId 应映射为保存后的分支 ID",
-            savedBranch.id,
+            "子块的 parentBranchId 仍指向本地分支 ID（落库时由 Repository 重新映射）",
+            branchId,
             savedChild.parentBranchId
         )
+
+        // 后续保存必须走 update：证明不回写主键也不会把笔记插重。
+        // 这里不断言 update 的具体次数——自动保存是个循环，测试调度器下 advanceUntilIdle()
+        // 会把它跑干，次数取决于调度节奏而不是逻辑正确性；要守的是「只插一次 + 一直用同一个 id」。
+        viewModel.onTitleChange("Persist again")
+        advanceUntilIdle()
+        assertEquals("全程只应插入一次：不回写主键不会把笔记插重", 1, noteRepository.insertCount)
+        assertTrue("首次之后的保存都应走 update", noteRepository.updateCount >= 1)
+        assertEquals(
+            "update 必须始终带上首次 insert 返回的笔记 ID",
+            100L,
+            noteRepository.lastUpdatedNoteId
+        )
+        assertEquals("笔记 ID 不应再变", state.noteId, viewModel.uiState.value.noteId)
     }
 
     @Test
@@ -285,8 +348,8 @@ class NoteViewModelKnowledgeCardTest {
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
-        assertEquals("应剩两张卡片（原卡片 + 兜底卡片）", 2, state.cards.size)
-        assertEquals("剩余第一张应为第一张", firstCard.id, state.cards[0].id)
+        assertEquals("删除后应只剩一张卡片（不再有兜底卡片）", 1, state.cards.size)
+        assertEquals("剩余卡片应为第一张", firstCard.id, state.cards[0].id)
         assertEquals("活跃卡片应切换到剩余第一张", firstCard.id, state.activeCardId)
         assertTrue("剩余卡片应处于聚焦状态", state.cards[0].isFocused)
     }
@@ -417,11 +480,23 @@ private class IdAssigningNoteRepository(
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
-    override suspend fun insertNote(note: Note): RepositoryResult<Note> =
-        RepositoryResult.Success(assignIds(note, noteId = 100L))
+    /** 记录走的哪条路径：第一次保存是 insert，之后必须改走 update。 */
+    var insertCount = 0
+    var updateCount = 0
 
-    override suspend fun updateNote(note: Note): RepositoryResult<Note> =
-        RepositoryResult.Success(assignIds(note, noteId = note.id))
+    /** 最后一次 update 带进去的 noteId——它必须一直是首次 insert 返回的那一个。 */
+    var lastUpdatedNoteId: Long? = null
+
+    override suspend fun insertNote(note: Note): RepositoryResult<Note> {
+        insertCount += 1
+        return RepositoryResult.Success(assignIds(note, noteId = 100L))
+    }
+
+    override suspend fun updateNote(note: Note): RepositoryResult<Note> {
+        updateCount += 1
+        lastUpdatedNoteId = note.id
+        return RepositoryResult.Success(assignIds(note, noteId = note.id))
+    }
 
     override suspend fun deleteNote(note: Note): RepositoryResult<Unit> =
         RepositoryResult.Success(Unit)

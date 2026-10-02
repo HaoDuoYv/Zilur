@@ -709,6 +709,13 @@ class NoteViewModel @Inject constructor(
         val activeCardId = _uiState.value.activeCardId
             ?: _uiState.value.cards.firstOrNull()?.id
             ?: currentCardId
+        // 浏览态下 currentCardId 还是 init 里的临时负值，直接 focusCard(activeCardId) 会
+        // 走到「切换卡片」分支，`ensureCurrentCardExists` 误判「当前卡片不存在」而凭空
+        // 多兜一张卡（title 同笔记标题）。所以这里先把 currentCardId 对齐到真实卡片，
+        // 再手动完成 focusCard 的「载入活跃卡片块」——只做块切换，不做任何卡片增删。
+        currentCardId = activeCardId
+        val targetCard = _uiState.value.cards.find { it.id == activeCardId }
+        replaceBlocks(targetCard?.blocks?.ifEmpty { defaultBlocks() } ?: defaultBlocks())
         _uiState.update { state ->
             state.copy(
                 isEditing = true,
@@ -718,7 +725,7 @@ class NoteViewModel @Inject constructor(
                 }
             )
         }
-        focusCard(activeCardId)
+        syncBlocksToState()
     }
 
     fun startReviewPlan(now: Long = System.currentTimeMillis()) {
@@ -1202,6 +1209,22 @@ class NoteViewModel @Inject constructor(
         return saveVersion
     }
 
+    /**
+     * 写库。成功后**只**采纳数据库分配的笔记 id，卡片 / 块的 id 保持本地值不变。
+     *
+     * 此前这里会把本地临时 id（新建时为负数）回写成数据库主键。这个回写有两个问题：
+     *
+     * 1. **它会把正在输入的输入框整块换掉。** 编辑页的 `LazyColumn` 用 `card.id` 作 key，
+     *    key 一变 Compose 就当成一个新条目，正在聚焦的 `BasicTextField` 随之销毁重建，
+     *    焦点丢失 → 键盘被收起。自动保存每 500ms 一次，于是「打字打到一半键盘没了」。
+     * 2. **它根本没必要。** `NoteRepositoryImpl.updateNote` 是「按 noteId 全删再插」，
+     *    而且卡片 / 块的主键在落库前会被显式归零交给数据库重新分配（见 `replaceCards`）。
+     *    也就是说下一次保存根本不依赖上一次返回的主键——唯一需要记住的是 note id，
+     *    用来决定走 insert 还是 update。
+     *
+     * 保留本地 id 还有两个附带的正收益：`branchExpandedStates`、AI 生成占用的
+     * `generatingCardIds` / `generatingBlockIds` 都是按本地 id 记的，不再因为回写而失效。
+     */
     private suspend fun saveInternal(version: Long, exitEditMode: Boolean) {
         saveMutex.withLock {
             val state = _uiState.value
@@ -1220,22 +1243,7 @@ class NoteViewModel @Inject constructor(
             }
             when (result) {
                 is RepositoryResult.Success -> {
-                    val savedNote = result.data
-                    val newId = savedNote.id
-                    val cardIdMap = state.cards.mapIndexed { index, card ->
-                        card.id to savedNote.cards.getOrNull(index)?.id
-                    }.toMap()
-                    val blockIdMap = buildMap {
-                        var blockOffset = 0
-                        state.cards.forEach { card ->
-                            card.blocks.forEachIndexed { index, block ->
-                                savedNote.blocks.getOrNull(blockOffset + index)?.let { savedBlock ->
-                                    put(block.id, savedBlock.id)
-                                }
-                            }
-                            blockOffset += card.blocks.size
-                        }
-                    }
+                    val newId = result.data.id
                     if (version == saveVersion) {
                         _uiState.update {
                             it.copy(
@@ -1243,24 +1251,7 @@ class NoteViewModel @Inject constructor(
                                 isEditing = if (exitEditMode) false else it.isEditing,
                                 isSaving = false,
                                 saveStatus = SaveStatus.SAVED,
-                                lastSavedAt = System.currentTimeMillis(),
-                                cards = it.cards.map { card ->
-                                    val savedId = cardIdMap[card.id]
-                                    card.copy(
-                                        id = savedId ?: card.id,
-                                        blocks = card.blocks.map { block ->
-                                            block.copy(
-                                                id = blockIdMap[block.id] ?: block.id,
-                                                noteId = newId,
-                                                cardId = savedId ?: card.id,
-                                                parentBranchId = block.parentBranchId?.let { pid ->
-                                                    blockIdMap[pid] ?: pid
-                                                }
-                                            )
-                                        }
-                                    )
-                                },
-                                activeCardId = it.activeCardId?.let { id -> cardIdMap[id] ?: id }
+                                lastSavedAt = System.currentTimeMillis()
                             )
                         }
                     } else if (state.noteId == 0L && newId > 0L) {
@@ -1269,17 +1260,8 @@ class NoteViewModel @Inject constructor(
                     if (state.noteId == 0L && newId > 0L) {
                         observeTodos(newId)
                     }
-                    currentCardId = cardIdMap[currentCardId] ?: currentCardId
-                    _blocks.replaceAll { block ->
-                        block.copy(
-                            id = blockIdMap[block.id] ?: block.id,
-                            noteId = newId,
-                            cardId = cardIdMap[block.cardId] ?: block.cardId,
-                            parentBranchId = block.parentBranchId?.let { pid ->
-                                blockIdMap[pid] ?: pid
-                            }
-                        )
-                    }
+                    // 只把 noteId 带下去，卡片 / 块的 id 一律不动。见 saveInternal 的 KDoc。
+                    _blocks.replaceAll { block -> block.copy(noteId = newId) }
                 }
                 is RepositoryResult.Error -> {
                     if (version == saveVersion) {

@@ -18,6 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -29,12 +32,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -43,6 +49,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.ai.model.AiRefKind
+import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.MotionEasing
 import com.example.zhilu.ui.theme.Radius
 import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.Spacing
@@ -62,6 +71,12 @@ import com.example.zhilu.ui.theme.ZhiLuType
  * 全树只缩一次。这里再加一次就是同一个 inset 消费两遍，输入框会被顶到离键盘很高处，
  * 中间空出「与键盘等高」的一整块——这正是修之前的样子。
  * Activity 侧的配套是 `android:windowSoftInputMode="adjustResize"`，见 `AppShell` 的注释。
+ *
+ * @param attachPanelOpen 附件面板当前是否展开。加号是**切换**而不是「打开」，
+ *   展开时图标转 45° 变成「收起」的意思，用户得看得出再点一次会回去。
+ * @param onToggleAttachPanel 点加号。展开 / 收起由调用方统一裁决，这里只上报点击。
+ * @param onComposerFocused 输入框拿到焦点。面板开着时点输入框意味着「我要打字了」，
+ *   调用方据此收起面板把键盘让回来——不这么做的话键盘会被面板挡住（面板与键盘同高度）。
  */
 @Composable
 fun AssistantInputBar(
@@ -71,8 +86,10 @@ fun AssistantInputBar(
     attachedRefs: List<AiRef>,
     isGenerating: Boolean,
     focusRequester: FocusRequester,
+    attachPanelOpen: Boolean,
     onTextChange: (String) -> Unit,
-    onOpenAttachSheet: () -> Unit,
+    onToggleAttachPanel: () -> Unit,
+    onComposerFocused: () -> Unit,
     onRemoveImage: (Int) -> Unit,
     onRemoveFile: () -> Unit,
     onRemoveRef: (Int) -> Unit,
@@ -168,7 +185,10 @@ fun AssistantInputBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 26.dp)
-                            .focusRequester(focusRequester),
+                            .focusRequester(focusRequester)
+                            // 面板开着时点输入框 = 要打字：通知调用方把面板收掉。
+                            // 放在这里而不是给输入框包一层 clickable，是因为后者会把手势吃掉。
+                            .onFocusChanged { if (it.isFocused) onComposerFocused() },
                         textStyle = ZhiLuType.body.copy(
                             color = MaterialTheme.colorScheme.onSurface
                         ),
@@ -187,18 +207,32 @@ fun AssistantInputBar(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 附件入口：拍照 / 相册 / 本地文件 / 引用笔记收进底部弹层，工具行只留这一个图标。
+                    // 附件入口：拍照 / 相册 / 本地文件 / 引用笔记收进附件面板，工具行只留这一个图标。
+                    // 它是「切换」而不是「打开」：再点一次收起面板并把键盘还回来。
+                    val addRotation by animateFloatAsState(
+                        targetValue = if (attachPanelOpen) 45f else 0f,
+                        animationSpec = if (LocalReducedMotion.current) {
+                            snap()
+                        } else {
+                            tween(MotionDuration.Short, easing = MotionEasing.Standard)
+                        },
+                        label = "attach_add_rotation"
+                    )
                     IconButton(
-                        onClick = onOpenAttachSheet,
+                        onClick = onToggleAttachPanel,
                         enabled = !isGenerating,
                         modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
-                            contentDescription = "添加附件",
-                            modifier = Modifier.size(22.dp),
+                            contentDescription = if (attachPanelOpen) "收起附件面板" else "添加附件",
+                            modifier = Modifier
+                                .size(22.dp)
+                                .graphicsLayer { rotationZ = addRotation },
                             tint = if (isGenerating) {
                                 MaterialTheme.colorScheme.outline
+                            } else if (attachPanelOpen) {
+                                MaterialTheme.colorScheme.primary
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }

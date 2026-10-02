@@ -1,4 +1,4 @@
-﻿# 知录 (ZhiLu)
+# 知录 (ZhiLu)
 
 **知录** 是一款本地优先的 Android 知识笔记应用，帮助你高效记录、整理和复习各类知识。基于 Block 内容模型，支持文本、图片、链接、LaTeX、代码、待办等多种内容形式，并内置艾宾浩斯复习计划、提醒系统与 AI 知识助手。
 
@@ -66,7 +66,8 @@
 ### 个性化
 
 - **主题模式** — 浅色 / 深色 / 跟随系统
-- **主题色** — 从 7 色调色板中选择应用强调色
+- **强调色** — 7 色强调色板（墨蓝 / 黛紫 / 松石 / 苔绿 / 赭土 / 绛红 / 石墨），
+  替换 M3 的 `primary` 一族，随偏好持久化并同时作用于浅色与深色两套方案
 
 ### 体验与无障碍
 
@@ -79,23 +80,23 @@
 
 ## 技术栈
 
-| 类别 | 选型 |
-|------|------|
-| 语言 | Kotlin |
-| UI | Jetpack Compose + Material 3 |
-| 架构 | MVVM + Clean Architecture |
-| 依赖注入 | Hilt |
-| 异步 | Coroutines + Flow |
-| 数据库 | Room（12 张表，v5） |
-| 配置存储 | DataStore Preferences（Protobuf） |
-| 导航 | Navigation Compose |
-| 网络 | OkHttp 4（OpenAI 兼容协议 + SSE 流式） |
-| 拍照 | CameraX |
-| 图片加载 | Coil |
-| 后台任务 | WorkManager |
-| LaTeX 渲染 | jlatexmath-android |
-| 序列化 | Kotlin Serialization |
-| 日志 | Timber |
+| 类别       | 选型                              |
+| -------- | ------------------------------- |
+| 语言       | Kotlin                          |
+| UI       | Jetpack Compose + Material 3    |
+| 架构       | MVVM + Clean Architecture       |
+| 依赖注入     | Hilt                            |
+| 异步       | Coroutines + Flow               |
+| 数据库      | Room（12 张表，v5）                  |
+| 配置存储     | DataStore Preferences（Protobuf） |
+| 导航       | Navigation Compose              |
+| 网络       | OkHttp 4（OpenAI 兼容协议 + SSE 流式）  |
+| 拍照       | CameraX                         |
+| 图片加载     | Coil                            |
+| 后台任务     | WorkManager                     |
+| LaTeX 渲染 | jlatexmath-android              |
+| 序列化      | Kotlin Serialization            |
+| 日志       | Timber                          |
 
 ---
 
@@ -151,44 +152,44 @@ app/
 
 ### Block 类型
 
-| 类型 | 值 | 说明 |
-|------|----|------|
-| `TEXT` | 1 | 富文本（支持行内 `$...$` 公式、`**粗体**`、`` `代码` ``） |
-| `IMAGE` | 2 | 图片，`content` 格式为 `mediaId\|uri` |
-| `LINK` | 3 | 链接 |
-| `DIVIDER` | 4 | 分割线 |
-| `LATEX` | 5 | LaTeX 数学公式（`content` 存裸源码） |
-| `CODE` | 6 | 代码块 |
-| `TODO` | 7 | 待办事项 |
-| `BRANCH` | 8 | 分支内容 |
+| 类型        | 值 | 说明                                       |
+| --------- | - | ---------------------------------------- |
+| `TEXT`    | 1 | 富文本（支持行内 `$...$` 公式、`**粗体**`、`` `代码` ``） |
+| `IMAGE`   | 2 | 图片，`content` 格式为 `mediaId\|uri`          |
+| `LINK`    | 3 | 链接                                       |
+| `DIVIDER` | 4 | 分割线                                      |
+| `LATEX`   | 5 | LaTeX 数学公式（`content` 存裸源码）               |
+| `CODE`    | 6 | 代码块                                      |
+| `TODO`    | 7 | 待办事项                                     |
+| `BRANCH`  | 8 | 分支内容                                     |
 
-> **图片块的 `content` 必须是 `mediaId\|uri`**，不能只存 `uri`。
-> 导出、分享与媒体清理都按 `mediaId` 判断图片归属，裸 URI 会被当成「没有归属的图」丢掉。
+> **图片块的 `content` 必须是 `mediaId\|uri`**，不能只存 `uri`。  
+> 导出、分享与媒体清理都按 `mediaId` 判断图片归属，裸 URI 会被当成「没有归属的图」丢掉。  
 > 统一的编解码入口是 `ImageBlockContent`（`fromMedia` / `resolveMedia` / `resolveUri`）。
 
 ### 主要数据库表
 
-| 表名 | 说明 |
-|------|------|
-| `notes` | 笔记主表 |
-| `note_blocks` | 内容块 |
-| `note_cards` | 知识卡片 |
-| `tags` | 标签（名称 + 颜色） |
-| `note_tags` | 笔记-标签关联 |
-| `media` | 媒体资源（登记过的图才算「笔记图片」） |
-| `todo_items` | 待办事项 |
-| `reminder_instances` | 提醒实例 |
-| `review_plans` | 复习计划 |
-| `review_events` | 复习记录 |
-| `ai_conversations` | AI 对话会话 |
-| `ai_messages` | AI 消息（含工具调用与附图引用） |
+| 表名                   | 说明                  |
+| -------------------- | ------------------- |
+| `notes`              | 笔记主表                |
+| `note_blocks`        | 内容块                 |
+| `note_cards`         | 知识卡片                |
+| `tags`               | 标签（名称 + 颜色）         |
+| `note_tags`          | 笔记-标签关联             |
+| `media`              | 媒体资源（登记过的图才算「笔记图片」） |
+| `todo_items`         | 待办事项                |
+| `reminder_instances` | 提醒实例                |
+| `review_plans`       | 复习计划                |
+| `review_events`      | 复习记录                |
+| `ai_conversations`   | AI 对话会话             |
+| `ai_messages`        | AI 消息（含工具调用与附图引用）   |
 
-> 标签页的「N 条笔记」由 `note_tags JOIN notes` 的单条 `GROUP BY` 聚合算出
+> 标签页的「N 条笔记」由 `note_tags JOIN notes` 的单条 `GROUP BY` 聚合算出  
 > （`TagDao.countNotesPerTag`，过滤 `deletedAt IS NULL`），不会为了显示一个计数把笔记逐条加载进内存。
 
-> 笔记正文在库里有两个**互斥**的落点：有知识卡片的笔记，块挂在卡片下（`note_blocks.cardId` 指向 `note_cards`），
-> 从库里读出来的 `Note.blocks` 是**空的**；没有卡片的笔记，块才直接归属笔记。
-> 取正文统一走 `Note.contentBlocks`（`blocks` 为空时回退到卡片下的块），
+> 笔记正文在库里有两个**互斥**的落点：有知识卡片的笔记，块挂在卡片下（`note_blocks.cardId` 指向 `note_cards`），  
+> 从库里读出来的 `Note.blocks` 是**空的**；没有卡片的笔记，块才直接归属笔记。  
+> 取正文统一走 `Note.contentBlocks`（`blocks` 为空时回退到卡片下的块），  
 > 读写两侧都不要自己判空——写侧漏掉这一层，一次「只改标题」的往返就会把整篇正文删掉。
 
 存储路径约定：`filesDir/media` 存放相册 / 拍照导入的图片，`filesDir/images` 存放聊天附件落的图。
@@ -220,53 +221,100 @@ app/
 ./gradlew lintDebug
 ```
 
-> **交付前三者必须全绿**：`assembleDebug`、`lintDebug`、`testDebugUnitTest`。
-> 注意 `assembleDebug` **不会编译 test 源集**——只跑它，测试文件的编译错误会被长期掩盖。
+> **交付前三者必须全绿**：`assembleDebug`、`lintDebug`、`testDebugUnitTest`。  
+> 注意 `assembleDebug` **不会编译 test 源集**——只跑它，测试文件的编译错误会被长期掩盖。  
 > 只要改动过 ViewModel / 用例的构造函数，就顺手跑一次 `testDebugUnitTest`。
 
 ### 配置 AI 助手
 
-在「设置 → AI 助手」中选择供应商（DeepSeek / 通义千问 / 智谱 / Moonshot / OpenAI / 自定义）、
-填写 API Key 并分别选择文本模型与视觉模型。端点统一走 OpenAI 兼容协议，
+在「设置 → AI 助手」中选择供应商（DeepSeek / 通义千问 / 智谱 / Moonshot / OpenAI / 自定义）、  
+填写 API Key 并分别选择文本模型与视觉模型。端点统一走 OpenAI 兼容协议，  
 自定义供应商需手动填写 endpoint。配置仅存于本机 DataStore。
 
 ### 键盘与窗口 insets
 
-- Activity 声明 `android:windowSoftInputMode="adjustResize"`，并配合 `WindowCompat.setDecorFitsSystemWindows(window, false)`。
-  这两者缺一不可：不声明 softInputMode 时系统会把 `adjustUnspecified` 解析成 **`adjustPan`**，
-  框架先把窗口表面整体上推一次，页面里再 `imePadding()` 就变成同一个 inset 消费两遍，
+- Activity 声明 `android:windowSoftInputMode="adjustResize"`，并配合 `WindowCompat.setDecorFitsSystemWindows(window, false)`。  
+  这两者缺一不可：不声明 softInputMode 时系统会把 `adjustUnspecified` 解析成 **`adjustPan`**，  
+  框架先把窗口表面整体上推一次，页面里再 `imePadding()` 就变成同一个 inset 消费两遍，  
   输入框与键盘之间会空出「与键盘等高」的一整块空白。
-- **IME 只在根层 `AppShell` 让位一次**（`Modifier.imePadding()`），各页不要再自己加，
+- **IME 只在根层 `AppShell` 让位一次**（`Modifier.imePadding()`），各页不要再自己加，  
   这与 API 30 以下「窗口被键盘顶掉一块」的原生行为等价。
-- 其余系统栏 inset 同样归口根层：根 Scaffold 的 `contentWindowInsets` 归零，
+- 其余系统栏 inset 同样归口根层：根 Scaffold 的 `contentWindowInsets` 归零，  
   底栏与全局 AI 状态条各自消费自己的那条边。
 
 ### UI 组件约定
 
-- **列表行有两种形态**（`ui/component/NoteRow.kt`）：`Document` 是纯文档行，靠发丝线分隔，左缘带
-  通高标签色书脊，给标签索引 / 回收站 / 提醒中心这类高密度列表用；`Card` 是圆角纸卡，靠留白分隔，
-  **不带书脊**——3dp 的书脊遇到 14dp 圆角会被切成两头收窄的细条，看着像渲染瑕疵。
+- **列表行有两种形态**（`ui/component/NoteRow.kt`）：`Document` 是纯文档行，靠发丝线分隔，左缘带  
+  通高标签色书脊，给标签索引 / 回收站 / 提醒中心这类高密度列表用；`Card` 是圆角纸卡，靠留白分隔，  
+  **不带书脊**——3dp 的书脊遇到 14dp 圆角会被切成两头收窄的细条，看着像渲染瑕疵。  
   首页的两种视图都用 `Card`，区别只在时间线多一层吸附日期分节。
-- **分段控件不要用 `Surface(onClick = …)` 承载分段**（`ui/component/SegmentedToggle.kt`）。
-  `Surface(onClick)` 把 `minimumInteractiveComponentSize()` 套在**背景之上**：布局盒撑到 48dp，
-  背景却仍按内容自然尺寸（约 27dp）居中绘制 → 选中色块浮在容器中间、上下各空 10dp，
-  也就是「选中框没有铺满」。正确做法是把背景画在段槽自身（定高 + `fillMaxHeight` 语义）上，
+- **分段控件不要用 `Surface(onClick = …)` 承载分段**（`ui/component/SegmentedToggle.kt`）。  
+  `Surface(onClick)` 把 `minimumInteractiveComponentSize()` 套在**背景之上**：布局盒撑到 48dp，  
+  背景却仍按内容自然尺寸（约 27dp）居中绘制 → 选中色块浮在容器中间、上下各空 10dp，  
+  也就是「选中框没有铺满」。正确做法是把背景画在段槽自身（定高 + `fillMaxHeight` 语义）上，  
   触控目标由外层 `minimumInteractiveComponentSize()` 兜住。
-- **底部导航的选中态要落在文字上**（`ui/navigation/BottomBar.kt`）。图标与文字放进同一个 `Column`，
-  整块包进 `clip(CircleShape).background(indicatorColor)`——胶囊因此铺满「图标 + 文字」，
-  文字与图标共用一份 `animateColorAsState` 的 `contentColor`，选中时再切 `FontWeight.SemiBold`。
+- **底部导航的选中态要落在文字上**（`ui/navigation/BottomBar.kt`）。图标与文字放进同一个 `Column`，  
+  整块包进 `clip(CircleShape).background(indicatorColor)`——胶囊因此铺满「图标 + 文字」，  
+  文字与图标共用一份 `animateColorAsState` 的 `contentColor`，选中时再切 `FontWeight.SemiBold`。  
   只把胶囊套在图标上会让文字游离在选中态之外，读起来像「图标选中了、标签没变」。
-- **时间线视图的轨道画在卡片外层**（`ui/home/TimelineRail.kt` 的 `Modifier.timelineRail`）：
-  `drawBehind` 画一条 `outlineVariant` 竖线加一颗 `primary` 节点圆，首/尾行用 `isFirst` / `isLast`
+- **时间线视图的轨道画在卡片外层**（`ui/home/TimelineRail.kt` 的 `Modifier.timelineRail`）：  
+  `drawBehind` 画一条 `outlineVariant` 竖线加一颗 `primary` 节点圆，首/尾行用 `isFirst` / `isLast`  
   把线段收在节点处，避免轨道穿出列表首尾。
+- **滑动露出 = 操作槽压上来，不是行内容让开**（`ui/component/SwipeRevealRow.kt`）。  
+  展开时内容层**不做位移**，露出槽叠在上层按 `offset` 从行外滑入，被盖住的只有行尾那一块。  
+  早期的做法是整行平移 `RevealWidth`（92dp）：页面留白 20dp + 卡片内边距 16dp 恰好落在被推走的一段里，  
+  短标题行（如「红黑树」）的标题 / 标签 / 时间会整段滑出可视区，用户看不出自己在操作哪一行。
+- **露出槽的点击必须用 `enabled` 门控**。槽位未露出时只是被 `offset` 推到行外做视觉裁剪，  
+  `Modifier.clip` **不裁剪触摸区**——不门控的话，静息态下行首 / 行尾那一整个 92dp 宽的区域  
+  会悄悄接走点击并直接执行动作。`enabled` 一律跟着 `revealedSide` 走。
+- **有行处于露出态时收起列表页的 FAB**（`ui/home/HomeScreen.kt`）。「新建」FAB 常驻右下，  
+  几何上正好压住最后一行露出的删除槽并抢走触摸。必须用 `AnimatedVisibility(visible = reveal == null)`  
+  而不是 `if`——退出动画跑完后节点才真正离开触摸树，在此之前点击仍会落到 FAB 上。
+- 露出槽的形状要与其覆盖的卡片对齐（`Radius.Card`）。用 `MaterialTheme.shapes.medium` 差 2dp，  
+  圆角处会露出背景色的白边。
+- **强调色只替换 `primary` 一族**（`ui/theme/AccentPalette.kt` + `Theme.kt` 的 `ColorScheme.withAccent`）。
+  `secondary`（暖褐）与 `tertiary`（橄榄）在纸墨主题里承担的是次级中性色，把它们一起换掉会让
+  整屏被强调色染满，纸墨的中性底子就没了。色值定义与弹性设计的另一端严格分开：
+  DataStore 只持久化 `AccentColor` 枚举名（`data/datastore/UserPreferences.kt`），
+  调色板色值归 ui 层，新增颜色时请把枚举项追加在末尾以不打乱既有用户的存储值。
+- **强调色必须成套定义四个角色**（`primary` / `onPrimary` / `primaryContainer` / `onPrimaryContainer`）。
+  单独挑主色没有意义——每个色调的最暗用法产生了 FAB 上的字，浅色容器产生了选中筛选 chips 上的字；
+  每新增一色都必须通过两个模式下四对角色的 WCAG AA 对比度门槛（断言写在 `AccentPaletteTest` 里）。
+- **深色强调色必须是提亮后的版本**。直接沿用浅色主色会让深色模式的按钮暗成一团；
+  `AccentPaletteTest.darkPrimaryIsBrightened` 用相对亮度守着这条。
+- **搜索命中高亮读当前 `colorScheme.primary`**，不要回到写死的 hex
+  （历史上 `SemanticColors.Highlight` 就把主色 hex 抄了一份，换了强调色后搜索结果仍是原来的墨蓝）。
+  `highlightMatches` 是不可组合的纯函数，颜色由组合层显式传入，也因此它没有默认值——
+  漏传会当场编译不过，而不是悄悄变错色。
 
 ### 键盘与焦点
 
-- **弹层关闭后要主动唤回键盘**（`ui/assistant/AssistantScreen.restoreComposerFocus`）。
-  弹层打开只是让主窗口失焦、系统收起 IME，输入框的 Compose 焦点**未必**被清掉，
-  此时直接 `FocusRequester.requestFocus()` 会因「已经聚焦」而完全失效。
-  必须 `LocalFocusManager.clearFocus()` 先强制走一遍 unfocused，隔一小段时间再 `requestFocus()`，
+- **弹层关闭后要主动唤回键盘**（`ui/assistant/AssistantScreen.restoreComposerFocus`）。  
+  弹层打开只是让主窗口失焦、系统收起 IME，输入框的 Compose 焦点**未必**被清掉，  
+  此时直接 `FocusRequester.requestFocus()` 会因「已经聚焦」而完全失效。  
+  必须 `LocalFocusManager.clearFocus()` 先强制走一遍 unfocused，隔一小段时间再 `requestFocus()`，  
   让输入框经历一次真实的焦点变化才会重新拉起 IME。
+- **附件面板不是 BottomSheet，而是「键盘位」上的一块**（`ui/assistant/AttachPanel.kt`）。  
+  面板高度恒等于键盘高度、顶部与键盘顶部重合，键盘与面板共用同一块底部高度。  
+  实现上只需给输入栏补 `面板高 - 当前键盘高` 的占位——根层 `imePadding()` 已经让整棵树缩掉了键盘那一截，  
+  两者相加恒等于面板高度，键盘收起的过程中正好此消彼长，**输入栏一像素都不动**。  
+  不要另写一段时长相同的补间去「对齐」键盘动画：IME inset 在 API 30+ 本来就是逐帧动画，  
+  再叠一段只会互相拉扯。**也不要用 `ModalBottomSheet` 做这件事**——它独立于键盘长上来，  
+  必然经历一次「键盘先收、弹层再起」，输入栏在中间被甩上又甩下。
+- **面板展开期间要压住底部导航**（`ui/navigation/AppShell.LocalSuppressBottomBar`）。  
+  底栏的显示条件是「平级页 && 键盘不可见」，而面板展开时键盘恰恰是收着的，  
+  底栏会冒出来把内容区顶矮一截，输入栏就跳了。状态无法从子树往上抬（页面在 `AppShell` 内部），  
+  所以由 `AppShell` 反向下发一个 setter，页面在自己的 `DisposableEffect` 里声明「此刻别显示底栏」。
+- **收起面板时不能同帧撤掉占位**（`AssistantScreen.panelEngaged`）。  
+  「面板可见」和「占位存在」必须是两个状态：收起面板的那一刻键盘高度还是 0，  
+  如果同一帧就把 `面板高 - 键盘高` 的占位撤掉，输入栏会先掉到屏幕底、再被升起的键盘顶回来。  
+  正确做法是收起后继续握着这块高度（`panelEngaged`），等键盘长到同样高再放手，  
+  期间占位会随 `imeBottom` 上升自己缩到 0，两者始终互补。同理，底栏压制也要跟 `panelEngaged` 而不是 `attachPanelVisible`。
+- **别在自动保存里回写数据库主键**（`ui/note/NoteViewModel.saveInternal`）。  
+  编辑页 `LazyColumn` 的 key 是 `card.id`，保存后把本地临时 id 换成数据库主键会让 key 变化，  
+  正在输入的 `BasicTextField` 被销毁重建 → 焦点丢失 → 键盘被收起。  
+  仓库层 `updateNote` 是「按 noteId 全删再插」且主键归零重新分配，下一次保存根本不依赖上一次返回的主键，  
+  **唯一需要记住的是 noteId**。
 
 ### 设计文档
 

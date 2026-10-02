@@ -16,7 +16,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -33,6 +35,18 @@ import com.example.zhilu.ai.AiTaskManager
 val LocalAppSnackbar = staticCompositionLocalOf<SnackbarHostState> {
     error("LocalAppSnackbar is not provided. Wrap the content with AppShell.")
 }
+
+/**
+ * 让页面临时压住底部导航。
+ *
+ * 底栏的显示条件是「平级页 && 键盘不可见」。但有些页面会用一块**与键盘等高**的面板
+ * 顶替键盘（助手页的附件面板就是）：面板展开时键盘是收着的，底栏按原条件会冒出来，
+ * 把内容区顶矮一截——于是输入栏被挤得往上跳。
+ *
+ * 状态无法从子树往上抬（页面在 AppShell 内部），所以反向提供一个 setter 下发，
+ * 由页面在自己的 DisposableEffect 里声明「此刻别显示底栏」。
+ */
+val LocalSuppressBottomBar = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
 
 /**
  * 唯一的根 Scaffold：
@@ -53,6 +67,7 @@ fun AppShell(
     val isTopLevel = currentDestination == null ||
         currentDestination.hierarchy.any { it.route in TopLevelRoutes }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    var bottomBarSuppressed by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val aiState by aiTaskManager.state.collectAsState()
     val hasActiveTask = aiState.activeTasks.isNotEmpty()
@@ -89,14 +104,17 @@ fun AppShell(
             Scaffold(
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
-                    if (isTopLevel && !imeVisible) {
+                    if (isTopLevel && !imeVisible && !bottomBarSuppressed) {
                         BottomBar(navController = navController)
                     }
                 },
                 snackbarHost = { SnackbarHost(snackbarHostState) }
             ) { inner ->
                 val bottomPadding = if (isTopLevel) inner.calculateBottomPadding() else 0.dp
-                CompositionLocalProvider(LocalAppSnackbar provides snackbarHostState) {
+                CompositionLocalProvider(
+                    LocalAppSnackbar provides snackbarHostState,
+                    LocalSuppressBottomBar provides { bottomBarSuppressed = it }
+                ) {
                     AppNavHost(
                         navController = navController,
                         startDestination = startDestination,
