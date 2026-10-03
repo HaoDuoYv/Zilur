@@ -108,39 +108,10 @@ fun HomeScreen(
                 onOpenReminders = { navController.navigate(Destination.Reminders.path) }
             )
         },
-        floatingActionButton = {
-            // 有行处于露出态时收起 FAB。它常驻右下，正好压在最后一行露出的操作槽上
-            // 并且会抢走点击——露出态是一次性的「行操作」，全局新建入口此时让位。
-            // 用 AnimatedVisibility 而不是单纯的条件组合：退出动画结束后内容才真正移出，
-            // 移出后 FAB 不再占据触摸区，点击才能落到槽位上。
-            AnimatedVisibility(
-                visible = reveal == null,
-                enter = fadeIn(
-                    motionEnterTween(MotionDuration.Short, easing = MotionEasing.Enter, enabled = motion)
-                ) + scaleIn(
-                    initialScale = 0.85f,
-                    animationSpec = motionEnterTween(
-                        MotionDuration.Short,
-                        easing = MotionEasing.Enter,
-                        enabled = motion
-                    )
-                ),
-                exit = fadeOut(
-                    motionExitTween(MotionDuration.Quick, easing = MotionEasing.Exit, enabled = motion)
-                ) + scaleOut(
-                    targetScale = 0.85f,
-                    animationSpec = motionExitTween(
-                        MotionDuration.Quick,
-                        easing = MotionEasing.Exit,
-                        enabled = motion
-                    )
-                )
-            ) {
-                HomeCreateFab(
-                    onClick = { navController.navigate(Destination.NoteEdit.createRoute()) }
-                )
-            }
-        }
+        // 新建入口已经移到**底栏中央的 ＋**（见 BottomBar / CreateSheet），
+        // 首页不再有右下角的 FAB —— 也就没有"FAB 压住滑出的删除键"这个问题了，
+        // 因此行露出态不再需要联动收起任何悬浮件。
+        floatingActionButton = {}
     ) { padding ->
         Column(
             modifier = Modifier

@@ -1,5 +1,7 @@
 package com.example.zhilu.ui.navigation
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -14,10 +16,12 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
@@ -26,7 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.zhilu.ai.AiTaskManager
+import com.example.zhilu.ui.create.CreateSheet
+import com.example.zhilu.ui.create.CreateSheetViewModel
+import com.example.zhilu.ui.settings.ImportPreviewDialog
+import kotlinx.coroutines.launch
 
 /**
  * 应用级 Snackbar 单例。各页通过 `LocalAppSnackbar.current.showSnackbar(...)` 触发，
@@ -60,17 +69,46 @@ val LocalSuppressBottomBar = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
 fun AppShell(
     navController: NavHostController,
     startDestination: String = Destination.Home.path,
-    aiTaskManager: AiTaskManager
+    aiTaskManager: AiTaskManager,
+    createSheetViewModel: CreateSheetViewModel = hiltViewModel()
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
     val isTopLevel = currentDestination == null ||
-        currentDestination.hierarchy.any { it.route in TopLevelRoutes }
+        currentDestination.hierarchy.any { it.route?.substringBefore('?') in TopLevelRoutes }
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     var bottomBarSuppressed by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val aiState by aiTaskManager.state.collectAsState()
     val hasActiveTask = aiState.activeTasks.isNotEmpty()
+
+    // ── 底栏中央 ＋ 的「新建 / 导入」弹层 ────────────────────────────────
+    // 挂在 AppShell 而不是某个页面：它是**全局唯一**的新建入口，四个平级页都能唤起。
+    var showCreateSheet by remember { mutableStateOf(false) }
+    val createState by createSheetViewModel.uiState.collectAsState()
+    val jsonImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            showCreateSheet = false
+            uri?.let(createSheetViewModel::importJson)
+        }
+    )
+    val dtkImportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+        onResult = { uri ->
+            showCreateSheet = false
+            uri?.let(createSheetViewModel::parseDtk)
+        }
+    )
+    val shellScope = rememberCoroutineScope()
+    LaunchedEffect(createState.message) {
+        val message = createState.message ?: return@LaunchedEffect
+        // 先消费再弹（消息是一次性的，留着会反复弹）；但 showSnackbar 必须派发到屏幕作用域：
+        // 它挂起到提示消失，而 consumeMessage() 会让本 effect 的 key 变化 → effect 被取消
+        // → 挂起中的提示被一起取消（详见 AGENTS.md「UI 状态与一次性提示」）。
+        createSheetViewModel.consumeMessage()
+        shellScope.launch { snackbarHostState.showSnackbar(message) }
+    }
 
     // 全局 AI 状态条以「占位」方式挂在最上方（而非浮层叠加）：出现时把整页内容下移，
     // 避免压住各页自带的顶栏。状态条自身已消费状态栏 inset，因此下方子树需要
@@ -105,7 +143,11 @@ fun AppShell(
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 bottomBar = {
                     if (isTopLevel && !imeVisible && !bottomBarSuppressed) {
-                        BottomBar(navController = navController)
+                        BottomBar(
+                            navController = navController,
+                            onCreateClick = { showCreateSheet = true },
+                            createExpanded = showCreateSheet
+                        )
                     }
                 },
                 snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -124,4 +166,38 @@ fun AppShell(
             }
         }
     }
+
+    if (showCreateSheet) {
+        CreateSheet(
+            onDismiss = { showCreateSheet = false },
+            onBlank = {
+                showCreateSheet = false
+                createSheetViewModel.createBlankNote { noteId ->
+                    navController.navigate(Destination.NoteEdit.createRoute(noteId))
+                }
+            },
+            onImportJson = {
+                jsonImportLauncher.launch(arrayOf("application/json", "text/*"))
+            },
+            onImportDtk = {
+                dtkImportLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+            },
+            onAiCreate = {
+                showCreateSheet = false
+                // 预填一句「帮我创建：」——用户接着补主题就能发，省掉"我该怎么说"的一步
+                navController.navigateToAssistant(AI_CREATE_PREFILL)
+            }
+        )
+    }
+
+    createState.dtkPreview?.let { preview ->
+        ImportPreviewDialog(
+            preview = preview,
+            onConfirm = createSheetViewModel::confirmDtkImport,
+            onDismiss = createSheetViewModel::dismissDtkPreview
+        )
+    }
 }
+
+/** 「AI 创建」的预填开场白。 */
+private const val AI_CREATE_PREFILL = "帮我创建："
