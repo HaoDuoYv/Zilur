@@ -16,6 +16,11 @@ class DtkExporter(
     private val mediaFileManager: MediaFileManager
 ) {
 
+    companion object {
+        /** .dtk 的格式版本。导入端只接受 ≤ 这个值的包。 */
+        const val DTK_VERSION = 1
+    }
+
     suspend fun exportNote(note: Note, media: List<Media> = emptyList()): Result<File> =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -44,7 +49,9 @@ class DtkExporter(
                 }
 
                 val dtkNote = note.copy(blocks = blocks)
-                val json = JsonExporter.exportNote(dtkNote, exportedMedia)
+                // dtkVersion 是 .dtk 的格式版本，必须写进 note.json：
+                // 导入端会读它并对高版本报"不支持的 .dtk 版本"，缺字段就一直按 1 处理。
+                val json = JsonExporter.exportNote(dtkNote, exportedMedia, dtkVersion = DTK_VERSION)
                 File(exportDir, "note.json").writeText(json)
 
                 val dtkFile = File(context.cacheDir, "${note.title.ifBlank { "export" }}.dtk")
