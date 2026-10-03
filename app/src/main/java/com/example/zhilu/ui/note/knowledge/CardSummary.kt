@@ -27,7 +27,9 @@ fun cardSummary(card: KnowledgeCard, maxChars: Int = 42): String? {
             ?.content
         ?: return null
 
-    val stripped = InlineMarkup.stripMarkup(source)
+    // 必须走 toPlainText 而不是只 stripMarkup：摘要行是纯 Text，渲染不了公式图片，
+    // 只剥 `{{}}` 的话 `$n$`、反引号会原样露出来（真机反馈过）。
+    val stripped = InlineMarkup.toPlainText(source)
         .replace('\n', ' ')
         .trim()
     if (stripped.isEmpty()) return null

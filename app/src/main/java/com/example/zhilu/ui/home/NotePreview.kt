@@ -51,27 +51,13 @@ fun notePreviewText(note: Note): String? {
     return null
 }
 
-/** `$$…$$` 块级公式（先于行内处理）。 */
-private val blockMath = Regex("\\$\\$([^$]+)\\$\\$")
-
-/** `$…$` 行内公式；不跨行。 */
-private val inlineMath = Regex("\\$([^$\\n]+)\\$")
-
 /**
  * 列表摘要的纯文本化。
  *
- * 首页那行摘要是 `Text` 而不是 `RichText` —— 它**渲染不了公式图片**，
- * 所以 `$…$` 只能**去掉定界符、留下源码**：直接原样显示就成了
- * `· $n$ = 编号比特数` 这种半成品（真机反馈的"未转义"）。
- * 行内代码的反引号同理去掉，内容保留。
+ * 实现已经搬到 `domain/markup`（`InlineMarkup.toPlainText`）：卡片摘要行（`cardSummary`）
+ * 需要同一套规则，而 domain 不能被 ui 依赖。这里保留旧名字，避免动一堆调用点与测试。
  */
-internal fun plainPreviewText(raw: String): String {
-    var text = InlineMarkup.stripMarkup(raw)
-    text = blockMath.replace(text) { it.groupValues[1] }
-    text = inlineMath.replace(text) { it.groupValues[1] }
-    text = text.replace("`", "")
-    return text.trim()
-}
+internal fun plainPreviewText(raw: String): String = InlineMarkup.toPlainText(raw)
 
 data class TimelineGroup(
     val label: String,
