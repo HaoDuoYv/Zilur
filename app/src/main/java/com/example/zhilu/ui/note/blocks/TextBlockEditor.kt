@@ -1,5 +1,7 @@
 package com.example.zhilu.ui.note.blocks
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Box
@@ -7,16 +9,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.TextRange
@@ -24,10 +30,17 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.markup.InlineBrush
+import com.example.zhilu.domain.markup.InlineFormulaConversion
+import com.example.zhilu.domain.markup.InlineKind
 import com.example.zhilu.domain.markup.InlineMarkup
+import com.example.zhilu.domain.markup.InlineNodes
 import com.example.zhilu.domain.markup.InlineSpan
 import com.example.zhilu.domain.markup.InlineSpanAdjuster
+import com.example.zhilu.domain.markup.MathSpans
 import com.example.zhilu.domain.markup.applyTypedText
+import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.theme.ZhiLuType
+import kotlinx.coroutines.launch
 import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.ui.theme.LocalExtendedColors
 import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
@@ -117,67 +130,119 @@ fun TextBlockEditor(
     val currentBrush = activeSpan?.brush ?: pendingSpan?.brush ?: lastBrush
     val isPending = activeSpan == null && pendingSpan != null
 
+    val snackbar = LocalAppSnackbar.current
+    val scope = rememberCoroutineScope()
+
+    /**
+     * 公式是**原子对象**：选区端点落在公式内部时，**向外吸附**到整条公式的两端。
+     *
+     * 编辑缓冲里 `$…$` 的源码仍在（Compose 的输入框不支持 inline content，所以编辑态
+     * 只能显示源码，见 `buildToneStyledText` 的说明），字符层面上选区本来可以落进公式中间
+     * —— 正是这条路把 `{{k:…}}` 织进了 `_{\text{发}}` 的花括号里（真机反馈的"加颜色导致公式失效"）。
+     *
+     * 吸附之后"选到一半的公式"会变成"整条公式"，而"整条公式被标记包住"是**可存**的形态
+     * （`{{k:$W \le 2^{n-1}$}}`），既能上色又不会切坏公式。
+     */
+    fun snapRange(start: Int, end: Int): Pair<Int, Int> = InlineNodes.snapOutside(buffer, start, end)
+
+    fun warnMathOnly() {
+        scope.launch { snackbar.showSnackbar("公式里不能加标记") }
+    }
+
     fun pickTone(tone: EmphasisTone) {
         if (selection.collapsed) {
+            if (MathSpans.intersects(buffer, selection.max, selection.max)) {
+                warnMathOnly()
+                return
+            }
             // 没有选区 → 进入「标记中」：光标处放一个零长 span，随后输入自动落入
             lastBrush = currentBrush
             commit(buffer, InlineSpanAdjuster.startPending(spans, selection.max, tone, currentBrush))
             return
         }
         val range = selection
-        val same = activeSpan?.tone == tone && activeSpan.brush == currentBrush
-        val next = if (same) {
-            InlineSpanAdjuster.clear(spans, range.min, range.max, buffer)
-        } else {
-            InlineSpanAdjuster.apply(spans, range.min, range.max, tone, currentBrush, buffer)
+        val (from, to) = snapRange(range.min, range.max)
+        if (to <= from) {
+            warnMathOnly()
+            return
         }
+        val same = activeSpan?.tone == tone && activeSpan.brush == currentBrush
         lastBrush = currentBrush
-        commit(buffer, next)
+        commit(
+            buffer,
+            if (same) {
+                InlineSpanAdjuster.clear(spans, from, to, buffer)
+            } else {
+                InlineSpanAdjuster.apply(spans, from, to, tone, currentBrush, buffer)
+            }
+        )
         // 收起选区，用户可以直接接着打字
-        selection = TextRange(range.max.coerceIn(0, buffer.length))
+        selection = TextRange(to.coerceIn(0, buffer.length))
     }
 
     fun pickBrush(brush: InlineBrush) {
         lastBrush = brush
         when {
-            activeSpan != null && !selection.collapsed ->
+            activeSpan != null && !selection.collapsed -> {
+                val (from, to) = snapRange(selection.min, selection.max)
+                if (to <= from) {
+                    warnMathOnly()
+                    return
+                }
                 commit(
                     buffer,
                     InlineSpanAdjuster.apply(
-                        spans, selection.min, selection.max, activeSpan.tone, brush, buffer
+                        spans, from, to, activeSpan.tone, brush, buffer
                     )
                 )
+            }
 
-            activeSpan != null ->
+            activeSpan != null -> {
+                if (MathSpans.intersects(buffer, activeSpan.start, activeSpan.end)) {
+                    warnMathOnly()
+                    return
+                }
                 commit(
                     buffer,
                     InlineSpanAdjuster.apply(
                         spans, activeSpan.start, activeSpan.end, activeSpan.tone, brush, buffer
                     )
                 )
+            }
 
-            pendingSpan != null ->
+            pendingSpan != null -> {
+                if (MathSpans.intersects(buffer, pendingSpan.start, pendingSpan.start)) {
+                    warnMathOnly()
+                    return
+                }
                 commit(
                     buffer,
                     InlineSpanAdjuster.startPending(
                         spans, pendingSpan.start, pendingSpan.tone, brush
                     )
                 )
+            }
 
-            else ->
+            else -> {
                 // 光标处既没有标记也没有「标记中」→ 用这个笔触**起一个**标记。
                 // 没有这条分支时，加粗按钮是死的：它不带语义角色，四个角色色块又没被点过，
                 // 三个 when 分支全不命中，点什么都不会发生（真机踩过）。
                 // 角色的默认值取 KEY —— 加粗渲染时忽略 tone，这里只是把 span 结构凑齐。
+                val offset = selection.max.coerceIn(0, buffer.length)
+                if (MathSpans.intersects(buffer, offset, offset)) {
+                    warnMathOnly()
+                    return
+                }
                 commit(
                     buffer,
                     InlineSpanAdjuster.startPending(
                         spans = spans,
-                        offset = selection.max.coerceIn(0, buffer.length),
+                        offset = offset,
                         tone = currentTone ?: EmphasisTone.KEY,
                         brush = brush
                     )
                 )
+            }
         }
     }
 
@@ -224,6 +289,125 @@ fun TextBlockEditor(
      */
     val showToolbar = focused || !selection.collapsed
 
+    // 行内原子（P1 公式 + P2 行内代码）。原子区间从 buffer 现算 —— 与标记 span 走同一套坐标，
+    // 所以文字增删时原子自动跟着伸缩，不需要额外维护。
+    val atomNodes = remember(buffer) { InlineNodes.of(buffer) }
+    var atomLayout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
+    // 光标落在哪个原子里：那一条公式**不隐藏**，恢复成可编辑的源码（Notion 式）。
+    // 折叠态下光标也没有落脚点，所以这条同时解决了"活动原子怎么编辑"的问题。
+    val activeAtomOffset = if (focused || !selection.collapsed) selection.max else null
+    // 只有公式需要隐藏源码 + 覆盖层补画；行内代码就地套样式即可（见 AtomStyleTransformation）
+    val hiddenMathAtoms = InlineNodes.hiddenMath(atomNodes, activeAtomOffset)
+    // 行内代码的就地样式：与只读路径（buildInlineLatexText）同一套观感 —— 等宽 + 淡底色
+    val codeChipBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+    // 行内链接：强调色 + 下划线（同样与只读路径一致）
+    val linkInk = MaterialTheme.colorScheme.primary
+
+    // 「转为公式块」：能力由屏幕层下发（见 LocalFormulaPromotion），
+    // 光标落在某条行内公式里时才出现这个出口。
+    val promoteFormula = LocalFormulaConversions.current?.promote
+    val activeMathNode = if (focused || !selection.collapsed) {
+        atomNodes.firstOrNull {
+            it.kind == InlineKind.MATH && it.contains(selection.max)
+        }
+    } else {
+        null
+    }
+
+    /**
+     * 把光标所在的这条行内公式**提升成公式块**。
+     *
+     * 两步：① 从正文里摘掉它（走一次正常文本变更，落库仍是纯文本）；
+     * ② 把裸 LaTeX 源码交给屏幕层，由 ViewModel 在本块之后插入一个 `LATEX` 块。
+     * span 交给 [InlineSpanAdjuster.adjust] 按差分跟着挪 —— 与打字、粘贴同一条路径，
+     * 不另写一套"删除公式时要怎么改标记"的逻辑。
+     */
+    fun promoteActiveMath() {
+        val node = activeMathNode ?: return
+        val promotion = promoteFormula ?: return
+        val (rest, source) = InlineFormulaConversion.promote(buffer, node) ?: return
+        val nextSpans = InlineSpanAdjuster.adjust(spans, buffer, rest)
+        buffer = rest
+        spans = nextSpans
+        selection = TextRange(node.start.coerceIn(0, rest.length))
+        onValueChange(InlineMarkup.materialize(rest, nextSpans))
+        promotion(blockId, source)
+    }
+
+    // ── 控盒：让源码占的盒子等于公式图（设计文档 §12.3）────────────────────
+    // 源码不可见，所以给它设字号/字距不会影响观感，只会改变它占的宽高。
+    // 尺寸只能实测（图是异步渲染出来的），所以这里做"测量 → 调样式 → 再测量"的逐轮逼近；
+    // **差值低于阈值就不更新**，否则会变成布局死循环。
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val baseFontSizeSp = textStyle.fontSize.takeIf { it.isSp }?.value ?: 17f
+    var atomSizes by remember { mutableStateOf<Map<Int, Pair<Int, Int>>>(emptyMap()) }
+    var atomStyles by remember { mutableStateOf<Map<Int, AtomBoxStyle>>(emptyMap()) }
+    // **收敛保险**：控盒是"测量 → 调样式 → 再布局"的反馈环，模型不可能完全准，
+    // 没有上限就会在阈值附近来回震荡、把 CPU 烧在反复布局上（真机实测 30%+）。
+    // 每个原子最多调 [MAX_TUNING_PASSES] 次，且每次只走 60% 的修正量（阻尼）。
+    val atomTuningPasses = remember { mutableStateMapOf<Int, Int>() }
+
+    LaunchedEffect(atomSizes, atomLayout, hiddenMathAtoms) {
+        val layout = atomLayout ?: return@LaunchedEffect
+        val activeStarts = hiddenMathAtoms.map { it.start }.toSet()
+        if (atomStyles.keys != activeStarts) {
+            atomStyles = atomStyles.filterKeys { key -> key in activeStarts }
+            // 原子集合变了（打字、切换活动原子）→ 重置调优预算，让新原子也有机会被调
+            atomTuningPasses.clear()
+        }
+        if (hiddenMathAtoms.isEmpty()) return@LaunchedEffect
+
+        val next = atomStyles.toMutableMap()
+        var changed = false
+        hiddenMathAtoms.forEach { node ->
+            if ((atomTuningPasses[node.start] ?: 0) >= MAX_TUNING_PASSES) return@forEach
+            val (imageWidth, imageHeight) = atomSizes[node.start] ?: return@forEach
+            val start = runCatching { layout.getCursorRect(node.start) }.getOrNull() ?: return@forEach
+            val end = runCatching { layout.getCursorRect(node.end) }.getOrNull()
+            // 折行的原子（`end` 落到下一行）：**宽度控不了**（跨行没有意义），但**高度仍要控** ——
+            // 早先整个跳过，于是行高一直停在正文高度、图只能被压小，
+            // 表现为"含 CJK 的公式明显偏小"（真机反馈）。这里只调字号、不动字距。
+            val wrapped = end == null || end.top != start.top
+
+            val current = next[node.start] ?: AtomBoxStyle(
+                fontSizeSp = baseFontSizeSp,
+                letterSpacingSp = 0f
+            )
+            val boxHeight = start.height.coerceAtLeast(1f)
+
+            val currentScale = (current.fontSizeSp / baseFontSizeSp).coerceAtLeast(0.1f)
+            val fontSizeSp = (current.fontSizeSp * (imageHeight / boxHeight))
+                .coerceIn(baseFontSizeSp, baseFontSizeSp * 3f)
+            val nextScale = fontSizeSp / baseFontSizeSp
+
+            if (wrapped) {
+                // 只把行高撑到图高，宽度交给自然折行
+                if (kotlin.math.abs(nextScale - currentScale) < 0.05f) return@forEach
+                next[node.start] = AtomBoxStyle(fontSizeSp, current.letterSpacingSp)
+                atomTuningPasses[node.start] = (atomTuningPasses[node.start] ?: 0) + 1
+                changed = true
+                return@forEach
+            }
+
+            val boxWidth = end.left - start.left
+            val projectedWidth = boxWidth * (nextScale / currentScale)
+            val widthDelta = imageWidth - projectedWidth
+            val nearEnough = kotlin.math.abs(widthDelta) < 4f &&
+                kotlin.math.abs(nextScale - currentScale) < 0.05f
+            if (nearEnough) return@forEach
+
+            val chars = (node.end - node.start).coerceAtLeast(1)
+            val deltaSp = with(density) { (widthDelta * TUNING_DAMPING).toSp().value } / chars
+            next[node.start] = AtomBoxStyle(
+                fontSizeSp = fontSizeSp,
+                letterSpacingSp = (current.letterSpacingSp + deltaSp).coerceIn(-10f, 4f)
+            )
+            atomTuningPasses[node.start] = (atomTuningPasses[node.start] ?: 0) + 1
+            changed = true
+        }
+        if (changed) atomStyles = next
+    }
+
     Box(modifier = modifier) {
         Column {
             BasicTextField(
@@ -263,6 +447,17 @@ fun TextBlockEditor(
                     .heightIn(min = 112.dp),
                 textStyle = textStyle,
                 interactionSource = interactionSource,
+                // 行内原子：公式的源码透明（只改样式、不改长度）+ 覆盖层补画公式图；
+                // 行内代码就地套等宽样式。见设计文档 §7、§8.2。
+                visualTransformation = remember(atomNodes, atomStyles, codeChipBackground, linkInk) {
+                    AtomStyleTransformation(
+                        nodes = atomNodes,
+                        mathStyles = atomStyles,
+                        codeBackground = codeChipBackground,
+                        linkInk = linkInk
+                    )
+                },
+                onTextLayout = { atomLayout = it },
                 decorationBox = { innerTextField ->
                     Box(modifier = Modifier.fillMaxWidth()) {
                         if (buffer.isEmpty()) {
@@ -273,6 +468,22 @@ fun TextBlockEditor(
                             )
                         }
                         innerTextField()
+                        // 覆盖层与 innerTextField 同坐标系，所以直接并列即可，不用补 padding
+                        InlineAtomLayer(
+                            text = buffer,
+                            nodes = hiddenMathAtoms,
+                            layout = atomLayout,
+                            spans = spans,
+                            darkTheme = darkTheme,
+                            accessibleEmphasis = LocalAccessibleEmphasis.current,
+                            textSizeSp = baseFontSizeSp,
+                            onMeasured = { start, width, height ->
+                                val size = width to height
+                                if (atomSizes[start] != size) {
+                                    atomSizes = atomSizes + (start to size)
+                                }
+                            }
+                        )
                     }
                 }
             )
@@ -293,9 +504,36 @@ fun TextBlockEditor(
                     onPickTone = ::pickTone,
                     onPickBrush = ::pickBrush,
                     onClear = ::clearMark,
-                    modifier = Modifier.padding(top = 10.dp)
+                    modifier = Modifier.padding(top = 10.dp),
+                    // 光标落在一条行内公式里时，给一个"搬出去"的出口：
+                    // 长公式待在句子中间会折行、被压小，本来就该升级成公式块（§14.2）
+                    extraAction = if (promoteFormula != null && activeMathNode != null) {
+                        { PromoteFormulaChip(onClick = { promoteActiveMath() }) }
+                    } else {
+                        null
+                    }
                 )
             }
         }
     }
+}
+
+/**
+ * 「转为公式块」小按钮。
+ *
+ * 造型跟着工具条其它项走（深底浅字），不加图标 —— 这一排已经有色块、四个笔触和一个 ✕，
+ * 再塞一个图形按钮只会更难认；文字说得最清楚。
+ */
+@Composable
+private fun PromoteFormulaChip(onClick: () -> Unit) {
+    Text(
+        text = "转为公式块",
+        style = ZhiLuType.meta,
+        color = MaterialTheme.colorScheme.inverseOnSurface,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    )
 }

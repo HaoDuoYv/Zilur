@@ -54,7 +54,9 @@ fun InlineMarkToolbar(
     onPickTone: (EmphasisTone) -> Unit,
     onPickBrush: (InlineBrush) -> Unit,
     onClear: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 额外动作位（如"把这条行内公式提升为公式块"）。为空时不占位。 */
+    extraAction: (@Composable () -> Unit)? = null
 ) {
     Surface(
         modifier = modifier,
@@ -118,6 +120,12 @@ fun InlineMarkToolbar(
                     tint = MaterialTheme.colorScheme.inverseOnSurface,
                     modifier = Modifier.size(16.dp)
                 )
+            }
+
+            // 额外动作（如"转为公式块"）：只在光标落在那类原子上时才由调用方传进来
+            if (extraAction != null) {
+                Separator()
+                extraAction()
             }
 
             if (isPending) {

@@ -41,8 +41,15 @@ data class ParsedInline(
  */
 object InlineMarkup {
 
-    /** `{{k:文字}}` / `{{k-u:文字}}` —— 内容非空、不含花括号与换行。 */
-    internal val MARKER_REGEX = Regex("\\{\\{([kiwt])(-[cu])?:([^{}\\n]+)\\}\\}")
+    /**
+     * `{{k:文字}}` / `{{k-u:文字}}` —— 内容非空、不含花括号与换行。
+     *
+     * **例外：`$…$` 公式片段允许整段出现在标记体内**（公式里必然有花括号）。
+     * 这是"给整条公式上色"的唯一可存形态：`{{k:$W \le 2^{n-1}$}}`。
+     * 半截公式（标记切进公式内部）仍然不合法，由 [MathSpans.canCover] 在物化时拦掉。
+     */
+    internal val MARKER_REGEX =
+        Regex("\\{\\{([kiwt])(-[cu])?:((?:[^{}\\n]|\\$[^$\\n]*\\$)+)\\}\\}")
 
     /** `**加粗**` —— 内容非空、不含花括号、不含换行、不含 `**` 自身。 */
     private const val BOLD_DELIMITER = "**"
@@ -108,8 +115,7 @@ object InlineMarkup {
         body.none { it == '{' || it == '}' || it == '\n' } && !body.contains(BOLD_DELIMITER)
 
     /**
-     * 只取可见文本（纯文本出口共用）。
-     *
+     * 只取可见文本（纯文本出口共用）。     *
      * 快速通道必须同时检查 `{`、`}` 与 `*`：转义序列 `\}}` 里没有 `{`，
      * 只看 `{` 会让 `文字\}}` 原样返回、把转义反斜杠漏给用户；`*` 则可能开启一段加粗。
      */
@@ -139,35 +145,125 @@ object InlineMarkup {
      * 于是 `materialize(parseSpans(合法文本)) == 合法文本`。
      */
     fun materialize(visibleText: String, spans: List<InlineSpan>): String {
-        val usable = InlineSpanAdjuster.normalize(spans, visibleText).filter { it.coversText() }
-        if (usable.isEmpty()) return escapeBraces(visibleText)
+        // 公式区间要在两处生效：不往里面转义花括号、也不接受落在里面的标记（见 MathSpans）。
+        val mathRanges = MathSpans.ranges(visibleText)
+        val usable = InlineSpanAdjuster.normalize(spans, visibleText)
+            .filter { it.coversText() }
+            // 允许"整条公式被标记包住"，只拦"标记切进公式内部"（见 MathSpans.canCover）
+            .filter { MathSpans.canCover(mathRanges, it.start, it.end) }
+        if (usable.isEmpty()) {
+            return appendEscaped(
+                StringBuilder(visibleText.length),
+                visibleText,
+                0,
+                visibleText.length,
+                mathRanges
+            ).toString()
+        }
 
         val builder = StringBuilder(visibleText.length + usable.size * 8)
         var cursor = 0
         for (span in usable) {
             if (span.start > cursor) {
-                builder.append(escapeBraces(visibleText.substring(cursor, span.start)))
+                appendEscaped(builder, visibleText, cursor, span.start, mathRanges)
             }
-            appendSpan(builder, visibleText, span)
+            appendSpan(builder, visibleText, span, mathRanges)
             cursor = span.end
         }
         if (cursor < visibleText.length) {
-            builder.append(escapeBraces(visibleText.substring(cursor)))
+            appendEscaped(builder, visibleText, cursor, visibleText.length, mathRanges)
         }
         return builder.toString()
     }
 
-    /** 写一条标记；遇花括号就断开标记，把花括号转义后放到标记之外。 */
-    private fun appendSpan(builder: StringBuilder, visibleText: String, span: InlineSpan) {
+    /**
+     * 存储形态 → 纯文本。
+     *
+     * 给"渲染不了公式图片"的地方用（首页列表摘要、卡片摘要行）：
+     * 去 `{{}}` 语法、去公式与行内代码的定界符，**内容保留**。
+     *
+     * 这三步必须一起做。`cardSummary` 早期只做了第一步，于是卡片摘要里
+     * 原样显示 `$n$ = 编号比特数`（真机反馈的"预览渲染未修干净"）。
+     */
+    fun toPlainText(content: String): String =
+        LINK_SYNTAX.replace(MathSpans.stripDelimiters(stripMarkup(content)), "$1")
+            .replace("`", "")
+            .trim()
+
+    /**
+     * `[文字](url)` → `文字`：纯文本出口只留链接文字。
+     *
+     * 摘要/预览那几行是纯 `Text`，渲染不了链接样式；不剥掉的话会把 URL 原样漏出去
+     * （与早期 `$n$` 漏出是同一类问题，真机反馈过）。
+     */
+    private val LINK_SYNTAX = Regex("\\[([^\\]\\n]+)]\\([^)\\n]+\\)")
+
+    /**
+     * 按标记语法转义 `{{` / `}}`，但**公式区间内原样搬运**。
+     *
+     * 这是"标注颜色导致公式失效"的根因：`_{\text{发}}` 结尾的 `}}` 被转义成 `\}}`，
+     * LaTeX 解析失败后只能退化成源码显示。
+     */
+    private fun appendEscaped(
+        builder: StringBuilder,
+        text: String,
+        from: Int,
+        to: Int,
+        mathRanges: List<IntRange>
+    ): StringBuilder {
+        var index = from
+        while (index < to) {
+            val math = mathRanges.firstOrNull { index >= it.first && index <= it.last }
+            if (math != null) {
+                val end = minOf(math.last + 1, to)
+                builder.append(text, index, end)
+                index = end
+                continue
+            }
+            val char = text[index]
+            val next = text.getOrNull(index + 1)
+            when {
+                char == '{' && next == '{' -> {
+                    builder.append("\\{{")
+                    index += 2
+                }
+
+                char == '}' && next == '}' -> {
+                    builder.append("\\}}")
+                    index += 2
+                }
+
+                else -> {
+                    builder.append(char)
+                    index++
+                }
+            }
+        }
+        return builder
+    }
+
+    /**
+     * 写一条标记；遇花括号就断开标记，把花括号转义后放到标记之外。
+     *
+     * **公式区间是例外**：整条 `$…$` 原样留在标记体内（`{{k:$W \le 2^{n-1}$}}`），
+     * 既不拆段也不转义 —— 拆了就成了"半截公式"，转义了公式就渲染不出来。
+     */
+    private fun appendSpan(
+        builder: StringBuilder,
+        visibleText: String,
+        span: InlineSpan,
+        mathRanges: List<IntRange>
+    ) {
         // 加粗走 `**…**` 那一套，而且**不需要**为花括号拆段 —— `{{}}` 的"内容不含花括号"
         // 是那套语法的约束，加粗没有。但加粗自己的内容若带花括号或 `**`，
         // 读回来会有歧义，此时宁可丢掉格式、保住文字（与本文件一贯的容错口径一致）。
+        // 公式同理：`**` 语法体也容不下花括号，所以公式只能"丢格式、保文字"。
         if (span.brush == InlineBrush.BOLD) {
             val body = visibleText.substring(span.start, span.end)
             if (isCleanBoldBody(body)) {
                 builder.append(BOLD_DELIMITER).append(body).append(BOLD_DELIMITER)
             } else {
-                builder.append(escapeBraces(body))
+                appendEscaped(builder, visibleText, span.start, span.end, mathRanges)
             }
             return
         }
@@ -178,6 +274,12 @@ object InlineMarkup {
         var runStart = span.start
         var index = span.start
         while (index < span.end) {
+            val math = mathRanges.firstOrNull { index >= it.first && index <= it.last }
+            if (math != null) {
+                // 整段公式跳过：它留在标记体里，花括号不参与"拆段 + 转义"
+                index = minOf(math.last + 1, span.end)
+                continue
+            }
             val char = visibleText[index]
             if (char != '{' && char != '}') {
                 index++

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      P0 技术验证专用：只在 debug 变体里存在，不随正式包发布。
+      exported=true 是为了能用 adb 直接拉起（shell 用户启动非导出组件会被拒）。
+    -->
+    <application>
+        <activity
+            android:name=".debug.P0SpikeActivity"
+            android:exported="true"
+            android:label="P0 Spike" />
+    </application>
+</manifest>

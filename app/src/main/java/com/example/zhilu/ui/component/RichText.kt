@@ -2,6 +2,7 @@ package com.example.zhilu.ui.component
 
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -41,13 +42,20 @@ fun RichText(
     val isDark = LocalExtendedColors.current.isDark
     val highlight = LocalFindHighlight.current
     val accessibleEmphasis = LocalAccessibleEmphasis.current
-    val parts = remember(text, color, isDark, highlight, accessibleEmphasis) {
-        buildInlineLatexText(text, color, isDark, highlight, accessibleEmphasis)
+    // 行内链接用主题强调色；buildInlineLatexText 是普通函数，读不了 MaterialTheme，所以在这里取好传进去
+    val linkColor = MaterialTheme.colorScheme.primary
+    val parts = remember(text, color, isDark, highlight, accessibleEmphasis, linkColor) {
+        buildInlineLatexText(text, color, isDark, linkColor, highlight, accessibleEmphasis)
     }
     val inlineContent = rememberInlineLatexContent(
         formulas = parts.formulas,
         textSizeSp = if (style.fontSize.isSpecified) style.fontSize.value else 14f,
-        color = color
+        color = color,
+        // 与 formulas 一一对应：公式被语义标记覆盖时，墨色与底色由公式图自己画
+        // （Compose 不会把 span 样式套到 inline content 上）
+        spans = parts.spans,
+        darkTheme = isDark,
+        accessibleEmphasis = accessibleEmphasis
     )
     BasicText(
         text = parts.text,
