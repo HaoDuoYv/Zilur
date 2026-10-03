@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -34,6 +37,7 @@ import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.theme.Spacing
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen(
@@ -45,6 +49,8 @@ fun SettingsScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbar = LocalAppSnackbar.current
 
+    // 只有导出留在这里；导入已经搬到**底栏中央 ＋** 的「新建 / 导入」弹层
+    // （见 AppShell / CreateSheet），所以这里不再持有导入用的文件选择器。
     val jsonExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri -> uri?.let(viewModel::exportJsonToUri) }
@@ -53,21 +59,20 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("text/markdown"),
         onResult = { uri -> uri?.let(viewModel::exportMarkdownToUri) }
     )
-    val jsonImportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-        onResult = { uri -> uri?.let(viewModel::importJsonFromUri) }
-    )
-    val dtkImportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-        onResult = { uri -> uri?.let(viewModel::parseImportPreview) }
-    )
 
+    // 一次性提示要派发到屏幕作用域，不能留在 LaunchedEffect 里（见下方注释）
+    val scope = rememberCoroutineScope()
     LaunchedEffect(state.exportMessage, state.error) {
-        val message = state.exportMessage ?: state.error
-        if (message != null) {
-            snackbar.showSnackbar(message)
-            viewModel.clearMessages()
-        }
+        val message = state.exportMessage ?: state.error ?: return@LaunchedEffect
+        // **先消费、再弹提示** —— 消息必须一次性消费掉，否则它留在 state 里，
+        // 之后每次进入「我的」都会重弹一次（真机反馈过）。
+        //
+        // 但 `showSnackbar`（会一直挂起到提示消失）**不能**留在这个 effect 里：
+        // `clearMessages()` 会把 key 变成 null，Compose 随即取消并重启本 effect，
+        // 挂起中的 `showSnackbar` 会被一起取消 —— 提示一闪即逝甚至根本不出现。
+        // 所以这里只负责消费与派发，真正的弹出交给屏幕作用域。
+        viewModel.clearMessages()
+        scope.launch { snackbar.showSnackbar(message) }
     }
     LaunchedEffect(context) {
         viewModel.updateNotificationPermissionGranted(context.hasNotificationPermission())
@@ -97,28 +102,14 @@ fun SettingsScreen(
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
 
-            AppearanceSection(
-                themeMode = state.themeMode,
-                accentColor = state.accentColor,
-                accessibleEmphasis = state.accessibleEmphasis,
-                onSelectThemeMode = viewModel::setThemeMode,
-                onSelectAccent = viewModel::setAccentColor,
-                onToggleAccessibleEmphasis = viewModel::setAccessibleEmphasis
-            )
-
-            DataSection(
+            // 顺序对齐设计原型：身份 → 提醒 → 外观 → AI → 数据 → 存储 → 关于。
+            // 「导入」不在这里了 —— 它属于"往知识库里加东西"，已经搬到**底栏中央 ＋**
+            // 弹出的「新建 / 导入」弹层（全局唯一入口）。设置页只留"导出"与"存储管理"。
+            ProfileCard(
                 noteCount = state.noteCount,
                 tagCount = state.tagCount,
-                mediaCount = state.mediaCount,
-                totalMediaSize = state.totalMediaSize,
-                onExportJson = { jsonExportLauncher.launch("zhilu-backup.json") },
-                onExportMarkdown = { markdownExportLauncher.launch("zhilu-notes.md") },
-                onImportJson = {
-                    jsonImportLauncher.launch(arrayOf("application/json", "text/*"))
-                },
-                onImportDtk = {
-                    dtkImportLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
-                }
+                recordedDays = state.recordedDays,
+                streakDays = state.streakDays
             )
 
             ReminderSection(
@@ -134,6 +125,15 @@ fun SettingsScreen(
                 onToggleReminders = viewModel::setRemindersEnabled
             )
 
+            AppearanceSection(
+                themeMode = state.themeMode,
+                accentColor = state.accentColor,
+                accessibleEmphasis = state.accessibleEmphasis,
+                onSelectThemeMode = viewModel::setThemeMode,
+                onSelectAccent = viewModel::setAccentColor,
+                onToggleAccessibleEmphasis = viewModel::setAccessibleEmphasis
+            )
+
             SettingsGroup(title = "AI 助手") {
                 AiSettingsSection(
                     config = state.aiConfig,
@@ -145,16 +145,26 @@ fun SettingsScreen(
                 )
             }
 
-            StorageSection(onOpenTrash = { navController.navigate(Destination.Trash.path) })
-        }
-    }
+            DataSection(
+                noteCount = state.noteCount,
+                tagCount = state.tagCount,
+                mediaCount = state.mediaCount,
+                totalMediaSize = state.totalMediaSize,
+                onExportJson = { jsonExportLauncher.launch("zhilu-backup.json") },
+                onExportMarkdown = { markdownExportLauncher.launch("zhilu-notes.md") }
+            )
 
-    state.importPreview?.let { preview ->
-        ImportPreviewDialog(
-            preview = preview,
-            onConfirm = viewModel::confirmImport,
-            onDismiss = viewModel::dismissImportPreview
-        )
+            StorageSection(onOpenTrash = { navController.navigate(Destination.Trash.path) })
+
+            SettingsGroup(title = "关于") {
+                SettingsRow(
+                    title = "版本",
+                    description = appVersionLabel(context),
+                    leadingIcon = Icons.Outlined.Info,
+                    trailing = {}
+                )
+            }
+        }
     }
 }
 

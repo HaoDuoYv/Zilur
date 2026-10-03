@@ -236,9 +236,8 @@ private fun AccentSwatch(
         label = "accent_swatch_size"
     )
 
-    Box(
+    Column(
         modifier = modifier
-            .height(SwatchTouchTarget)
             // selectable 而非 clickable：一组互斥的色板就是单选组，
             // TalkBack 需要读到「已选中 / 未选中」而不是含糊的「可点击」。
             .selectable(
@@ -247,25 +246,39 @@ private fun AccentSwatch(
                 onClick = onSelect
             )
             .semantics { contentDescription = paint.label },
-        contentAlignment = Alignment.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(roles.primary),
+                .height(SwatchTouchTarget),
             contentAlignment = Alignment.Center
         ) {
-            if (selected) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    // 必须用角色里的 onPrimary 而不是「看着像」的白色：
-                    // 深色模式下主色是浅色调，白色对钩会直接消失。
-                    tint = roles.onPrimary,
-                    contentDescription = null,
-                    modifier = Modifier.size(SwatchCheckSize)
-                )
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .clip(CircleShape)
+                    .background(roles.primary),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        // 必须用角色里的 onPrimary 而不是「看着像」的白色：
+                        // 深色模式下主色是浅色调，白色对钩会直接消失。
+                        tint = roles.onPrimary,
+                        contentDescription = null,
+                        modifier = Modifier.size(SwatchCheckSize)
+                    )
+                }
             }
         }
+        // 名字写在圆下面（设计原型 `.swname`）：8 个色相里有几对相邻色（赭土/燕麦、
+        // 绛红/正红）光看色块分不清，靠名字才选得准。
+        Text(
+            text = paint.label,
+            style = ZhiLuType.meta,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
     }
 }

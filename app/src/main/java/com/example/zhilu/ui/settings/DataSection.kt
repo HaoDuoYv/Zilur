@@ -19,7 +19,7 @@ import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 import com.example.zhilu.ui.component.MetaLine
 import com.example.zhilu.ui.theme.Spacing
 
-/** 数据：统计 + 导出 / 导入。导入导出只此一处，不再散落到首页。 */
+/** 数据：统计 + 导出。**导入不在这里**——见 [DataSection] 上方说明。 */
 @Composable
 fun DataSection(
     noteCount: Int,
@@ -27,9 +27,7 @@ fun DataSection(
     mediaCount: Int,
     totalMediaSize: Long,
     onExportJson: () -> Unit,
-    onExportMarkdown: () -> Unit,
-    onImportJson: () -> Unit,
-    onImportDtk: () -> Unit
+    onExportMarkdown: () -> Unit
 ) {
     SettingsGroup(title = "数据") {
         MetaLine(
@@ -52,20 +50,6 @@ fun DataSection(
             description = "用于在其他编辑器继续写作",
             leadingIcon = Icons.Outlined.Description,
             onClick = onExportMarkdown,
-            trailing = { Chevron() }
-        )
-        SettingsRow(
-            title = "导入备份",
-            description = "从 JSON 备份恢复全部笔记",
-            leadingIcon = Icons.Outlined.Upload,
-            onClick = onImportJson,
-            trailing = { Chevron() }
-        )
-        SettingsRow(
-            title = "导入 .dtk 知识点",
-            description = "导入单篇 .dtk 文件（含图片）",
-            leadingIcon = Icons.Outlined.InsertDriveFile,
-            onClick = onImportDtk,
             trailing = { Chevron() }
         )
     }

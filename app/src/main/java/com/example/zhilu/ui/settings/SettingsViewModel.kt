@@ -2,6 +2,7 @@ package com.example.zhilu.ui.settings
 
 import android.content.Context
 import android.net.Uri
+import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
@@ -9,12 +10,11 @@ import com.example.zhilu.data.ai.LlmApiClient
 import com.example.zhilu.data.ai.dto.ChatCompletionRequest
 import com.example.zhilu.data.ai.dto.ChatMessageDto
 import com.example.zhilu.data.ai.dto.textContent
+import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.domain.model.AiConfig
 import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.UserPreferences
-import com.example.zhilu.domain.model.BlockType
-import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
@@ -22,19 +22,24 @@ import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
-import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 import com.example.zhilu.export.JsonExporter
 import com.example.zhilu.export.MarkdownExporter
 import com.example.zhilu.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -43,10 +48,10 @@ class SettingsViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val mediaRepository: MediaRepository,
     private val todoRepository: TodoRepository,
+    private val mediaFileManager: MediaFileManager,
     private val userPreferences: UserPreferences,
     private val reminderScheduler: ReminderScheduler,
-    private val llmApiClient: LlmApiClient,
-    private val importKnowledgeUseCase: ImportKnowledgeUseCase
+    private val llmApiClient: LlmApiClient
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -166,6 +171,36 @@ class SettingsViewModel @Inject constructor(
                 is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
             }
         }
+        viewModelScope.launch {
+            val activity = runCatching { loadActivity() }.getOrNull() ?: return@launch
+            _uiState.update {
+                it.copy(recordedDays = activity.totalDays, streakDays = activity.streak)
+            }
+        }
+    }
+
+    /** 「我的」页身份卡上那两个数字：共记录多少天、连续多少天。 */
+    private data class Activity(val totalDays: Int, val streak: Int)
+
+    private suspend fun loadActivity(): Activity {
+        val notes = loadNotes()
+        // 用「创建日 + 更新日」两个时间戳折算成"有记录的日子"：只看 createdAt 会漏掉
+        // 老笔记被续写的那些天，只看 updatedAt 又会漏掉当天创建后就没再动过的笔记。
+        val days = notes
+            .flatMap { listOf(it.createdAt, it.updatedAt) }
+            .map { Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() }
+            .toSet()
+        if (days.isEmpty()) return Activity(0, 0)
+
+        var streak = 0
+        var cursor = LocalDate.now()
+        // 今天还没记也不该把连击清零，所以从今天或昨天起算
+        if (cursor !in days) cursor = cursor.minusDays(1)
+        while (cursor in days) {
+            streak++
+            cursor = cursor.minusDays(1)
+        }
+        return Activity(totalDays = days.size, streak = streak)
     }
 
     private fun observeStats() {
@@ -193,17 +228,25 @@ class SettingsViewModel @Inject constructor(
             runCatching {
                 val notes = loadNotes()
                 val media = loadMedia()
+                // 图片必须**内嵌字节**：只写 uri 的话，备份换台设备/清过数据后就再也恢复不出图。
+                val mediaData = collectMediaData(media)
                 context.contentResolver.openOutputStream(uri)?.use { output ->
-                    output.write(JsonExporter.exportNotes(notes, media).toByteArray(Charsets.UTF_8))
-                } ?: error("Cannot open selected export file")
-                "JSON backup exported"
+                    output.write(
+                        JsonExporter.exportNotes(notes, media, mediaData).toByteArray(Charsets.UTF_8)
+                    )
+                } ?: error("无法写入所选文件")
+                if (media.isEmpty()) {
+                    "备份已导出"
+                } else {
+                    "备份已导出（含 ${mediaData.size}/${media.size} 张图片）"
+                }
             }.fold(
                 onSuccess = { message ->
                     _uiState.update { it.copy(isWorking = false, exportMessage = message) }
                 },
                 onFailure = { throwable ->
                     _uiState.update {
-                        it.copy(isWorking = false, error = throwable.message ?: "JSON export failed")
+                        it.copy(isWorking = false, error = "导出失败：${throwable.message}")
                     }
                 }
             )
@@ -219,118 +262,31 @@ class SettingsViewModel @Inject constructor(
                 val todosByNoteId = loadTodosByNoteId(notes)
                 context.contentResolver.openOutputStream(uri)?.use { output ->
                     output.write(MarkdownExporter.exportNotes(notes, media, todosByNoteId).toByteArray(Charsets.UTF_8))
-                } ?: error("Cannot open selected export file")
-                "Markdown exported"
+                } ?: error("无法写入所选文件")
+                "Markdown 已导出"
             }.fold(
                 onSuccess = { message ->
                     _uiState.update { it.copy(isWorking = false, exportMessage = message) }
                 },
                 onFailure = { throwable ->
                     _uiState.update {
-                        it.copy(isWorking = false, error = throwable.message ?: "Markdown export failed")
+                        it.copy(isWorking = false, error = "导出失败：${throwable.message}")
                     }
                 }
             )
         }
     }
 
-    fun importJsonFromUri(uri: Uri) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isWorking = true) }
-            runCatching {
-                val content = context.contentResolver.openInputStream(uri)?.use { input ->
-                    input.readBytes().toString(Charsets.UTF_8)
-                } ?: error("Cannot open selected backup")
-                val backup = JsonExporter.importBackup(content)
-                val mediaIdMap = importMedia(backup.media)
-                backup.notes.forEach { note ->
-                    val tags = importTags(note.tags)
-                    val cleanBlocks = note.contentBlocks.map { block ->
-                        val contentValue = if (block.type == BlockType.IMAGE) {
-                            val oldMediaId = ImageBlockContent.mediaId(block.content)
-                            val oldUri = ImageBlockContent.displayUri(block.content)
-                            oldMediaId?.let { mediaIdMap[it] }?.let { newMediaId ->
-                                ImageBlockContent.fromMedia(newMediaId, oldUri)
-                            } ?: block.content
-                        } else {
-                            block.content
-                        }
-                        block.copy(id = 0, noteId = 0, content = contentValue)
-                    }
-                    noteRepository.insertNote(
-                        note.copy(
-                            id = 0,
-                            blocks = cleanBlocks,
-                            tags = tags,
-                            deletedAt = null
-                        )
-                    )
-                }
-                refreshStats()
-                "Imported ${backup.notes.size} notes"
-            }.fold(
-                onSuccess = { message ->
-                    _uiState.update { it.copy(isWorking = false, exportMessage = message) }
-                },
-                onFailure = { throwable ->
-                    _uiState.update {
-                        it.copy(isWorking = false, error = throwable.message ?: "JSON import failed")
-                    }
-                }
-            )
-        }
-    }
-
-    /** 解析 .dtk 文件并弹出预览确认；正式导入在用户确认后执行。 */
-    fun parseImportPreview(uri: Uri) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isWorking = true) }
-            importKnowledgeUseCase.parsePreview(uri)
-                .onSuccess { preview ->
-                    _uiState.update {
-                        it.copy(isWorking = false, importPreview = preview, pendingImportUri = uri)
-                    }
-                }
-                .onFailure { throwable ->
-                    _uiState.update {
-                        it.copy(
-                            isWorking = false,
-                            error = "无法解析文件：${throwable.message}"
-                        )
-                    }
-                }
-        }
-    }
-
-    fun confirmImport() {
-        val uri = _uiState.value.pendingImportUri ?: return
-        viewModelScope.launch {
-            _uiState.update {
-                it.copy(isWorking = true, importPreview = null, pendingImportUri = null)
-            }
-            importKnowledgeUseCase.import(uri)
-                .onSuccess {
-                    refreshStats()
-                    _uiState.update { it.copy(isWorking = false, exportMessage = "导入成功") }
-                }
-                .onFailure { throwable ->
-                    _uiState.update {
-                        it.copy(isWorking = false, error = "导入失败：${throwable.message}")
-                    }
-                }
-        }
-    }
-
-    fun dismissImportPreview() {
-        _uiState.update { it.copy(importPreview = null, pendingImportUri = null) }
-    }
+    // 导入（JSON 备份 / .dtk）已迁移到**底栏中央 ＋** 的「新建 / 导入」弹层，
+    // 由 `ui/create/CreateSheetViewModel` 负责；设置页只保留导出。
+    // 逻辑本体在两处共用的用例里：`RestoreJsonBackupUseCase` 与 `ImportKnowledgeUseCase`。
 
     fun requestJsonExport() {
-        _uiState.update { it.copy(exportMessage = "Choose a JSON file location to export.") }
+        _uiState.update { it.copy(exportMessage = "请选择 JSON 备份的保存位置") }
     }
 
     fun requestMarkdownExport() {
-        _uiState.update { it.copy(exportMessage = "Choose a Markdown file location to export.") }
+        _uiState.update { it.copy(exportMessage = "请选择 Markdown 的保存位置") }
     }
 
     fun updateNotificationPermissionGranted(granted: Boolean) {
@@ -362,28 +318,23 @@ class SettingsViewModel @Inject constructor(
             note.id to todos
         }
 
-    private suspend fun importTags(tags: List<Tag>): List<Tag> = tags.map { tag ->
-        when (val existing = tagRepository.getTagByName(tag.name)) {
-            is RepositoryResult.Success -> existing.data ?: insertTag(tag)
-            is RepositoryResult.Error -> throw existing.throwable ?: IllegalStateException(existing.message)
-        }
-    }
-
-    private suspend fun insertTag(tag: Tag): Tag =
-        when (val result = tagRepository.insertTag(tag.copy(id = 0))) {
-            is RepositoryResult.Success -> tag.copy(id = result.data)
-            is RepositoryResult.Error -> throw result.throwable ?: IllegalStateException(result.message)
-        }
-
-    private suspend fun importMedia(media: List<Media>): Map<Long, Long> {
-        val idMap = mutableMapOf<Long, Long>()
-        media.forEach { item ->
-            val newId = when (val result = mediaRepository.insertMedia(item.copy(id = 0))) {
-                is RepositoryResult.Success -> result.data
-                is RepositoryResult.Error -> throw result.throwable ?: IllegalStateException(result.message)
+    /**
+     * 把媒体读成 `id → base64 data URL`。单张读失败就跳过（不让一张坏图毁掉整个备份）。
+     */
+    private suspend fun collectMediaData(media: List<Media>): Map<Long, String> =
+        withContext(Dispatchers.IO) {
+            val cacheDir = File(context.cacheDir, "json_export_media").apply {
+                deleteRecursively()
+                mkdirs()
             }
-            idMap[item.id] = newId
+            val result = media.mapNotNull { item ->
+                val file = mediaFileManager.copyToCache(item, cacheDir).getOrNull()
+                    ?: return@mapNotNull null
+                val data = mediaFileManager.toBase64(file).getOrNull()
+                    ?: return@mapNotNull null
+                item.id to data
+            }.toMap()
+            cacheDir.deleteRecursively()
+            result
         }
-        return idMap
-    }
 }
