@@ -78,7 +78,24 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 | 卡片身份色 | `domain/model/CardAccent.kt` 的固定轮转序 | `note_cards.accent`（`Int?`，null = 用户没改过，渲染时按序号回退） |
 | 主题强调色 | DataStore | — |
 
-- **行内语法的存储形态**：`{{k:要点}}` / `{{i:}}` / `{{w:}}` / `{{t:}}`，后缀 `-c`（只变色）/`-u`（下划线）。角色前缀必填，正文非空、不含花括号与换行，转义用 `\{{` `\}}`。
+- **行内语法的存储形态**：`{{k:要点}}` / `{{i:}}` / `{{w:}}` / `{{t:}}`，后缀 `-c`（只变色）/`-u`（下划线）。角色前缀必填，正文非空、不含花括号与换行，转义用 `\{{` `\}}`。**唯一的例外是公式**：标记体内可以整段出现 `$…$`（`{{k:$W \le 2^{n-1}$}}`）—— "给整条公式上色"只有这一种可存形态。
+- **公式是行内标记的原子对象**（`domain/markup/MathSpans.kt`）：与公式相交的标记必须**完整包住**整条公式，切进公式内部一律不合法（`canCover`）。物化时不在公式内转义花括号（`_{\text{发}}` 写成 `_{\text{发\}}}` 会让 LaTeX 解析失败、退化成源码显示）；编辑器里选区端点落在公式内会**向外吸附**成整条公式。踩过的坑：早期没这层约束，`{{k:…}}` 被织进 `_{\text{发}}` 的花括号之间，写出 `{{w:$W_}}{{{w:\text}}…` 这种再也读不回来的碎片（真机反馈）。
+- **编辑态渲染公式**（已实现，取代了早期"编辑态只能看源码"的结论）：`BasicTextField` 确实**不支持 inline content**，但不需要换编辑器也能做到 ——
+  `InlineAtomLayer.kt` 里 `AtomStyleTransformation` 把公式源码设成 **Transparent（只改样式、不改长度）**，覆盖层再用 `onTextLayout` 的 `getCursorRect` 把公式图画在源码让出的空位里。
+  - **偏移映射是恒等的**（没有 `OffsetMapping`），所以不存在"映射算错、光标乱跳"这类 bug；选中的仍是那段源码，只是看不见。
+  - 早先试过"把源码折叠成 0 宽再画覆盖层"，真机上直接失败：不占宽度就会被覆盖层压住后文。**别走那条路**（P0 结论，设计文档 §8）。
+  - 光标进入某条公式时它**不隐藏**，恢复成可编辑源码（否则改不了公式里的错字，折叠态下光标也没落脚点）。
+  - 渲染失败/未完成时覆盖层退回显示源码小字 —— 公式写错时仍看得见、改得动。
+- **`InlineNodes`（`domain/markup/InlineNodes.kt`）是行内原子的统一定义**：坐标与 `InlineSpan` **同一套**（块内可见文本偏移），所以原子自动获得与标记同等的编辑行为，`InlineSpanAdjuster` 一行都不用改。
+  - 公式：隐藏源码 + 覆盖层画图 + **控盒**（见下）；行内代码：**就地套等宽样式**，不隐藏、不参与覆盖层（它没有"盒宽与图不符"的问题）。
+  - 选区吸附用 `InlineNodes.snapOutside`（公式与代码都算）——**单测过不等于接线对**：这里踩过"改了 domain 但编辑器仍调旧的 `MathSpans.snapOutside`"，测试全绿而功能失效。
+- **控盒：让不可见源码占的盒子等于公式图**（`AtomBoxStyle`）。源码不可见，所以给它设 `fontSize`（撑高）与负 `letterSpacing`（压宽）不影响观感，只改变它占的宽高。
+  - 尺寸只能实测（图是异步渲染的），所以这是"测量 → 调样式 → 再布局"的**反馈环**。**必须限次数 + 阻尼 + 阈值三件套**：第一版没设上限，真机空闲 CPU 直接 32~38%（在无限反复布局，`top` 里稳居前列）。这是本项目最贵的一次教训，任何类似回路都要先想清楚"它在什么条件下停下来"。
+  - 被折行截断的原子不参与控盒（宽度跨行没有意义），这类超长公式走"提升为公式块"（见下）。
+- **行内公式 → 公式块**走 `InlineFormulaConversion.promote` + `NoteViewModel.insertBlockAfter`：前者纯函数（摘出正文与裸 LaTeX 源码，并收掉多余空格），后者沿用源块的 `parentBranchId` 并重排 `sortOrder`。
+  能力经 `LocalFormulaPromotion` 下发（**与 `MarkChannel` 同一模式**），避免把回调穿过 `NoteEditScreen → BlockCard（两处）→ BlockContent → TextBlockEditor` 六层；只读态传 null。
+- **行内链接已做**（`[文字](url)`，**自动识别**，用户已确认）：`InlineKind.LINK` + `InlineNodes` 里的 `inlineLink` 正则；编辑态与只读态都套"强调色 + 下划线"（编辑态显示全文以便修改；只读态只显示文字）。落地前查过全库含 `](` 的块数为 **0**，所以自动识别不改写任何既有内容。
+  - 只读路径的链接色**必须由调用方传**：`buildInlineLatexText` 是普通函数（非 @Composable），在里面读 `MaterialTheme` 编译不过（踩过）；已加 `linkColor` 参数。**`RichText` 是它唯一的调用点**（已查证），所以不存在"其它调用点待接"的问题。AI 消息气泡走的是自己的渲染路径（`AiMessageContent` + `rememberLatexImage`），与本函数无关。
 - **语法只存在于存储形态**。编辑器的缓冲区（`TextBlockEditor` 的 `buffer`）**只有可见文本**，标记放在同级的 `spans: List<InlineSpan>` 里，保存时才 `materialize`（设计文档 §3.7）。所以：任何"读 `Block.content` 直接展示"的地方都必须先 `InlineMarkup.stripMarkup`；导出、摘要、预览、AI 摘要都算。新增消费点时别忘了这一条。
 - 文本格式代码必须放在 **`domain/markup/`**（`ui/` 之下的东西 domain 不能依赖）。`InlineMarkup`（解析/物化）、`InlineSpanAdjuster`（编辑对 span 的影响）、`InlineMarkupNormalizer`（规整破损语法）、`EditorTextTransition`（打字路径的转移，含手打辅助 `{{k:…}}` 识别）。
 - 打字走的是 `BasicTextField` 的 `onValueChange` **直写路径，不经过 `commit()`**（后者只被工具条调用）。想在任何输入上做手脚，必须挂 `onValueChange` / `applyTypedText`。这条踩过：手打辅助第一版挂在 `commit()` 上，真机打 `{{k:test}}` 只是被转义成字面量。
