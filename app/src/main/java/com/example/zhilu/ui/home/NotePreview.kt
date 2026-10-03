@@ -31,13 +31,13 @@ fun notePreviewText(note: Note): String? {
     // 统一走 contentBlocks：有知识卡片的笔记块挂在卡片下，note.blocks 是空的，
     // 直接读会让这类笔记在列表里没有摘要。
     val blocks = note.contentBlocks
-    // 正文与分支标题先剥离行内语法：列表里不该出现 {{k: 这类标记字符。
-    // 代码 / 链接 / 公式块的 content 本身就是字面内容，不做剥离。
+    // 正文与分支标题先纯文本化：列表里不该出现 {{k: 这类标记字符，也不该出现
+    // 公式/行内代码的定界符（见 plainPreviewText）。
     blocks.firstOrNull { it.type == BlockType.TEXT && it.content.isNotBlank() }?.let {
-        return InlineMarkup.stripMarkup(it.content).trim()
+        return plainPreviewText(it.content)
     }
     blocks.firstOrNull { it.type == BlockType.BRANCH && it.content.isNotBlank() }?.let {
-        return InlineMarkup.stripMarkup(it.content).trim()
+        return plainPreviewText(it.content)
     }
     blocks.firstOrNull { it.type == BlockType.CODE && it.content.isNotBlank() }?.let {
         return it.content.trim().lineSequence().first().take(80)
@@ -46,9 +46,31 @@ fun notePreviewText(note: Note): String? {
         return it.content.trim()
     }
     blocks.firstOrNull { it.type == BlockType.LATEX && it.content.isNotBlank() }?.let {
-        return it.content.trim()
+        return plainPreviewText(it.content)
     }
     return null
+}
+
+/** `$$…$$` 块级公式（先于行内处理）。 */
+private val blockMath = Regex("\\$\\$([^$]+)\\$\\$")
+
+/** `$…$` 行内公式；不跨行。 */
+private val inlineMath = Regex("\\$([^$\\n]+)\\$")
+
+/**
+ * 列表摘要的纯文本化。
+ *
+ * 首页那行摘要是 `Text` 而不是 `RichText` —— 它**渲染不了公式图片**，
+ * 所以 `$…$` 只能**去掉定界符、留下源码**：直接原样显示就成了
+ * `· $n$ = 编号比特数` 这种半成品（真机反馈的"未转义"）。
+ * 行内代码的反引号同理去掉，内容保留。
+ */
+internal fun plainPreviewText(raw: String): String {
+    var text = InlineMarkup.stripMarkup(raw)
+    text = blockMath.replace(text) { it.groupValues[1] }
+    text = inlineMath.replace(text) { it.groupValues[1] }
+    text = text.replace("`", "")
+    return text.trim()
 }
 
 data class TimelineGroup(
