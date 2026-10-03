@@ -338,9 +338,9 @@ class NoteViewModel @Inject constructor(
     /**
      * 折叠 / 展开一张小节。
      *
-     * 用的是 `KnowledgeCard.isExpanded` —— 这个字段此前是**死字段**（所有构造点都传 `true`、
-     * 没有任何地方读它）。折叠态是**会话内状态**：数据库里没有这一列，
-     * `CardMapper.toDomain` 每次都从 `true` 起步，所以重开笔记就是全展开，符合设计（§5.4）。
+     * 用的是 `KnowledgeCard.isExpanded`。折叠态是**会话内状态**：数据库里没有这一列，
+     * 所以重开笔记会回到 `CardMapper.toDomain` 给的默认值 —— 那里给的是 `false`
+     * （**小节默认收起**：打开笔记先看到目录，点开某节才看内容）。
      */
     fun toggleCardExpanded(cardId: Long) {
         _uiState.update { state ->

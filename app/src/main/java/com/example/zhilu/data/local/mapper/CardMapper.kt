@@ -9,7 +9,10 @@ object CardMapper {
             id = entity.id,
             title = entity.title,
             blocks = blocks,
-            isExpanded = true,
+            // 载入即**收起**：打开笔记先看到目录（每节的标题 + 摘要），点开某节才看内容。
+            // 这是 UI 默认，不是数据语义 —— `KnowledgeCard.isExpanded` 的默认值 true 是给
+            // "扁平笔记的隐式单卡"用的（那种情况下只有一节，收起等于什么都看不到）。
+            isExpanded = false,
             isFocused = false,
             accent = entity.accent
         )

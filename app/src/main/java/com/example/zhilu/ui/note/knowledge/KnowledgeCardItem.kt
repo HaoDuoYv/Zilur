@@ -138,7 +138,15 @@ fun KnowledgeCardItem(
             )
             .shadow(shadowElevation, shape)
             .border(borderWidth, borderColor, shape)
-            .clickable(enabled = isEditing && !isGenerating, onClick = onFocus),
+            .clickable(
+                enabled = isEditing && !isGenerating,
+                onClick = {
+                    onFocus()
+                    // 收起态下点卡片顺手展开：小节默认是收起的，若只聚焦不展开，
+                    // 用户点了卡片却看不到任何可编辑的内容，还得再去点那个小箭头。
+                    if (isCollapsed) onToggleCollapsed()
+                }
+            ),
         shape = shape,
         color = MaterialTheme.colorScheme.surface
     ) {
