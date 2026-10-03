@@ -69,6 +69,8 @@ import com.example.zhilu.ui.component.ImageViewer
 import com.example.zhilu.ui.component.LocalFindHighlight
 import com.example.zhilu.ui.component.FindHighlight
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.note.blocks.FormulaConversions
+import com.example.zhilu.ui.note.blocks.LocalFormulaConversions
 import com.example.zhilu.ui.note.blocks.LocalMarkChannel
 import com.example.zhilu.ui.note.blocks.MarkChannel
 import com.example.zhilu.ui.note.blocks.MarkRequest
@@ -336,7 +338,19 @@ fun NoteEditScreen(
             // 高亮经 CompositionLocal 下发，避免穿透六层到 RichText（§6.4）
             CompositionLocalProvider(
                 LocalFindHighlight provides findHighlight,
-                LocalMarkChannel provides markChannel
+                LocalMarkChannel provides markChannel,
+                // 「行内公式 ↔ 公式块」只有屏幕层做得了（插块 / 改块类型），
+                // 与 MarkChannel 同一模式下发；只读态不给这个能力（传 null）
+                LocalFormulaConversions provides if (state.isEditing) {
+                    FormulaConversions(
+                        promote = { blockId, latexSource ->
+                            viewModel.insertBlockAfter(blockId, BlockType.LATEX, latexSource)
+                        },
+                        demote = { blockId -> viewModel.demoteLatexBlock(blockId) }
+                    )
+                } else {
+                    null
+                }
             ) {
             // 用 Box 包住列表，好把「右缘索引轨」浮在页面右缘（§6.2）
             Box(modifier = Modifier.weight(1f)) {

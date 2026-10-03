@@ -96,6 +96,7 @@ fun BlockContent(
                 LatexBlockEditor(
                     value = block.content,
                     onValueChange = onValueChange,
+                    blockId = block.id,
                     modifier = modifier
                 )
             } else {

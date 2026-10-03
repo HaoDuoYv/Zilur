@@ -91,6 +91,93 @@ class NoteViewModelAdvancedBlockTest {
         assertTrue(noteRepository.updatedNotes.single().blocks.any { it.type == BlockType.LATEX && it.content == "\\alpha^2" })
     }
 
+    /**
+     * 反向：公式块 → 行内公式。就地变成文本块（内容 `$源码$`），多行压成单行。
+     */
+    @Test
+    fun demoteLatexBlockTurnsItIntoTextBlockWithInlineFormula() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "数学",
+                blocks = listOf(
+                    Block(type = BlockType.LATEX, content = "a \\\\\n  b", sortOrder = 0)
+                )
+            )
+        )
+        val viewModel = NoteViewModel(
+            noteRepository = noteRepository,
+            tagRepository = EmptyTagRepository(),
+            reviewRepository = AdvancedBlockReviewRepository(),
+            todoRepository = AdvancedBlockTodoRepository(),
+            reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
+            context = mockk(relaxed = true),
+            savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
+        )
+        advanceUntilIdle()
+
+        val latexId = viewModel.uiState.value.blocks.first { it.type == BlockType.LATEX }.id
+        viewModel.demoteLatexBlock(latexId)
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        val block = viewModel.uiState.value.blocks.single()
+        assertEquals(BlockType.TEXT, block.type)
+        assertEquals("\$a \\\\ b\$", block.content)
+        assertEquals(BlockType.TEXT, noteRepository.updatedNotes.single().blocks.single().type)
+    }
+
+    /**
+     * 行内公式 → 公式块（P3）：新块必须落在**源块之后**，且 sortOrder 重排成连续的 0..n
+     * （否则保存顺序会乱）。
+     */
+    @Test
+    fun insertBlockAfterPlacesNewBlockRightAfterSourceAndRenumbersSortOrder() = runTest(dispatcher) {
+        val noteRepository = RecordingNoteRepository(
+            note = Note(
+                id = 7L,
+                title = "数学",
+                blocks = listOf(
+                    Block(type = BlockType.TEXT, content = "调用 \$a+b\$ 结束", sortOrder = 0),
+                    Block(type = BlockType.TEXT, content = "下一段", sortOrder = 1)
+                )
+            )
+        )
+        val viewModel = NoteViewModel(
+            noteRepository = noteRepository,
+            tagRepository = EmptyTagRepository(),
+            reviewRepository = AdvancedBlockReviewRepository(),
+            todoRepository = AdvancedBlockTodoRepository(),
+            reminderRepository = AdvancedBlockReminderRepository(),
+            mediaRepository = mockk(relaxed = true),
+            blockClipboardManager = mockk(relaxed = true),
+            aiTaskManager = fakeAiTaskManager(),
+            refManager = fakeAiRefManager(),
+            context = mockk(relaxed = true),
+            savedStateHandle = SavedStateHandle(mapOf("noteId" to 7L))
+        )
+        advanceUntilIdle()
+
+        val sourceId = viewModel.uiState.value.blocks.first { it.type == BlockType.TEXT }.id
+        viewModel.insertBlockAfter(sourceId, BlockType.LATEX, "a+b")
+        advanceTimeBy(600)
+        advanceUntilIdle()
+
+        val blocks = viewModel.uiState.value.blocks
+        assertEquals(3, blocks.size)
+        assertEquals(BlockType.LATEX, blocks[1].type)
+        assertEquals("a+b", blocks[1].content)
+        assertEquals(listOf(0, 1, 2), blocks.map { it.sortOrder })
+        assertTrue(
+            noteRepository.updatedNotes.single().blocks
+                .any { it.type == BlockType.LATEX && it.content == "a+b" }
+        )
+    }
+
     @Test
     fun setBlockLanguageUpdatesTargetBlockAndPersistsLanguage() = runTest(dispatcher) {
         val noteRepository = RecordingNoteRepository(

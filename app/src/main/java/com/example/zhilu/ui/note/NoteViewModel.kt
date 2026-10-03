@@ -14,6 +14,7 @@ import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.ai.model.AiRefKind
 import com.example.zhilu.domain.ai.model.AiTask
 import com.example.zhilu.domain.ai.model.AiTaskPhase
+import com.example.zhilu.domain.markup.InlineFormulaConversion
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.EmphasisTone
@@ -446,8 +447,7 @@ class NoteViewModel @Inject constructor(
         addImageBlock(uri)
     }
 
-    fun insertBlockAt(index: Int, type: BlockType) {
-        val clampedIndex = index.coerceIn(0, _blocks.size)
+    fun insertBlockAt(index: Int, type: BlockType) {        val clampedIndex = index.coerceIn(0, _blocks.size)
         val newBlock = Block(
             id = nextBlockId--,
             type = type,
@@ -460,6 +460,55 @@ class NoteViewModel @Inject constructor(
         }
         _blocks.add(clampedIndex, newBlock)
         recalculateSortOrders()
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    /**
+     * 在某块**之后**插入一块，并带上内容。
+     *
+     * 与 [insertBlockAt] 的区别是"带内容 + 按块定位"：给"把行内公式提升成公式块"这类
+     * 搬运动作用 —— 调用方手里只有源块的 id 和一段要搬过去的源码（见
+     * [com.example.zhilu.domain.markup.InlineFormulaConversion]）。
+     *
+     * 新块沿用源块的 `parentBranchId`：在分支子块里提升公式，公式块该留在同一个分支里，
+     * 而不是跳到分支外面去。
+     */
+    fun insertBlockAfter(afterBlockId: Long, type: BlockType, content: String) {
+        val sourceIndex = _blocks.indexOfFirst { it.id == afterBlockId }
+        val insertIndex = if (sourceIndex < 0) _blocks.size else sourceIndex + 1
+        val parentBranchId = _blocks.getOrNull(sourceIndex)?.parentBranchId
+        val newBlock = Block(
+            id = nextBlockId--,
+            type = type,
+            content = content,
+            sortOrder = insertIndex,
+            parentBranchId = parentBranchId
+        )
+        if (type == BlockType.BRANCH) {
+            _branchExpandedStates[newBlock.id] = true
+        }
+        _blocks.add(insertIndex, newBlock)
+        recalculateSortOrders()
+        syncBlocksToState()
+        scheduleSave()
+    }
+
+    /**
+     * 反向：「公式块 → 行内公式」。
+     *
+     * **就地**把它变成文本块，内容是 `$源码$`，而不是搬进另一段话里 ——
+     * 跨块搬运要同时"删本块 + 改另一个块的正文"，两个动作任何一个出错都会丢内容；
+     * 就地转换只有一个动作。转完它就是一行普通文字（公式会立刻按行内原子渲染出来），
+     * 用户想放进哪句话里，自己剪切即可。
+     */
+    fun demoteLatexBlock(blockId: Long) {
+        val index = _blocks.indexOfFirst { it.id == blockId }
+        if (index < 0) return
+        val block = _blocks[index]
+        if (block.type != BlockType.LATEX) return
+        val inline = InlineFormulaConversion.demoteToInline(block.content) ?: return
+        _blocks[index] = block.copy(type = BlockType.TEXT, content = inline)
         syncBlocksToState()
         scheduleSave()
     }
