@@ -48,8 +48,25 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 ## 导出 / 导入
 
 - 格式：JSON、Markdown、HTML（图片/公式内嵌 base64）、`.dtk`（ZIP：`note.json` + `media/`）。
-- `.dtk` 的 `note.json` 必须含 `dtkVersion`（当前为 1）；导入只支持 `.dtk`，高版本拒绝。
+- `.dtk` 的 `note.json` **必须含 `dtkVersion`**（当前为 1，见 `DtkExporter.DTK_VERSION`）；导入只支持 `.dtk`，高版本拒绝。
 - 公式：HTML/Markdown 导出渲染为 base64 PNG；`.dtk` 保留 LaTeX 源码。
+- **JSON 备份必须内嵌图片字节**（`media[].data` = base64 data URL，导出时由 `SettingsViewModel.collectMediaData` 读入）。只写 `uri` 的话，备份里剩的是一个指向本机内部存储的路径，换设备/清过数据后永远恢复不出图。`.dtk` 反过来：图片作为文件放进 zip，不写 `data`（免得包体翻倍）。
+- **备份必须保住三类引用**：`cards`（小节结构）、`Block.parentBranchId`（分支层级）、`cardId`/`mediaId`。导出时都要写，导入时统一走 `export/BackupRestore.kt` 的 `remapForInsert()` 换成负临时 id，再由 `NoteRepositoryImpl.replaceCards/replaceBlocks` 映射成真实主键。以前只写扁平的 `contentBlocks`，于是恢复后小节被 `hydrate` 合并成一张卡、子块变成顶层块 —— 改这块务必跑 `BackupRoundTripTest`。
+- 有卡片时 `blocks` 必须留空、只有扁平块时 `cards` 必须留空：`Note.contentBlocks` 的语义是"blocks 非空就只用 blocks"。
+
+## UI 状态与一次性提示
+
+- **一次性提示（snackbar）要"先消费、再弹"，而且 `showSnackbar` 必须派发到屏幕作用域**：
+  - 先消费：`showSnackbar` 会挂起到提示消失，若把 `clearMessages()` 排在它后面，用户看到提示时切走页面会取消协程 → 消息永远留在 state 里，之后每次进入该页面都重弹（真机反馈过）。
+  - **但只做到这一步还不够（会踩第二个坑）**：`consumeXxx()` 会把 `LaunchedEffect` 的 key 变成 `null`，Compose 随即**取消并重启**这个 effect，挂起中的 `showSnackbar` 被一起取消 —— 表现是提示一闪即逝、甚至完全不出现。正确写法是让 effect 只负责消费 + 派发：
+    ```kotlin
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(state.message) {
+        val message = state.message ?: return@LaunchedEffect
+        viewModel.consumeMessage()
+        scope.launch { snackbar.showSnackbar(message) }   // ← 交给屏幕作用域，不受 key 变化影响
+    }
+    ```
 
 ## 行内标记与语义强调（这一块最容易改错）
 
@@ -90,6 +107,17 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 - 注意：`RepositoryResult` 物理在 `domain/repository/RepositoryResult.kt`，包名却是 `com.example.zhilu.common`——import 用 `common`，不要按目录新建 `common` 包。
 - 涉及 Android Context 的单元测试用 Robolectric（exporter、导入等）；纯逻辑测试用 JUnit4 + MockK。
 - 无 lint/detekt 额外配置；验收以 `lintDebug` 零错误为准。
+
+## 入口与导航（改动频繁，先看这里）
+
+- **新建 / 导入的唯一入口是底栏正中央的 ＋**（`ui/navigation/BottomBar.kt` 的 `CenterCreateSlot` + `ui/create/CreateSheet.kt`），由 `AppShell` 托管，四个平级页都能唤起。首页**不再有 FAB**（`HomeCreateFab` 已删除）。
+  - 所以**行左划/右划露出操作槽时不需要再收起任何悬浮件** —— 以前 FAB 会压住删除键，`HomeScreen` 里那段"露出态隐藏 FAB"的联动已随 FAB 一起移除。若哪天把 FAB 加回来，记得把这层联动也加回来。
+  - ＋ 上浮 24dp，必须画在底栏 `Surface` **之外**：Surface 会把内容裁到边界内，放在里面只剩半个圆（真机第一版就是这样）。
+- 设置页只留**导出**；导入（JSON / .dtk）在 ＋ 的弹层里。逻辑本体在两个共用用例：`RestoreJsonBackupUseCase`、`ImportKnowledgeUseCase`。
+- 「AI 创建」= 跳助手页并把输入框预填成「帮我创建：」，靠助手路由的可选参数 `assistant?prefill=`。
+- **`Destination.path` 与 `Destination.route` 是两件事，别混用**：`path` 是在 NavHost 里注册的**路由模板**（助手页是 `assistant?prefill={prefill}`），`route` 才是拿去 `navigate()` 的**实际路由**（`assistant`）。混用的两种翻车这轮都踩了：拿模板比选中态 → 助手页被判定为非平级页、**底栏整条消失**；拿模板去 navigate → `{prefill}` 被当字面值传进去，**输入框里出现 `{prefill}` 这行字**。涉及助手页的三处（`TopLevelRoutes`、底栏 `isOn`、`switchTopLevel`）都必须用 `route`。
+- 底栏 tab 的选中态**只改颜色**（原型 `.nav .tab.cur{color:var(--accent)}`，没有胶囊背景）；图标另做成对切换（实心 ↔ 描边）——纯靠颜色表达选中，对色觉障碍与灰度屏是失效的。
+- **小节默认收起**：`CardMapper.toDomain` 显式 `isExpanded = false`，打开笔记先看到目录（标题 + 摘要 + 收起箭头）。`KnowledgeCard.isExpanded` 的默认值仍是 `true`，那是给"扁平笔记的隐式单卡"用的（只有一节时收起等于什么都看不见）。编辑态点一张收起的小节会顺手把它展开。
 
 ## 文档索引
 

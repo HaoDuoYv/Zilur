@@ -226,6 +226,20 @@ $adb = "E:\Program Files\Netease\MuMu\nx_main\adb.exe"
 - **卡片身份色**：新增 `CardAccent.VERMILION`（朱红 `#B23B32`）并**追加在轮转序末尾**（插中间会改变已有笔记的默认配色）。刻意比语义正红更暗一档，遵守「一色一义」——语义色标内容、身份色标容器，撞值会让两个信号混成一个。
 - **顺带修的布局隐患**：设置里的强调色板从 7 色加到 8 色后，单行 8 个单元格只有 ~32.5dp，会小于选中态圆直径 36dp —— 正是 `SwatchSize` 注释里记着的"被横向压扁成椭圆"那个坑。改为**每行 4 个折行**，真机确认两行八圆比例正常。
 
+### 真机反馈的三个缺陷（已修，第三轮）
+
+| # | 现象 | 根因 | 修法 |
+| --- | --- | --- | --- |
+| 1 | 首页摘要把公式定界符原样显示成 `· $n$ = 编号比特数` | `notePreviewText` 只做了 `stripMarkup`（管 `{{}}`/`**`），没管 `$…$` 与反引号。首页那行是 `Text` 而不是 `RichText`，渲染不了公式图片 | 新增 `plainPreviewText()`：剥标记后再去掉 `$$…$$`/`$…$` 定界符与反引号，**保留公式源码**。真机确认摘要变成 `· n = 编号比特数`，整页再无 `$` |
+| 2 | `.dtk` 导入后小节结构全丢（六小节并成一篇流水账） | `JsonExporter.appendNote` 只写扁平的 `contentBlocks`，`cards` 根本没进备份；`ImportKnowledgeUseCase` 又硬写 `cards = emptyList()` | 备份格式加 `cards[{title,accent,blocks}]` 与 `Block.parentBranchId`；导入统一走新的纯函数 `remapForInsert()`（卡片 / 父子 / 图片三类引用成套换成负临时 id）。顺带补上 `.dtk` 一直缺的 `dtkVersion` 字段 |
+| 3a | JSON 备份导入时图片进不来 | 导出只写 `media[].uri`（指向本机内部存储的路径），**没有内嵌字节**；导入端 `importMedia` 只是重新插了一行指向旧 uri 的记录，等于没恢复 | 备份格式加 `media[].data`（base64 data URL）；导入时解码 → 写回内部存储 → 媒体行指向新 uri。老备份（无 `data`）退回原行为 |
+| 3b | 导入成功后每次进「我的」都重弹一次提示 | `SettingsScreen` 里 `clearMessages()` 排在 `showSnackbar()` **之后**；那个调用会挂起到提示消失，用户中途切走页面 → 协程被取消 → 消息永远清不掉 | 改成**先消费再弹**。真机确认：产生提示后离开再回「我的」不再重弹 |
+
+顺带把设置页残留的英文提示（"Choose a JSON file location to export."、"Imported N notes" 等）改成中文，导入/导出提示补上图片张数。
+
+新增 18 条单测：`NotePreviewMathTest`（摘要纯文本化 9 条）、`BackupRoundTripTest`（小节 / 身份色 / 分支层级 / 图片字节四样往返不丢 + `remapForInsert` 的 id 与引用重写 9 条）。
+**JSON 导入的真机 SAF 流程没有自动化验证**（要驱动系统文件选择器），该路径靠上面这组往返单测覆盖。
+
 ### 收尾项（全部完成，均真机验证）
 | 项 | 状态 | 真机证据 |
 | --- | --- | --- |
