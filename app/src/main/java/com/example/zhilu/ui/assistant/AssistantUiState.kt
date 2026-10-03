@@ -27,7 +27,9 @@ data class AssistantUiState(
     /** 助手页「引用笔记」选择器的候选（NOTE 级引用）。 */
     val refPickerNotes: List<AiRef> = emptyList(),
     val showRefPicker: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    /** 一次性提示（非错误），如"已经在最新对话中"。弹完即消费。 */
+    val notice: String? = null
 ) {
     /** 是否正在生成（由活跃任务派生，跨页面持久）。 */
     val isGenerating: Boolean

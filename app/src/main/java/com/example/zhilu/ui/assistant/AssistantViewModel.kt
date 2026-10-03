@@ -217,7 +217,18 @@ class AssistantViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 新建对话。
+     *
+     * **已经在一条最新的空对话里时不再重复新建**，改为回一句提示 —— 否则点了完全没反应，
+     * 用户会以为按钮坏了（真机反馈）。判据是"没有落库的会话 id + 没有任何消息"，
+     * 也就是当前这块就是刚开出来的空白对话。
+     */
     fun newConversation() {
+        if (isOnFreshConversation()) {
+            _uiState.update { it.copy(notice = "已经在最新对话中") }
+            return
+        }
         _uiState.update {
             it.copy(
                 currentConversationId = null,
@@ -230,6 +241,17 @@ class AssistantViewModel @Inject constructor(
                 error = null
             )
         }
+    }
+
+    /** 当前是不是"刚开出来的空对话"。 */
+    private fun isOnFreshConversation(): Boolean = _uiState.value.let {
+        it.currentConversationId == null &&
+            it.messages.isEmpty() &&
+            !it.isGenerating
+    }
+
+    fun consumeNotice() {
+        _uiState.update { it.copy(notice = null) }
     }
 
     fun selectConversation(id: Long) {

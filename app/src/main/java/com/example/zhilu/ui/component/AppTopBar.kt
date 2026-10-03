@@ -34,6 +34,8 @@ fun AppTopBar(
     subtitle: String? = null,
     variant: AppTopBarVariant = AppTopBarVariant.Compact,
     scrolled: Boolean = false,
+    /** 自定义左侧入口（如助手页的 ☰ 历史抽屉）。给了它就不再画返回键。 */
+    leading: (@Composable () -> Unit)? = null,
     actions: @Composable () -> Unit = {}
 ) {
     val titleStyle = when (variant) {
@@ -64,7 +66,9 @@ fun AppTopBar(
                 }
             },
             navigationIcon = {
-                if (onBack != null) {
+                if (leading != null) {
+                    leading()
+                } else if (onBack != null) {
                     IconButton(
                         onClick = onBack,
                         modifier = Modifier.padding(start = 8.dp)

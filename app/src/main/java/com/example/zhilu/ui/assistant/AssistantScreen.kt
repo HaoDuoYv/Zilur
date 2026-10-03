@@ -30,7 +30,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import com.example.zhilu.ui.component.PushDrawer
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -84,6 +87,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun AssistantScreen(
     navController: NavHostController,
+    /** 底栏 ＋ 的「AI 创建」带进来的开场白；空串表示从底栏正常切换过来。 */
+    prefill: String = "",
     viewModel: AssistantViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -91,6 +96,21 @@ fun AssistantScreen(
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // 预填只在**这次路由**上生效一次：键是 prefill 本身，用户随后编辑输入框不会把它冲掉。
+    LaunchedEffect(prefill) {
+        if (prefill.isNotBlank()) viewModel.updateInput(prefill)
+    }
+
+    // 一次性提示（如"已经在最新对话中"）：先消费再弹 —— 但不能让 `showSnackbar`（会挂起到
+    // 提示消失）留在这个 effect 里：`consumeNotice()` 会把 key 变成 null，Compose 随即
+    // 取消并重启本 effect，挂起中的 `showSnackbar` 会被一起取消，提示就永远不显示。
+    // 所以这里只负责派发，真正的弹出交给屏幕作用域 [scope]。
+    LaunchedEffect(state.notice) {
+        val notice = state.notice ?: return@LaunchedEffect
+        viewModel.consumeNotice()
+        scope.launch { snackbar.showSnackbar(notice) }
+    }
 
     // ── 键盘 / 附件面板：两者共用同一块「底部高度」 ──────────────────────────
     //
@@ -184,13 +204,17 @@ fun AssistantScreen(
         }
     }
 
-    // 面板展开期间压住底部导航：AppShell 只在「键盘可见」时才藏底栏，
-    // 而面板展开时键盘是收着的，底栏会冒出来把内容区顶矮一截——输入栏就跳了。
+    // 历史对话抽屉的开合状态。声明在这里是为了能和"压住底栏"一起判断。
+    var historyOpen by remember { mutableStateOf(false) }
+
+    // 面板展开 / 抽屉打开期间压住底部导航：AppShell 只在「键盘可见」时才藏底栏，
+    // 而这两种情况下键盘都是收着的，底栏会冒出来 —— 面板展开时它把内容区顶矮一截（输入栏跳动），
+    // 抽屉打开时它会从抽屉面板下面露出一条（参考设计里抽屉是整屏盖住的）。
     // 这里跟 [panelEngaged] 而不是 [attachPanelVisible]：交棒的那 320ms 里键盘还没起来，
     // 底栏同样会冒头，必须一起压住。
     val setBottomBarSuppressed = LocalSuppressBottomBar.current
-    DisposableEffect(panelEngaged, setBottomBarSuppressed) {
-        setBottomBarSuppressed(panelEngaged)
+    DisposableEffect(panelEngaged, historyOpen, setBottomBarSuppressed) {
+        setBottomBarSuppressed(panelEngaged || historyOpen)
         onDispose { setBottomBarSuppressed(false) }
     }
 
@@ -279,13 +303,32 @@ fun AssistantScreen(
         }
     }
 
+    // 历史对话抽屉：左侧推入、原界面被推开并压暗，点右侧灰区返回（见 PushDrawer）。
+    PushDrawer(
+        open = historyOpen,
+        onOpen = { historyOpen = true },
+        onClose = { historyOpen = false },
+        drawer = {
+            ConversationHistoryDrawer(
+                conversations = state.conversations,
+                currentConversationId = state.currentConversationId,
+                onNewConversation = {
+                    viewModel.newConversation()
+                    historyOpen = false
+                },
+                onSelectConversation = { id ->
+                    viewModel.selectConversation(id)
+                    historyOpen = false
+                },
+                onDeleteConversation = viewModel::deleteConversation
+            )
+        }
+    ) {
     AppTabScaffold(
         topBar = {
             AssistantTopBar(
-                conversations = state.conversations,
-                onNewConversation = viewModel::newConversation,
-                onSelectConversation = viewModel::selectConversation,
-                onDeleteConversation = viewModel::deleteConversation
+                onOpenHistory = { historyOpen = true },
+                onNewConversation = viewModel::newConversation
             )
         },
         bottomBar = {
@@ -401,6 +444,7 @@ fun AssistantScreen(
                 }
             }
         }
+    }
     }
 
     if (state.showRefPicker) {
