@@ -30,9 +30,14 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 
 ## 架构（不易从文件名看出）
 
-- 分层：`ui/`（Compose + ViewModel）→ `domain/`（model / repository 接口 / usecase）→ `data/`（Room、Repository 实现、DataStore）。导出在 `export/`，提醒 Worker 在 `reminder/`。
+- 分层：`ui/`（Compose + ViewModel）→ `domain/`（model / repository 接口 / usecase）→ `data/`（Room、Repository 实现、DataStore）。导出在 `export/`，提醒 Worker 在 `reminder/`，进程级 AI 任务运行时在 `ai/`（**服务层，不是混层**：`ai/` 下零 `androidx.compose` 引用，依赖方向只有 ui → ai → data/domain，与 `reminder/` 同级看待）。
 - 笔记 = `Note` + 多个 `KnowledgeCard`，块挂在 `Block.cardId` 下。BRANCH 块的子块用 `Block.parentBranchId` 指向父分支；顶层块为 `parentBranchId == null`。
+- **块树的顺序与父子关系一律走 `domain/model/BlockOrdering.kt`**（纯函数 + `BlockOrderingTest`）：`move`（分支块连子块一起搬、子块不参与卡片级移动）、`renumber`、`arrowUpSwap`/`arrowDownSwap`、`flatten`/`revive`（剪贴板粘贴发新 id）。
+  - 抽它的理由不是"文件太长"，而是这里**每次算错都是静默的数据损坏**（顺序错乱、子块挂到别的分支、粘贴后全挂同一个父块），而 `NoteViewModel` 里的版本只能经 ViewModel 间接测。
+  - `revive` **必须由调用方传 `nextId` 回调**：`nextBlockId` 是实例级递减计数器，粘贴是一次性预分配，这个语义收进纯函数就变成了隐藏状态。
+  - 同一条判据适用于别处：**"是规则而不是编排"的逻辑放 `domain/`**，`ui/` 只留 Compose 与状态机。行内标记那一套（`domain/markup/`）就是这么落的。
 - `NoteRepositoryImpl.hydrate()`：无 `cardId` 的孤儿块会被并入第一张卡片并重排 `sortOrder`；没有卡片时块挂在 note 本身。改保存/加载逻辑时别破坏这条规则。
+- **`NoteUiState.toNote()` 是把块挂回卡片的唯一落点**（`NoteUiState.kt` 里 `block.copy(cardId = card.id)`）——仓库层靠 `cardMap[block.cardId]` 找归属，漏填/填错就等于"只改标题却把正文删了"。有 `NoteUiStateToNoteTest` 守着。
 - `NoteViewModel` 未保存块用递减负数临时 id（`nextBlockId--`）。保存后通过 id 映射回写真实 `cardId` / `parentBranchId`。
 - 块剪贴板：JSON 带 `CLIPBOARD_PREFIX` 前缀写入系统剪贴板；识别粘贴只看前缀。
 - 入口：`MainActivity`、`ZhiLuApplication`（Hilt + WorkManager 周期提醒）。导航在 `ui/navigation/`。
@@ -84,19 +89,30 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
   `InlineAtomLayer.kt` 里 `AtomStyleTransformation` 把公式源码设成 **Transparent（只改样式、不改长度）**，覆盖层再用 `onTextLayout` 的 `getCursorRect` 把公式图画在源码让出的空位里。
   - **偏移映射是恒等的**（没有 `OffsetMapping`），所以不存在"映射算错、光标乱跳"这类 bug；选中的仍是那段源码，只是看不见。
   - 早先试过"把源码折叠成 0 宽再画覆盖层"，真机上直接失败：不占宽度就会被覆盖层压住后文。**别走那条路**（P0 结论，设计文档 §8）。
-  - 光标进入某条公式时它**不隐藏**，恢复成可编辑源码（否则改不了公式里的错字，折叠态下光标也没落脚点）。
+  - **光标进入某条公式时它必须变成"可见的源码"** —— 这件事有**两半，缺一半就等于公式消失**：
+    ① 覆盖层不再画它（`InlineNodes.hiddenMath` 按 `activeAtomOffset` 排除）；
+    ② `AtomStyleTransformation` **必须撤销那一条的 `Color.Transparent`**（同一个 `activeAtomOffset` 传进去）。
+    只做 ① 的话，公式既没有图、源码又是透明的，屏幕上只剩一块选区底色 —— 用户报的"点进公式公式就没了"就是这个。
+    有 `AtomStyleTransformationTest` 守着（活动原子不透明、其余仍透明、紧贴两端也算活动）。
   - 渲染失败/未完成时覆盖层退回显示源码小字 —— 公式写错时仍看得见、改得动。
 - **`InlineNodes`（`domain/markup/InlineNodes.kt`）是行内原子的统一定义**：坐标与 `InlineSpan` **同一套**（块内可见文本偏移），所以原子自动获得与标记同等的编辑行为，`InlineSpanAdjuster` 一行都不用改。
-  - 公式：隐藏源码 + 覆盖层画图 + **控盒**（见下）；行内代码：**就地套等宽样式**，不隐藏、不参与覆盖层（它没有"盒宽与图不符"的问题）。
+  - 公式：隐藏源码 + 覆盖层画图；行内代码：**就地套等宽样式**，不隐藏、不参与覆盖层（它没有"盒宽与图不符"的问题）。
   - 选区吸附用 `InlineNodes.snapOutside`（公式与代码都算）——**单测过不等于接线对**：这里踩过"改了 domain 但编辑器仍调旧的 `MathSpans.snapOutside`"，测试全绿而功能失效。
-- **控盒：让不可见源码占的盒子等于公式图**（`AtomBoxStyle`）。源码不可见，所以给它设 `fontSize`（撑高）与负 `letterSpacing`（压宽）不影响观感，只改变它占的宽高。
-  - 尺寸只能实测（图是异步渲染的），所以这是"测量 → 调样式 → 再布局"的**反馈环**。**必须限次数 + 阻尼 + 阈值三件套**：第一版没设上限，真机空闲 CPU 直接 32~38%（在无限反复布局，`top` 里稳居前列）。这是本项目最贵的一次教训，任何类似回路都要先想清楚"它在什么条件下停下来"。
-  - 被折行截断的原子不参与控盒（宽度跨行没有意义），这类超长公式走"提升为公式块"（见下）。
+- **公式图绘制尺寸：一次算完，不做反馈环**（`ui/note/blocks/AtomBox.kt` 的 `drawScale`，纯函数 + 单测）。
+  - 规则只有一条：**只缩小、不放大**，上限取「该行剩余宽度」与「行盒高度 × 1.25」里更紧的那个。1.25 是给含 CJK 的公式留的溢出余量（图 98px vs ASCII 行盒 82px，严格贴行盒会被压到 84%，肉眼可见地比只读态小）。
+  - **不要**再去"让不可见源码占的盒子等于公式图"（曾用 `AtomBoxStyle` 调 `fontSize`/`letterSpacing`）。它必须靠「量盒宽 → 改样式 → 再布局 → 再量」的**反馈环**收敛，实测收益只有 17px 留白，却换来一整类 bug：字距 sp/px 串单位被夹成 +16sp（源码撑成两行）、`getCursorRect(end)` 取到的是**行尾换行符**（单行原子被判成折行）、按文本偏移做键的样式表被重新排版清空。全过程见设计文档 §14.5。
+  - **覆盖层那个盒子的尺寸只该由"画什么"决定**：给它**定宽**会横向裁掉公式（源码比图窄时，实测 208px 的盒子装 573px 的图），给它**定高**会纵向裁掉公式（图比行盒高时，`MAX_HEIGHT_OVERFLOW` 允许的那 25% 余量正好被裁掉，表现是含 CJK 的公式像被切了下半截）。两次都真机栽过，所以现在**只 `offset` 定位，宽高都交给内容撑** —— 它是纯绘制层、不参与排版。
+  - **量法本身也踩过坑**：`getBoundingBox` 在 `BasicTextField` 的算子里对某些偏移直接返回 null；判折行要看 `getCursorRect(end).top` 是否与起点同行。量之前先用真机数字确认"量法与渲染自洽"。
+  - 代价（已知、接受）：源码天然比图宽时公式后面有一段留白。长公式的正解是「转为公式块」，不是把字距压回去。
 - **行内公式 → 公式块**走 `InlineFormulaConversion.promote` + `NoteViewModel.insertBlockAfter`：前者纯函数（摘出正文与裸 LaTeX 源码，并收掉多余空格），后者沿用源块的 `parentBranchId` 并重排 `sortOrder`。
   能力经 `LocalFormulaPromotion` 下发（**与 `MarkChannel` 同一模式**），避免把回调穿过 `NoteEditScreen → BlockCard（两处）→ BlockContent → TextBlockEditor` 六层；只读态传 null。
 - **行内链接已做**（`[文字](url)`，**自动识别**，用户已确认）：`InlineKind.LINK` + `InlineNodes` 里的 `inlineLink` 正则；编辑态与只读态都套"强调色 + 下划线"（编辑态显示全文以便修改；只读态只显示文字）。落地前查过全库含 `](` 的块数为 **0**，所以自动识别不改写任何既有内容。
   - 只读路径的链接色**必须由调用方传**：`buildInlineLatexText` 是普通函数（非 @Composable），在里面读 `MaterialTheme` 编译不过（踩过）；已加 `linkColor` 参数。**`RichText` 是它唯一的调用点**（已查证），所以不存在"其它调用点待接"的问题。AI 消息气泡走的是自己的渲染路径（`AiMessageContent` + `rememberLatexImage`），与本函数无关。
 - **语法只存在于存储形态**。编辑器的缓冲区（`TextBlockEditor` 的 `buffer`）**只有可见文本**，标记放在同级的 `spans: List<InlineSpan>` 里，保存时才 `materialize`（设计文档 §3.7）。所以：任何"读 `Block.content` 直接展示"的地方都必须先 `InlineMarkup.stripMarkup`；导出、摘要、预览、AI 摘要都算。新增消费点时别忘了这一条。
+- **编辑态与只读态必须对同一段文本解析出同一组公式**（`InlineLatexParsingParityTest`）。两条路径的解析器不同（编辑态 `InlineNodes`/`MathSpans`，只读态 `buildInlineLatexText` 自己的词法器），不一致的表现就是"公式在某一侧凭空消失"或"中间的文字被吞掉"。两条已经踩过的坑：
+  - **只读态词法器里块级 `$$…$$` 必须排在行内 `$…$` 前面**。反了的话 `$([^$]+?)$` 会匹配第一个 `$` 到最后一个 `$` 之间的全部内容 —— `$$E=mc^2$$\n行内：$a$` 会被解析成一条源码为 `E=mc^2$$\n行内：` 的"公式"，**中间那段文字在只读态直接消失**。
+  - **分组号与分支判断要一起改**：给词法器加一条分支会移动所有 `groupValues[i]` 的下标，而"先判某个 group 非空"的写法一旦对不上号，就会把公式当链接文字吞掉（本轮踩过：`$a+b$` 只显示成 `a+b`、`formulas` 为空）。改成先取出 `groupValues` 到有名字的局部变量再判。
+  - `InlineNode.contentOf` 要同时剥掉 `$$` 与 `$` 两种定界符：只剥一层会让块级公式在编辑态把 `$E=mc^2$` 喂给渲染器、只读态喂裸源码，两侧输入不同、渲染就可能不同。
 - 文本格式代码必须放在 **`domain/markup/`**（`ui/` 之下的东西 domain 不能依赖）。`InlineMarkup`（解析/物化）、`InlineSpanAdjuster`（编辑对 span 的影响）、`InlineMarkupNormalizer`（规整破损语法）、`EditorTextTransition`（打字路径的转移，含手打辅助 `{{k:…}}` 识别）。
 - 打字走的是 `BasicTextField` 的 `onValueChange` **直写路径，不经过 `commit()`**（后者只被工具条调用）。想在任何输入上做手脚，必须挂 `onValueChange` / `applyTypedText`。这条踩过：手打辅助第一版挂在 `commit()` 上，真机打 `{{k:test}}` 只是被转义成字面量。
 - AI 工具写入与系统剪贴板粘贴是**文本直接落库**的两个入口，必须过 `InlineMarkupNormalizer.normalize`。
@@ -134,7 +150,17 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 - 「AI 创建」= 跳助手页并把输入框预填成「帮我创建：」，靠助手路由的可选参数 `assistant?prefill=`。
 - **`Destination.path` 与 `Destination.route` 是两件事，别混用**：`path` 是在 NavHost 里注册的**路由模板**（助手页是 `assistant?prefill={prefill}`），`route` 才是拿去 `navigate()` 的**实际路由**（`assistant`）。混用的两种翻车这轮都踩了：拿模板比选中态 → 助手页被判定为非平级页、**底栏整条消失**；拿模板去 navigate → `{prefill}` 被当字面值传进去，**输入框里出现 `{prefill}` 这行字**。涉及助手页的三处（`TopLevelRoutes`、底栏 `isOn`、`switchTopLevel`）都必须用 `route`。
 - 底栏 tab 的选中态**只改颜色**（原型 `.nav .tab.cur{color:var(--accent)}`，没有胶囊背景）；图标另做成对切换（实心 ↔ 描边）——纯靠颜色表达选中，对色觉障碍与灰度屏是失效的。
-- **小节默认收起**：`CardMapper.toDomain` 显式 `isExpanded = false`，打开笔记先看到目录（标题 + 摘要 + 收起箭头）。`KnowledgeCard.isExpanded` 的默认值仍是 `true`，那是给"扁平笔记的隐式单卡"用的（只有一节时收起等于什么都看不见）。编辑态点一张收起的小节会顺手把它展开。
+- **小节默认收起，但两种状态都能展开**：`CardMapper.toDomain` 显式 `isExpanded = false`，打开笔记先看到目录（标题 + 摘要 + 收起箭头）。`KnowledgeCard.isExpanded` 的默认值仍是 `true`，那是给"扁平笔记的隐式单卡"用的（只有一节时收起等于什么都看不见）。
+  - 点一张收起的小节会顺手把它展开；**只读态同样有效**（`KnowledgeCardItem` 的 `clickable` 只按 `!isGenerating` 门控，`onFocus` 才判 `isEditing`）。
+  - 曾经只读态整卡不可点（`enabled = isEditing`），后果是 **AI 刚建的笔记点进去全是空壳卡片** —— 小节默认收起 + 只读态展不开 = 用户以为没生成内容。别再把它锁回去。
+  - 展开状态是**会话态**：没有落库列，重开笔记回到目录。
+- **只读正文可选中复制**（`SelectableBlockText`，TEXT 块专用）：`SelectionContainer` 提供划词与系统复制工具栏；长按不动仍然弹块级菜单（复制此块 / 引用到 AI）。
+  - **两个动作必须共用一层手势、按"长按后有没有拖动"分流**。曾经把块级菜单挂在 `ReadOnlyBlock` 最外层，父级指针输入先于子级收到事件 —— 外层一旦认领长按，`SelectionContainer` 的选区永远起不来，表现是"文字看着能选、实际选不动"。
+  - 菜单的判定窗口是 **600ms，比平台的 500ms 晚一档**。两者同时判的话，"长按后立刻拖"会**同时**弹出选区与菜单（真机实测两个一起出现）。多等的这 0.1 秒让拖动位移落进判定窗口内，菜单才会让位；纯长按只是晚 0.1 秒出现，感知不到。
+  - 位移判据用**相对 DOWN 的累计位移**，不是 `positionChange()`：后者每帧只给"相对上一帧"的位移，手指匀速拖动时单帧位移很小，会漏判成"没动"。
+  - 复制内容一律走 `readOnlyBlockClipboardText`（按块类型分派 + 剥行内标记），有 `ReadOnlyBlockTest` 守着。
+  - 链接块不套 `SelectionContainer`：链接正文靠点击打开，套上会把手势吃掉。
+- **公式块不要套 `horizontalScroll`**（`LatexBlockEditor` 的 `LatexFigure`）：横向滚动会把子项宽度约束变成**无限**，而 `LatexImage` 的"缩到放得下"读的正是 `constraints.maxWidth` —— 拿到 `Infinity` 时那条分支被跳过（`scale = 1`），超宽公式于是**被裁掉右半截**（真机实测：`\int_a^b f(x)dx = \lim\sum\dots` 后半段整段消失，编辑态与只读态都中招）。现在只留一个有界容器，公式等比缩小、完整可见；极长公式缩得偏小本就该走「转为公式块」。诊断屏 `FormulaProbeActivity` 的 E 段保留了旧写法的反例（B 变体），想加回滚动先看那一屏。
 
 ## 文档索引
 

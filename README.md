@@ -9,20 +9,19 @@
 ### 笔记系统
 
 - **Block 内容模型** — 每条笔记由多个内容块组成，支持 TEXT、IMAGE、LINK、DIVIDER、LATEX、CODE、TODO、BRANCH 等类型
-- **所见即所得编辑** — 查看即编辑，自动保存（300ms 防抖）
-- **知识卡片** — 在笔记内创建子卡片组，分组管理相关内容
+- **所见即所得编辑** — 查看即编辑，自动保存（500ms 防抖）
+- **知识卡片** — 在笔记内创建子卡片组，分组管理相关内容；打开笔记先看目录（小节默认收起）
 - **标签管理** — 7 色标签调色板，多对多关联，支持标签筛选
 - **收藏功能** — 标记重要笔记
-- **公式与行内排版** — 独立公式块（`$$...$$`）与正文行内公式（`$...$`）均实时渲染为 LaTeX 图片，行内同时支持 `**粗体**` 与 `` `代码` ``
+- **公式与行内排版** — 独立公式块（`$$...$$`）与正文行内公式（`$...$`）均实时渲染为 LaTeX 图片；**编辑态也渲染**（源码透明 + 覆盖层补画），光标进入公式时恢复源码可改。行内同时支持 `**粗体**`、`` `代码` `` 与 `[文字](url)` 链接，另有语义标记（要点 / 想法 / 注意 / 待办）
 
 ### 浏览与检索
 
 - **首页** — 圆角卡片流，统计行（笔记数 / 标签数 / 图片数）；右上角可切「列表 / 时间线」，时间线在卡片之上叠一层吸附的日期分节
 - **列表手势** — 右滑 / 左滑只**露出**「收藏」「删除」操作槽，点按槽位才真正执行。手势带方向锁定（横向位移需超过纵向 1.6 倍才生效）、单行互斥与滚动自动收起，上下翻动列表不会误触；长按菜单与读屏自定义动作提供等价入口。切换视图或进出搜索时露出态一并作废
 - **底部导航** — 图标下方带文字标签，选中态是一整颗胶囊把「图标 + 文字」一起包住，颜色过渡与字重同时作用在文字上
-- **全局搜索** — 按标题、正文、标签搜索，支持最近搜索记录
 - **标签页** — 按标签浏览笔记，显示各标签下笔记数量
-- **探索页** — 搜索入口 + 热门标签 + 最近浏览
+- **全局搜索** — 支持最近搜索记录（入口在首页搜索框与笔记内查找）
 
 ### 复习与提醒
 
@@ -35,7 +34,7 @@
 ### AI 助手
 
 - **多轮对话** — SSE 流式输出，对话与消息本地持久化，支持历史会话切换
-- **Function Calling** — 内置 6 个工具：`list_notes` / `search_notes` / `get_note` / `create_note` / `update_note` / `add_tags`，AI 可直接读写你的知识库
+- **Function Calling** — 内置 10 个工具：`list_notes` / `search_notes` / `get_note` / `create_note` / `update_note` / `add_blocks` / `set_block_emphasis` / `add_tags` / `add_todos` / `delete_note`，AI 可直接读写你的知识库
 - **引用提问** — 把整篇笔记或某个内容块「引用到 AI」，改写只作用于被引用的目标
 - **多模态识图** — 附图后视觉模型可识别图中文字，并把图片写入笔记
 - **生成占用锁** — 正在生成的目标在编辑器中标记为「生成中」并禁点，避免并发改写冲突
@@ -87,7 +86,7 @@
 | 架构       | MVVM + Clean Architecture       |
 | 依赖注入     | Hilt                            |
 | 异步       | Coroutines + Flow               |
-| 数据库      | Room（12 张表，v5）                  |
+| 数据库      | Room（12 张表，v6）                  |
 | 配置存储     | DataStore Preferences（Protobuf） |
 | 导航       | Navigation Compose              |
 | 网络       | OkHttp 4（OpenAI 兼容协议 + SSE 流式）  |
@@ -107,25 +106,28 @@ app/
 ├── ui/
 │   ├── home/           # 首页（笔记列表 / 时间轴）
 │   ├── note/           # 笔记编辑（Block 编辑器）
-│   │   ├── blocks/     # 各类型 Block 渲染组件
+│   │   ├── blocks/     # 各类型 Block 渲染组件 + 行内原子层
 │   │   ├── knowledge/  # 知识卡片组件
 │   │   ├── latex/      # LaTeX 渲染（块级 + 行内公式）
+│   │   ├── find/       # 笔记内查找
 │   │   ├── tag/        # 标签选择器
 │   │   └── toolbar/    # 编辑工具栏
 │   ├── assistant/      # AI 助手对话界面
 │   ├── tag/            # 标签管理
-│   ├── explore/        # 搜索与探索
 │   ├── settings/       # 设置（含 AI 供应商配置）
 │   ├── reminder/       # 提醒中心
 │   ├── trash/          # 回收站
 │   ├── camera/         # 拍照
+│   ├── create/         # 底栏 ＋ 的「新建 / 导入」弹层
 │   ├── component/      # 通用 UI 组件（RichText / 生成指示器等）
 │   ├── navigation/     # 导航配置 + 全局 AI 状态栏
 │   └── theme/          # Material 3 主题与设计 Token
-├── ai/                 # 进程级 AI 任务管理（AiTaskManager / AiRefManager）
+├── ai/                 # 进程级 AI 任务管理（AiTaskManager / AiRefManager / 前台服务）
 ├── domain/
 │   ├── model/          # 业务模型（含 Block 内容格式）
+│   ├── markup/         # 行内标记与公式语法的纯逻辑（解析 / 物化 / 编辑影响）
 │   ├── repository/     # Repository 接口
+│   ├── usecase/        # 用例（备份恢复、导入知识等）
 │   └── ai/             # AI 领域层
 │       ├── model/      # AiTask / AiRef 等任务与引用模型
 │       ├── repository/ # AI 仓库接口
@@ -142,7 +144,7 @@ app/
 │   └── datastore/      # DataStore 配置
 ├── reminder/           # WorkManager 提醒 Worker
 ├── export/             # HTML / Markdown / DTK / JSON 导入导出
-├── common/             # 扩展函数与工具类
+├── common/             # 跨层的前台状态跟踪（AppForegroundTracker）
 └── di/                 # Hilt 依赖模块
 ```
 
@@ -322,7 +324,7 @@ app/
 
 ### 数据库迁移
 
-当前数据库版本为 **v5**。每次版本升级必须编写 Migration，禁止使用 `fallbackToDestructiveMigration()`。Schema 文件输出到 `app/schemas/`。
+当前数据库版本为 **v6**。每次版本升级必须编写 Migration，禁止使用 `fallbackToDestructiveMigration()`。Schema 文件输出到 `app/schemas/`（已纳入版本控制，改表必须提交）。
 
 ---
 
