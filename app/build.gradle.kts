@@ -40,6 +40,20 @@ android {
     sourceSets {
         getByName("androidTest").assets.srcDirs("$projectDir/schemas")
     }
+
+    // 打开 Robolectric 的 Android 资源加载：公式渲染（jlatexmath）要从 assets 里读
+    // `org/scilab/forge/jlatexmath/TeXFormulaSettings.xml` 与内置字体。不打开这一项时
+    // `TeXFormula` 的静态初始化会抛 FileNotFoundException，于是所有"公式导出成图片"的断言
+    // 都会静默走到 `<code>` 降级分支 —— 看起来像功能没做，其实只是测试环境缺资源。
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+        // 每个测试类单开一个 JVM。**必须的，不是优化**：
+        // `TeXFormula` 的静态初始化只要失败一次（例如某个**纯 JUnit 类**在
+        // Robolectric 沙箱之外碰到它，那时没有 Context），这个类就永久不可用，
+        // 之后所有渲染都抛 `NoClassDefFoundError` 并被导出器降级成 `<code>`。
+        // 表现极具迷惑性：`HtmlExporterFormulaTest` **单独跑绿、跟别的类一起跑红**。
+        unitTests.all { it.forkEvery = 1 }
+    }
 }
 
 kotlin {
