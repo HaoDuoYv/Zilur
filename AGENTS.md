@@ -55,6 +55,19 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 - 格式：JSON、Markdown、HTML（图片/公式内嵌 base64）、`.dtk`（ZIP：`note.json` + `media/`）。
 - `.dtk` 的 `note.json` **必须含 `dtkVersion`**（当前为 1，见 `DtkExporter.DTK_VERSION`）；导入只支持 `.dtk`，高版本拒绝。
 - 公式：HTML/Markdown 导出渲染为 base64 PNG；`.dtk` 保留 LaTeX 源码。
+  - 准确说：**HTML 渲染成内嵌 base64 图片**（`class="formula"`，块级进 `.latex` 容器，整条被标记包住时按语义色上色）；**Markdown 保留 `$…$` / `$$…$$` 源码** —— `.md` 是文本格式，写死图片反而不可编辑。
+- **两个导出格式的行内解析是同一份**（`export/InlineExportTokens.kt` 的 `inlineExportTokens`）：先按语义标记切段，再在段内识别公式 / 行内代码 / 链接。**别再让某个导出器自己写一套** —— 原先 HTML 与 Markdown 各写各的，结果"LaTeX 公式渲染为图片"**只在块级公式上成立**，行内 `$…$` 被当普通文字原样吐出去（真机反馈："html 公式未渲染"）。
+  - 段内的普通文字要**继承本段的语义角色**（`{{i:正}}` → `Styled`）。第一版吐成 `Plain`，强调信息在导出里整个消失；`InlineExportTokensTest` 钉着这条。
+  - `$$…$$` 必须排在 `$…$` 前面，与只读态词法器同一个理由（否则行内规则会吃到最后一个 `$`）。
+  - **Markdown 里不许写 `<span style=…>`**：Markdown 没有颜色，内联 HTML 粘到聊天/邮件里会原样露出标签；更糟的是它会把 `{{k:$W…$}}` 包成 `<span …>$W…$</span>`，让不少渲染器不再把里面当公式解析。语义标记在 Markdown 里**只剥壳、留文字**。
+  - **小节结构要保住**：两个导出器都**不要**再把各小节的块 `flatMap` 成一条平铺流 —— 那样小节标题会整个消失。HTML 每节一个 `<section class="card">`（编号徽标 + 标题 + 点数 + 身份色），Markdown 多节时落成 `##`。
+  - 分支子块必须跟着导出（Markdown 用 `<details>/<summary>`，HTML 用 `<details open>`）：原先 Markdown 只写一行分支标题，**子块内容凭空消失**。
+  - `color-mix()` 别用（要 Chrome 111+，而导出文件是发给别人的）：徽标底色在 Kotlin 里算成纯 hex，再用 CSS 变量传进去。
+- **单元测试里跑公式渲染需要三个前置**（`HtmlExporterFormulaTest` 是范例）：
+  ① `testOptions.unitTests.isIncludeAndroidResources = true` —— jlatexmath 要从 assets 读 `TeXFormulaSettings.xml` 与字体，读不到时 `TeXFormula` 静态初始化抛异常，导出器会**安静地走 `<code>` 降级分支**（很容易误判成"公式导出没实现"）；
+  ② `testOptions.unitTests.all { forkEvery = 1 }` —— **每个测试类单开 JVM**。`TeXFormula` 的静态初始化只要失败一次（典型触发：某个**纯 JUnit 类**在 Robolectric 沙箱之外碰到它），这个类就永久不可用，之后渲染全抛 `NoClassDefFoundError`。症状极具迷惑性：**单独跑绿、跟别的类一起跑红**。代价是全量测试从 ~35s 涨到 ~3min；
+  ③ 测试里手动 `JLatexMathAndroid.init(context)` —— 生产中这句由库自带的 `JLatexMathInitProvider` 干，Robolectric 不跑 ContentProvider。
+  ④ `src/test/resources/robolectric.properties` 里 `sdk=34` —— Robolectric 4.13 在启用资源加载时最高支持 34，而模块 `targetSdk` 是 35。
 - **JSON 备份必须内嵌图片字节**（`media[].data` = base64 data URL，导出时由 `SettingsViewModel.collectMediaData` 读入）。只写 `uri` 的话，备份里剩的是一个指向本机内部存储的路径，换设备/清过数据后永远恢复不出图。`.dtk` 反过来：图片作为文件放进 zip，不写 `data`（免得包体翻倍）。
 - **备份必须保住三类引用**：`cards`（小节结构）、`Block.parentBranchId`（分支层级）、`cardId`/`mediaId`。导出时都要写，导入时统一走 `export/BackupRestore.kt` 的 `remapForInsert()` 换成负临时 id，再由 `NoteRepositoryImpl.replaceCards/replaceBlocks` 映射成真实主键。以前只写扁平的 `contentBlocks`，于是恢复后小节被 `hydrate` 合并成一张卡、子块变成顶层块 —— 改这块务必跑 `BackupRoundTripTest`。
 - 有卡片时 `blocks` 必须留空、只有扁平块时 `cards` 必须留空：`Note.contentBlocks` 的语义是"blocks 非空就只用 blocks"。
@@ -154,12 +167,15 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
   - 点一张收起的小节会顺手把它展开；**只读态同样有效**（`KnowledgeCardItem` 的 `clickable` 只按 `!isGenerating` 门控，`onFocus` 才判 `isEditing`）。
   - 曾经只读态整卡不可点（`enabled = isEditing`），后果是 **AI 刚建的笔记点进去全是空壳卡片** —— 小节默认收起 + 只读态展不开 = 用户以为没生成内容。别再把它锁回去。
   - 展开状态是**会话态**：没有落库列，重开笔记回到目录。
-- **只读正文可选中复制**（`SelectableBlockText`，TEXT 块专用）：`SelectionContainer` 提供划词与系统复制工具栏；长按不动仍然弹块级菜单（复制此块 / 引用到 AI）。
-  - **两个动作必须共用一层手势、按"长按后有没有拖动"分流**。曾经把块级菜单挂在 `ReadOnlyBlock` 最外层，父级指针输入先于子级收到事件 —— 外层一旦认领长按，`SelectionContainer` 的选区永远起不来，表现是"文字看着能选、实际选不动"。
-  - 菜单的判定窗口是 **600ms，比平台的 500ms 晚一档**。两者同时判的话，"长按后立刻拖"会**同时**弹出选区与菜单（真机实测两个一起出现）。多等的这 0.1 秒让拖动位移落进判定窗口内，菜单才会让位；纯长按只是晚 0.1 秒出现，感知不到。
-  - 位移判据用**相对 DOWN 的累计位移**，不是 `positionChange()`：后者每帧只给"相对上一帧"的位移，手指匀速拖动时单帧位移很小，会漏判成"没动"。
+- **只读正文可选中复制**（`SelectableBlockText`）：`SelectionContainer` 提供划词与系统复制工具栏；长按不动弹块级菜单（复制 / 引用到 AI）。TEXT 块与**分支标题**都用它。
+  - **三个动作必须共存，靠"是否消费事件"分流，顺序不能换**：① 点一下 → **不消费**，让事件往上冒给祖先的 clickable（分支标题靠它展开、正文块靠它展开所属小节）；② 长按后拖动 → 交给 `SelectionContainer` 划词；③ 长按不动 → 弹块级菜单，**只有这一种情况才消费事件**（否则祖先会把长按当成点击，展开态乱跳）。
+  - **不要用 `combinedClickable(onClick = {})` 挂菜单**：那个空 `onClick` 会把点击**消费掉**，祖先的 clickable 收不到 —— 表现是"点一下没反应"（真机实测：分支标题点不动、正文块点不开小节）。必须用裸 `pointerInput`。`FormulaProbeActivity` 的 F 段并列了正确与错误两种写法，改这里之前先看那一屏。
+  - **不要把块级菜单挂在最外层**（`ReadOnlyBlock` 曾经的 `detectTapGestures(onLongPress = …)`）：父级指针输入先于子级收到事件，外层一旦认领长按，`SelectionContainer` 的选区永远起不来 —— "文字看着能选、实际选不动"。
+  - 菜单判定窗口 **600ms，比平台的 500ms 晚一档**：同时判的话"长按后立刻拖"会**同时**弹出选区与菜单（真机两个一起出现）。
+  - 位移判据用**相对 DOWN 的累计位移**，不是 `positionChange()`：后者每帧只给"相对上一帧"的位移，匀速拖动时单帧很小，会漏判成"没动"。
   - 复制内容一律走 `readOnlyBlockClipboardText`（按块类型分派 + 剥行内标记），有 `ReadOnlyBlockTest` 守着。
   - 链接块不套 `SelectionContainer`：链接正文靠点击打开，套上会把手势吃掉。
+- **分支块（BRANCH）的展开态与编辑态无关**（`CardBlockList` 的 `isBranchExpanded(states, id)`，纯函数 + `BranchExpandedRuleTest`）：只读态曾被写死成"永远展开"，于是箭头照画、点了没反应，分支内容永远收不起来。默认展开（新加的分支不至于看起来像空的）。
 - **公式块不要套 `horizontalScroll`**（`LatexBlockEditor` 的 `LatexFigure`）：横向滚动会把子项宽度约束变成**无限**，而 `LatexImage` 的"缩到放得下"读的正是 `constraints.maxWidth` —— 拿到 `Infinity` 时那条分支被跳过（`scale = 1`），超宽公式于是**被裁掉右半截**（真机实测：`\int_a^b f(x)dx = \lim\sum\dots` 后半段整段消失，编辑态与只读态都中招）。现在只留一个有界容器，公式等比缩小、完整可见；极长公式缩得偏小本就该走「转为公式块」。诊断屏 `FormulaProbeActivity` 的 E 段保留了旧写法的反例（B 变体），想加回滚动先看那一屏。
 
 ## 文档索引
