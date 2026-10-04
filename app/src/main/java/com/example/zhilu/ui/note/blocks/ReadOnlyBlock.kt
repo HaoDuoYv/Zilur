@@ -2,26 +2,14 @@ package com.example.zhilu.ui.note.blocks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.AnnotatedString
 import com.example.zhilu.domain.markup.InlineMarkup
@@ -52,70 +40,42 @@ fun ReadOnlyBlock(
     isGenerating: Boolean = false,
     showBadge: Boolean = false
 ) {
-    val clipboardManager = LocalClipboardManager.current
-    val currentOnCopy by rememberUpdatedState(onCopy)
-    var copyMenuExpanded by remember(block.id) { mutableStateOf(false) }
     val generatingPulse = rememberGeneratingPulse()
     val generatingBorder = MaterialTheme.colorScheme.primary.copy(alpha = generatingPulse)
 
-    Box(
-        modifier = modifier.pointerInput(block.id, block.content) {
-            detectTapGestures(
-                onLongPress = { copyMenuExpanded = true }
-            )
-        }
-    ) {
-        Column {
-            BlockCard(
-                block = block,
-                isEditing = false,
-                onLanguageClick = onLanguageClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (isGenerating) {
-                            Modifier.border(1.dp, generatingBorder, MaterialTheme.shapes.medium)
-                        } else {
-                            Modifier
-                        }
-                    ),
-                todoItems = todoItems,
-                showCompletedTodos = showCompletedTodos,
-                onCreateTodo = onCreateTodo,
-                onUpdateTodo = onUpdateTodo,
-                onCompleteTodo = onCompleteTodo,
-                onToggleCompletedTodos = onToggleCompletedTodos,
-                onImageClick = onImageClick,
-                branchChildBlocks = branchChildBlocks,
-                isBranchExpanded = isBranchExpanded,
-                onToggleBranchExpanded = onToggleBranchExpanded
-            )
-        }
+    // 长按不再挂在最外层：正文块自己带 SelectableBlockText（可选文本 + 块级菜单），
+    // 外层若再认领长按，选区就永远起不来（父级先于子级收到指针事件）。见 SelectableBlockText 的说明。
+    Box(modifier = modifier) {
+        BlockCard(
+            block = block,
+            isEditing = false,
+            onLanguageClick = onLanguageClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isGenerating) {
+                        Modifier.border(1.dp, generatingBorder, MaterialTheme.shapes.medium)
+                    } else {
+                        Modifier
+                    }
+                ),
+            todoItems = todoItems,
+            showCompletedTodos = showCompletedTodos,
+            onCreateTodo = onCreateTodo,
+            onUpdateTodo = onUpdateTodo,
+            onCompleteTodo = onCompleteTodo,
+            onToggleCompletedTodos = onToggleCompletedTodos,
+            onImageClick = onImageClick,
+            onCiteBlockToAi = onCiteToAi,
+            branchChildBlocks = branchChildBlocks,
+            isBranchExpanded = isBranchExpanded,
+            onToggleBranchExpanded = onToggleBranchExpanded
+        )
         if (isGenerating && showBadge) {
             GeneratingBadge(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(4.dp)
-            )
-        }
-        DropdownMenu(
-            expanded = copyMenuExpanded,
-            onDismissRequest = { copyMenuExpanded = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text(readOnlyBlockCopyMenuLabel()) },
-                onClick = {
-                    copyMenuExpanded = false
-                    clipboardManager.setText(readOnlyBlockClipboardText(block))
-                    currentOnCopy()
-                }
-            )
-            DropdownMenuItem(
-                text = { Text("引用到 AI") },
-                onClick = {
-                    copyMenuExpanded = false
-                    onCiteToAi()
-                }
             )
         }
     }

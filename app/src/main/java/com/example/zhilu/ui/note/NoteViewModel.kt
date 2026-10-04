@@ -16,6 +16,7 @@ import com.example.zhilu.domain.ai.model.AiTask
 import com.example.zhilu.domain.ai.model.AiTaskPhase
 import com.example.zhilu.domain.markup.InlineFormulaConversion
 import com.example.zhilu.domain.model.Block
+import com.example.zhilu.domain.model.BlockOrdering
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.domain.model.ImageBlockContent
@@ -531,23 +532,15 @@ class NoteViewModel @Inject constructor(
         val template = blockClipboardManager.readBlock() ?: return
         val clampedIndex = targetIndex?.coerceIn(0, _blocks.size) ?: _blocks.size
 
-        val flatTemplate = flattenBlockTemplate(template)
-        if (flatTemplate.isEmpty()) return
-
-        val pastedCount = flatTemplate.size
-        val newIds = List(pastedCount) { nextBlockId-- }
-
-        val newBlocks = flatTemplate.mapIndexed { index, (source, parentIndex) ->
-            val newId = newIds[index]
-            val newBlock = source.copyWithFreshId(newId).copy(
-                parentBranchId = parentIndex?.let { newIds[it] },
-                sortOrder = 0
-            )
-            if (newBlock.type == BlockType.BRANCH) {
-                _branchExpandedStates[newBlock.id] = true
-            }
-            newBlock
-        }
+        // 摊平 + 发新 id 的规则在 domain/model/BlockOrdering（纯函数，有单测）——
+        // 子块指向新父 id 这一步曾经因为"都留默认 0"而把多个分支的子块全挂到同一个父块下。
+        val newBlocks = BlockOrdering.revive(
+            flat = BlockOrdering.flatten(template),
+            nextId = { nextBlockId-- }
+        )
+        if (newBlocks.isEmpty()) return
+        newBlocks.filter { it.type == BlockType.BRANCH }
+            .forEach { _branchExpandedStates[it.id] = true }
 
         _blocks.addAll(clampedIndex, newBlocks)
 
@@ -556,21 +549,10 @@ class NoteViewModel @Inject constructor(
         scheduleSave()
     }
 
-    private fun flattenBlockTemplate(root: BlockClipboardData): List<Pair<Block, Int?>> {
-        val result = mutableListOf<Pair<Block, Int?>>()
-        fun traverse(data: BlockClipboardData, parentIndex: Int?) {
-            val currentIndex = result.size
-            result.add(data.block to parentIndex)
-            data.children.forEach { traverse(it, currentIndex) }
-        }
-        traverse(root, null)
-        return result
-    }
-
     private fun recalculateSortOrders() {
-        _blocks.forEachIndexed { i, block ->
-            _blocks[i] = block.copy(sortOrder = i)
-        }
+        val renumbered = BlockOrdering.renumber(_blocks)
+        _blocks.clear()
+        _blocks.addAll(renumbered)
     }
 
     private fun resolveImageExtension(uri: Uri): String {
@@ -604,29 +586,11 @@ class NoteViewModel @Inject constructor(
     }
 
     fun moveBlock(fromId: Long, toId: Long) {
-        val fromBlock = _blocks.find { it.id == fromId } ?: return
-        val toBlock = _blocks.find { it.id == toId } ?: return
-        if (fromBlock.id == toBlock.id) return
-        if (fromBlock.parentBranchId != null || toBlock.parentBranchId != null) return
-
-        val fromIndex = _blocks.indexOfFirst { it.id == fromId }
-        val toIndex = _blocks.indexOfFirst { it.id == toId }
-        if (fromIndex < 0 || toIndex < 0) return
-
-        if (fromBlock.type == BlockType.BRANCH) {
-            val children = _blocks.filter { it.parentBranchId == fromId }
-            val group = listOf(fromBlock) + children
-            _blocks.removeAll(group)
-            val newToIndex = _blocks.indexOfFirst { it.id == toId }
-            val insertIndex = if (fromIndex < toIndex) newToIndex + 1 else newToIndex
-            _blocks.addAll(insertIndex.coerceIn(0, _blocks.size), group)
-        } else {
-            _blocks.removeAt(fromIndex)
-            val newToIndex = _blocks.indexOfFirst { it.id == toId }
-            // 与分支块同样处理方向：向下拖要落到目标之后，向上拖落到目标之前。
-            val insertIndex = if (fromIndex < toIndex) newToIndex + 1 else newToIndex
-            _blocks.add(insertIndex.coerceIn(0, _blocks.size), fromBlock)
-        }
+        // 整表重排的规则在 domain/model/BlockOrdering（纯函数，有单测）：
+        // 分支块要连子块一起搬、子块不参与卡片级移动、方向由原始前后关系决定。
+        val moved = BlockOrdering.move(_blocks, fromId, toId) ?: return
+        _blocks.clear()
+        _blocks.addAll(moved)
         syncBlocksToState()
         if (!_isDragging) scheduleSave()
     }

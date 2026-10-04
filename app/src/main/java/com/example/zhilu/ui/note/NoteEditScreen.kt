@@ -13,11 +13,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,11 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarResult
@@ -56,11 +49,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import com.example.zhilu.domain.model.BlockOrdering
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.KnowledgeCard
@@ -68,7 +61,6 @@ import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.ImageViewer
 import com.example.zhilu.ui.component.LocalFindHighlight
 import com.example.zhilu.ui.component.FindHighlight
-import com.example.zhilu.ui.component.TagChip
 import com.example.zhilu.ui.note.blocks.FormulaConversions
 import com.example.zhilu.ui.note.blocks.LocalFormulaConversions
 import com.example.zhilu.ui.note.blocks.LocalMarkChannel
@@ -87,12 +79,10 @@ import com.example.zhilu.ui.navigation.navigateToAssistant
 import com.example.zhilu.ui.note.blocks.PastePositionSheet
 import com.example.zhilu.ui.note.knowledge.AddKnowledgeCardButton
 import com.example.zhilu.ui.note.knowledge.KnowledgeCardItem
-import com.example.zhilu.ui.note.tag.TagPickerInline
 import com.example.zhilu.ui.note.toolbar.KnowledgeBottomToolbar
-import com.example.zhilu.ui.settings.NotificationPermissionState
+import com.example.zhilu.ui.settings.shouldRequestNotificationPermission
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NoteEditScreen(
     navController: NavHostController,
@@ -102,7 +92,7 @@ fun NoteEditScreen(
     val state by viewModel.uiState.collectAsState()
     val snackbar = LocalAppSnackbar.current
     val listState = rememberLazyListState()
-    // 仅用�? UI：当前激活（显示装饰�? ⋮）的块，不进入 ViewModel�?
+    // 仅用于 UI：当前激活（显示装饰与 ⋮）的块，不进入 ViewModel。
     var activeBlockId by remember { mutableStateOf<Long?>(null) }
     var showShareSheet by remember { mutableStateOf(false) }
     var showReviewSheet by remember { mutableStateOf(false) }
@@ -193,7 +183,7 @@ fun NoteEditScreen(
         }
     }
 
-    // 切换聚焦卡片时收起上一张卡片的块装饰�?
+    // 切换聚焦卡片时收起上一张卡片的块装饰。
     LaunchedEffect(state.activeCardId) {
         activeBlockId = null
     }
@@ -410,8 +400,14 @@ fun NoteEditScreen(
                             onBlockContentChange = viewModel::onBlockContentChange,
                             onBlockLanguageClick = { },
                             onRemoveBlock = viewModel::removeBlock,
-                            onMoveBlockUp = { blockId -> moveBlockUp(card, blockId, viewModel) },
-                            onMoveBlockDown = { blockId -> moveBlockDown(card, blockId, viewModel) },
+                            onMoveBlockUp = { blockId ->
+                                BlockOrdering.arrowUpSwap(card.blocks, blockId)
+                                    ?.let { (from, to) -> viewModel.moveBlock(from, to) }
+                            },
+                            onMoveBlockDown = { blockId ->
+                                BlockOrdering.arrowDownSwap(card.blocks, blockId)
+                                    ?.let { (from, to) -> viewModel.moveBlock(from, to) }
+                            },
                             onInsertBlockAt = { index, type -> viewModel.insertBlockAt(index, type) },
                             onCopyBlock = { blockId -> viewModel.copyBlock(blockId) },
                             onImageClick = { block ->
@@ -641,118 +637,3 @@ fun NoteEditScreen(
     }
 }
 
-@Composable
-private fun TitleInput(
-    title: String,
-    onTitleChange: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val textStyle = MaterialTheme.typography.headlineSmall.copy(
-        color = MaterialTheme.colorScheme.onBackground
-    )
-
-    BasicTextField(
-        value = title,
-        onValueChange = onTitleChange,
-        modifier = modifier,
-        singleLine = true,
-        textStyle = textStyle,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-        keyboardActions = KeyboardActions(onNext = {}),
-        decorationBox = { innerTextField ->
-            if (title.isEmpty()) {
-                Text(
-                    text = "标题",
-                    style = textStyle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            innerTextField()
-        }
-    )
-}
-
-
-@Composable
-private fun EditModeHeader(
-    title: String,
-    onTitleChange: (String) -> Unit,
-    availableTags: List<Tag>,
-    selectedTags: List<Tag>,
-    onToggleTag: (Tag) -> Unit,
-    onCreateTag: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier) {
-        TitleInput(
-            title = title,
-            onTitleChange = onTitleChange,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        TagPickerInline(
-            availableTags = availableTags,
-            selectedTags = selectedTags,
-            onToggle = onToggleTag,
-            onCreate = onCreateTag,
-            modifier = Modifier.fillMaxWidth()
-        )
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun ReadOnlyHeader(
-    title: String,
-    selectedTags: List<Tag>,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            text = title.ifBlank { "新建知识" },
-            style = MaterialTheme.typography.headlineSmall,
-            color = if (title.isBlank()) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onBackground
-            }
-        )
-        if (selectedTags.isNotEmpty()) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                selectedTags.forEach { tag ->
-                    TagChip(tag = tag, onClick = {})
-                }
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    }
-}
-
-private fun moveBlockUp(card: KnowledgeCard, blockId: Long, viewModel: NoteViewModel) {
-    val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
-    val index = topLevelBlocks.indexOfFirst { it.id == blockId }
-    if (index <= 0) return
-    val targetBlock = topLevelBlocks[index - 1]
-    viewModel.moveBlock(blockId, targetBlock.id)
-}
-
-private fun moveBlockDown(card: KnowledgeCard, blockId: Long, viewModel: NoteViewModel) {
-    val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
-    val index = topLevelBlocks.indexOfFirst { it.id == blockId }
-    if (index < 0 || index >= topLevelBlocks.lastIndex) return
-    val targetBlock = topLevelBlocks[index + 1]
-    viewModel.moveBlock(targetBlock.id, blockId)
-}
-
-private fun Context.shouldRequestNotificationPermission(): Boolean =
-    NotificationPermissionState.requiresRuntimePermission(Build.VERSION.SDK_INT) &&
-        ContextCompat.checkSelfPermission(
-            this,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) != PackageManager.PERMISSION_GRANTED

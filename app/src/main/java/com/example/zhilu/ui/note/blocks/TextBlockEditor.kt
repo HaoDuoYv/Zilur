@@ -15,8 +15,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -29,6 +29,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.zhilu.domain.markup.InlineBrush
 import com.example.zhilu.domain.markup.InlineFormulaConversion
 import com.example.zhilu.domain.markup.InlineKind
@@ -298,6 +299,21 @@ fun TextBlockEditor(
     val activeAtomOffset = if (focused || !selection.collapsed) selection.max else null
     // 只有公式需要隐藏源码 + 覆盖层补画；行内代码就地套样式即可（见 AtomStyleTransformation）
     val hiddenMathAtoms = InlineNodes.hiddenMath(atomNodes, activeAtomOffset)
+    // 可见性诊断出口。**默认 null，正式包里这一整条只是一次空判断**（连 lambda 都不存在）；
+    // 类型与实现都住在 `src/debug`，由诊断屏（FormulaProbeActivity）下发。
+    // 留这一根线是因为"公式消失"有两种成因（没画 / 画错位置），只看截图分不出来。
+    val reportVisibility = LocalAtomVisibility.current
+    if (reportVisibility != null) {
+        SideEffect {
+            reportVisibility(
+                AtomVisibility(
+                    activeOffset = activeAtomOffset,
+                    allAtoms = atomNodes.map { "${it.kind}[${it.start},${it.end}]" },
+                    hiddenAtoms = hiddenMathAtoms.map { "${it.kind}[${it.start},${it.end}]" }
+                )
+            )
+        }
+    }
     // 行内代码的就地样式：与只读路径（buildInlineLatexText）同一套观感 —— 等宽 + 淡底色
     val codeChipBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
     // 行内链接：强调色 + 下划线（同样与只读路径一致）
@@ -334,79 +350,14 @@ fun TextBlockEditor(
         promotion(blockId, source)
     }
 
-    // ── 控盒：让源码占的盒子等于公式图（设计文档 §12.3）────────────────────
-    // 源码不可见，所以给它设字号/字距不会影响观感，只会改变它占的宽高。
-    // 尺寸只能实测（图是异步渲染出来的），所以这里做"测量 → 调样式 → 再测量"的逐轮逼近；
-    // **差值低于阈值就不更新**，否则会变成布局死循环。
-    val density = androidx.compose.ui.platform.LocalDensity.current
+    // ── 公式图的绘制尺寸（设计文档 §12.3、§14.6）─────────────────────────
+    // 源码是透明的：它**占的排版宽度**由文本自然决定，而公式图由 InlineAtomLayer 补画在它上面。
+    // 这里刻意**不做任何逐轮逼近** —— 试过"量盒宽 → 调字距 → 再量"的反馈环，真机上换来的是
+    // 字距被夹错符号（源码撑成两行）、把行尾换行符当成折行判据、样式表被重新排版清空（§14.6）。
+    // 现在的规则是**一次算完、不再回头**：图只按「该行剩余宽度」与「行盒高度」缩小，绝不放大，
+    // 于是它与只读态**逐像素同尺寸**。代价是源码天然比图宽时后面会留一段空白 ——
+    // 那是可见的留白，比"公式被压小 / 画到别的行上"划算；长公式有「转为公式块」这个出口。
     val baseFontSizeSp = textStyle.fontSize.takeIf { it.isSp }?.value ?: 17f
-    var atomSizes by remember { mutableStateOf<Map<Int, Pair<Int, Int>>>(emptyMap()) }
-    var atomStyles by remember { mutableStateOf<Map<Int, AtomBoxStyle>>(emptyMap()) }
-    // **收敛保险**：控盒是"测量 → 调样式 → 再布局"的反馈环，模型不可能完全准，
-    // 没有上限就会在阈值附近来回震荡、把 CPU 烧在反复布局上（真机实测 30%+）。
-    // 每个原子最多调 [MAX_TUNING_PASSES] 次，且每次只走 60% 的修正量（阻尼）。
-    val atomTuningPasses = remember { mutableStateMapOf<Int, Int>() }
-
-    LaunchedEffect(atomSizes, atomLayout, hiddenMathAtoms) {
-        val layout = atomLayout ?: return@LaunchedEffect
-        val activeStarts = hiddenMathAtoms.map { it.start }.toSet()
-        if (atomStyles.keys != activeStarts) {
-            atomStyles = atomStyles.filterKeys { key -> key in activeStarts }
-            // 原子集合变了（打字、切换活动原子）→ 重置调优预算，让新原子也有机会被调
-            atomTuningPasses.clear()
-        }
-        if (hiddenMathAtoms.isEmpty()) return@LaunchedEffect
-
-        val next = atomStyles.toMutableMap()
-        var changed = false
-        hiddenMathAtoms.forEach { node ->
-            if ((atomTuningPasses[node.start] ?: 0) >= MAX_TUNING_PASSES) return@forEach
-            val (imageWidth, imageHeight) = atomSizes[node.start] ?: return@forEach
-            val start = runCatching { layout.getCursorRect(node.start) }.getOrNull() ?: return@forEach
-            val end = runCatching { layout.getCursorRect(node.end) }.getOrNull()
-            // 折行的原子（`end` 落到下一行）：**宽度控不了**（跨行没有意义），但**高度仍要控** ——
-            // 早先整个跳过，于是行高一直停在正文高度、图只能被压小，
-            // 表现为"含 CJK 的公式明显偏小"（真机反馈）。这里只调字号、不动字距。
-            val wrapped = end == null || end.top != start.top
-
-            val current = next[node.start] ?: AtomBoxStyle(
-                fontSizeSp = baseFontSizeSp,
-                letterSpacingSp = 0f
-            )
-            val boxHeight = start.height.coerceAtLeast(1f)
-
-            val currentScale = (current.fontSizeSp / baseFontSizeSp).coerceAtLeast(0.1f)
-            val fontSizeSp = (current.fontSizeSp * (imageHeight / boxHeight))
-                .coerceIn(baseFontSizeSp, baseFontSizeSp * 3f)
-            val nextScale = fontSizeSp / baseFontSizeSp
-
-            if (wrapped) {
-                // 只把行高撑到图高，宽度交给自然折行
-                if (kotlin.math.abs(nextScale - currentScale) < 0.05f) return@forEach
-                next[node.start] = AtomBoxStyle(fontSizeSp, current.letterSpacingSp)
-                atomTuningPasses[node.start] = (atomTuningPasses[node.start] ?: 0) + 1
-                changed = true
-                return@forEach
-            }
-
-            val boxWidth = end.left - start.left
-            val projectedWidth = boxWidth * (nextScale / currentScale)
-            val widthDelta = imageWidth - projectedWidth
-            val nearEnough = kotlin.math.abs(widthDelta) < 4f &&
-                kotlin.math.abs(nextScale - currentScale) < 0.05f
-            if (nearEnough) return@forEach
-
-            val chars = (node.end - node.start).coerceAtLeast(1)
-            val deltaSp = with(density) { (widthDelta * TUNING_DAMPING).toSp().value } / chars
-            next[node.start] = AtomBoxStyle(
-                fontSizeSp = fontSizeSp,
-                letterSpacingSp = (current.letterSpacingSp + deltaSp).coerceIn(-10f, 4f)
-            )
-            atomTuningPasses[node.start] = (atomTuningPasses[node.start] ?: 0) + 1
-            changed = true
-        }
-        if (changed) atomStyles = next
-    }
 
     Box(modifier = modifier) {
         Column {
@@ -449,10 +400,17 @@ fun TextBlockEditor(
                 interactionSource = interactionSource,
                 // 行内原子：公式的源码透明（只改样式、不改长度）+ 覆盖层补画公式图；
                 // 行内代码就地套等宽样式。见设计文档 §7、§8.2。
-                visualTransformation = remember(atomNodes, atomStyles, codeChipBackground, linkInk) {
+                // `activeAtomOffset` 必须一起传：光标所在那条公式要**撤销透明**，
+                // 否则它既不被覆盖层画（hiddenMath 已排除）、源码又是透明的 = 彻底看不见。
+                visualTransformation = remember(
+                    atomNodes,
+                    activeAtomOffset,
+                    codeChipBackground,
+                    linkInk
+                ) {
                     AtomStyleTransformation(
                         nodes = atomNodes,
-                        mathStyles = atomStyles,
+                        activeAtomOffset = activeAtomOffset,
                         codeBackground = codeChipBackground,
                         linkInk = linkInk
                     )
@@ -476,13 +434,7 @@ fun TextBlockEditor(
                             spans = spans,
                             darkTheme = darkTheme,
                             accessibleEmphasis = LocalAccessibleEmphasis.current,
-                            textSizeSp = baseFontSizeSp,
-                            onMeasured = { start, width, height ->
-                                val size = width to height
-                                if (atomSizes[start] != size) {
-                                    atomSizes = atomSizes + (start to size)
-                                }
-                            }
+                            textSizeSp = baseFontSizeSp
                         )
                     }
                 }

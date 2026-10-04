@@ -9,5 +9,9 @@
             android:name=".debug.P0SpikeActivity"
             android:exported="true"
             android:label="P0 Spike" />
+        <activity
+            android:name=".debug.FormulaProbeActivity"
+            android:exported="true"
+            android:label="Formula Probe" />
     </application>
 </manifest>

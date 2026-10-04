@@ -65,13 +65,22 @@ class InlineLatexParts(
 )
 
 /**
- * 行内 token 词法器：`` `行内代码` ``、`$行内公式$`、`[文字](url)` 行内链接。
+ * 行内 token 词法器：`` `行内代码` ``、`$行内公式$` / `$$块级公式$$`、`[文字](url)` 行内链接。
+ *
+ * **块级 `$$…$$` 必须排在 `$…$` 前面**。反过来的话 `$([^$]+?)$` 会先吃掉**第一个 `$` 与最后一个 `$`
+ * 之间的全部内容** —— `块级：\n$$E=mc^2$$\n行内：$a$` 会被解析成一条源码为
+ * `E=mc^2$$\n行内：` 的"公式"，中间那段文字**在只读态直接消失**（编辑态不会，因为那边走
+ * `MathSpans`、块级优先）。同一个块级公式，编辑态渲染、只读态吞字，是很容易被当成
+ * "公式丢了"的那种不一致。
  *
  * **加粗不在其中** —— `**…**` 已由 `InlineMarkup.parseSpans` 拆成 `InlineBrush.BOLD` 的 span
  * （设计文档 §10 P3），走到这里时可见文本里已经没有 `**` 了。留着那条分支只会制造
  * "两处都在管加粗"的第二真相来源。
+ *
+ * 分组：1 行内代码 / 2 块级公式源码 / 3 行内公式源码 / 4 链接文字 / 5 链接地址。
  */
-private val inlineTokenRegex = Regex("`(.+?)`|\\$([^$]+?)\\$|\\[([^\\]\\n]+)]\\(([^)\\n]+)\\)")
+private val inlineTokenRegex =
+    Regex("`(.+?)`|\\$\\$([^$]+?)\\$\\$|\\$([^$\\n]+?)\\$|\\[([^\\]\\n]+)]\\(([^)\\n]+)\\)")
 
 /**
  * 解析行内格式：`**粗体**`、`` `行内代码` ``、`$行内公式$`，**并套用语义标记的着色**。
@@ -155,35 +164,43 @@ fun buildInlineLatexText(
                 if (match.range.first > cursor) {
                     emitPlain(cursor, match.range.first)
                 }
+                val codeBody = match.groupValues[1]
+                val blockMathBody = match.groupValues[2]
+                val inlineMathBody = match.groupValues[3]
+                val linkText = match.groupValues[4]
+                // 公式源码：行内 `$…$` 与块级 `$$…$$` 在正文里渲染成同一种东西（都是公式图），
+                // 差别只在源码形态与是否允许跨行；这里只需各自去掉定界符。
+                val latexSource = inlineMathBody.ifEmpty { blockMathBody }.trim()
+                // 注意分支顺序：`latexSource` 与 `linkText` 分别来自 group3 / group4，
+                // **互斥**（正则的分支只会命中一个），顺序本身不影响判定；
+                // 但两者都要在 `codeBody` 之后判，且不要写成"先判某个 group 非空"的旧口径 ——
+                // 分组号一变，那种写法会把公式当成链接文字吞掉（本轮踩过）。
                 when {
-                    match.groupValues[1].isNotEmpty() ->
-                        withStyle(
-                            SpanStyle(
-                                fontFamily = FontFamily.Monospace,
-                                background = textColor.copy(alpha = 0.08f)
-                            )
-                        ) { append(match.groupValues[1]) }
+                    codeBody.isNotEmpty() -> withStyle(
+                        SpanStyle(
+                            fontFamily = FontFamily.Monospace,
+                            background = textColor.copy(alpha = 0.08f)
+                        )
+                    ) { append(codeBody) }
 
-                    // 行内链接：只显示文字（不显示 URL），强调色 + 下划线
-                    match.groupValues[3].isNotEmpty() ->
-                        withStyle(
-                            SpanStyle(
-                                color = linkInk,
-                                textDecoration = TextDecoration.Underline
-                            )
-                        ) { append(match.groupValues[3]) }
-
-                    else -> {
-                        val latex = match.groupValues[2].trim()
+                    latexSource.isNotEmpty() -> {
                         // 退化文案保留原始写法：万一图片渲染不出来，用户看到的仍是「可读」的公式源码。
-                        appendInlineContent(inlineLatexId(formulas.size), alternateText = "\$$latex\$")
-                        formulas += latex
+                        appendInlineContent(inlineLatexId(formulas.size), alternateText = "\$$latexSource\$")
+                        formulas += latexSource
                         // 记下覆盖这条公式的标记：inline content 拿不到 span 样式，
                         // 着色只能由内容自己画（见 InlineLatexParts.spans 的说明）
                         formulaSpans += toneSpans.firstOrNull {
                             it.start <= match.range.first && it.end >= match.range.last + 1
                         }
                     }
+
+                    // 行内链接：只显示文字（不显示 URL），强调色 + 下划线
+                    linkText.isNotEmpty() -> withStyle(
+                        SpanStyle(
+                            color = linkInk,
+                            textDecoration = TextDecoration.Underline
+                        )
+                    ) { append(linkText) }
                 }
                 cursor = match.range.last + 1
             }

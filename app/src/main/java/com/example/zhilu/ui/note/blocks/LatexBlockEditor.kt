@@ -1,18 +1,14 @@
 package com.example.zhilu.ui.note.blocks
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -95,17 +91,27 @@ fun LatexBlockEditor(
     }
 }
 
+/**
+ * 公式图的容器。
+ *
+ * **不要给它 `horizontalScroll`**：横向滚动会把子项的宽度约束变成**无限**，
+ * 而 `LatexImage` 的"缩到放得下"是靠 `BoxWithConstraints` 读 `constraints.maxWidth` 实现的 ——
+ * 拿到 Infinity 时那条分支直接被跳过（`maxWidth == Constraints.Infinity → scale = 1`），
+ * 于是超宽公式既没被缩小、又在横向滚动里被裁掉一截（真机实测：`… = \lim \sum` 之后整段消失）。
+ *
+ * 现在只用一个有界容器：公式按容器宽度等比缩小，完整可见。
+ * 代价是极长公式会缩得偏小 —— 那本来就是「转为公式块」要解决的事，不该靠"能滚"来掩盖。
+ */
 @Composable
-private fun ScrollableLatexBox(
-    scrollState: ScrollState,
+private fun LatexFigure(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .horizontalScroll(scrollState)
-            .padding(bottom = 8.dp)
+            .padding(bottom = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
         content()
     }
@@ -123,7 +129,6 @@ private fun LatexPreview(
         textSizeSp = 18f,
         color = MaterialTheme.colorScheme.onSurface
     )
-    val scrollState = rememberScrollState()
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -138,11 +143,8 @@ private fun LatexPreview(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ScrollableLatexBox(scrollState = scrollState) {
-                LatexImage(
-                    state = state,
-                    modifier = Modifier.wrapContentWidth()
-                )
+            LatexFigure {
+                LatexImage(state = state)
             }
         }
     }
@@ -153,8 +155,6 @@ fun ReadOnlyLatexBlockContent(
     value: String,
     modifier: Modifier = Modifier
 ) {
-    val scrollState = rememberScrollState()
-
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
@@ -176,16 +176,13 @@ fun ReadOnlyLatexBlockContent(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ScrollableLatexBox(scrollState = scrollState) {
+                LatexFigure {
                     val state = rememberLatexImage(
                         latex = value,
                         textSizeSp = 20f,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    LatexImage(
-                        state = state,
-                        modifier = Modifier.wrapContentWidth()
-                    )
+                    LatexImage(state = state)
                 }
             }
         }

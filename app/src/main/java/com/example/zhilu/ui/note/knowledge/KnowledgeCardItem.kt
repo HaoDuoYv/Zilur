@@ -138,12 +138,18 @@ fun KnowledgeCardItem(
             )
             .shadow(shadowElevation, shape)
             .border(borderWidth, borderColor, shape)
+            // 点卡片：**展开/收起在两种状态下都算数**，聚焦只在编辑态做。
+            //
+            // 早先这里是 `enabled = isEditing`，于是只读态整张卡片不响应 —— 而小节默认是收起的
+            // （`CardMapper.toDomain` 给 `isExpanded = false`），用户看到的是一张张**空壳卡片**，
+            // 且没有任何视觉提示告诉他去哪儿展开。AI 生成的笔记尤其明显：建完点进去全是空的。
+            // 「打开笔记先看目录」是编辑态的意图，不该顺带把只读态也锁成不可看内容。
             .clickable(
-                enabled = isEditing && !isGenerating,
+                enabled = !isGenerating,
                 onClick = {
-                    onFocus()
-                    // 收起态下点卡片顺手展开：小节默认是收起的，若只聚焦不展开，
-                    // 用户点了卡片却看不到任何可编辑的内容，还得再去点那个小箭头。
+                    if (isEditing) onFocus()
+                    // 收起态下点卡片顺手展开：若只聚焦不展开，用户点了卡片却看不到内容，
+                    // 还得再去点那个小箭头。
                     if (isCollapsed) onToggleCollapsed()
                 }
             ),

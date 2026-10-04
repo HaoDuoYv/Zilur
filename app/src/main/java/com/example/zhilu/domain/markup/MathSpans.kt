@@ -22,15 +22,19 @@ object MathSpans {
     /**
      * 文本里所有公式区间，升序返回。
      *
-     * 先取块级再取行内，并剔除落在块级区间内的行内命中
+     * 先取块级再取行内，并剔除与块级区间**相交**的行内命中
      * —— 否则 `$$…$$` 的内部会被行内规则再切一刀。
+     *
+     * 判据是"相交"而不是"被包含"：`$$E=mc^2$$` 里，行内规则会匹配到 `$E=mc^2$`
+     * （从第二个 `$` 到倒数第二个），它**只被块级区间包含到倒数第二个字符**，
+     * 用"被包含"判据漏不掉、会留下一条源码为 `E=mc^2` 的假行内公式。
      */
     fun ranges(text: String): List<IntRange> {
         if (!text.contains('$')) return emptyList()
         val blocks = blockMath.findAll(text).map { it.range }.toList()
         val inlines = inlineMath.findAll(text)
             .map { it.range }
-            .filter { inline -> blocks.none { inline.first >= it.first && inline.last <= it.last } }
+            .filter { inline -> blocks.none { inline.first <= it.last && it.first <= inline.last } }
         return (blocks + inlines).sortedBy { it.first }
     }
 

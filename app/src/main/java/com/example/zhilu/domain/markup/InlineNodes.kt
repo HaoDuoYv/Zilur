@@ -31,12 +31,19 @@ data class InlineNode(
     /**
      * 原子的"内容"：去掉定界符之后的源码。
      *
-     * `$W \le 2^{n-1}$` → `W \le 2^{n-1}`；公式渲染只吃内容，不吃定界符。
+     * `$W \le 2^{n-1}$` → `W \le 2^{n-1}`；`$$E=mc^2$$` → `E=mc^2`。
+     *
+     * **两种定界符都要去掉**：块级 `$$…$$` 落到这里时，只剥一层会剩下 `$E=mc^2$`，
+     * 于是同一个块级公式在编辑态交给渲染器的是带 `$` 的源码、在只读态是裸源码
+     * —— 两条路径喂给 `sanitizeLatex` 的输入不同，渲染结果就可能不同。
      */
-    fun contentOf(text: String): String =
-        text.substring(start.coerceIn(0, text.length), end.coerceIn(0, text.length))
+    fun contentOf(text: String): String {
+        val raw = text.substring(start.coerceIn(0, text.length), end.coerceIn(0, text.length))
+        return raw
+            .removeSurrounding("$$")
             .removeSurrounding("$")
             .trim()
+    }
 }
 
 /**

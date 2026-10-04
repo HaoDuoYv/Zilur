@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Block
@@ -35,6 +36,7 @@ fun BlockContent(
     onCompleteTodo: ((Long) -> Unit)? = null,
     onToggleCompletedTodos: (() -> Unit)? = null,
     onImageClick: (() -> Unit)? = null,
+    onCiteBlockToAi: () -> Unit = {},
     branchChildBlocks: List<Block> = emptyList(),
     isBranchExpanded: Boolean = false,
     onBranchTitleChange: (String) -> Unit = {},
@@ -54,8 +56,9 @@ fun BlockContent(
                     modifier = modifier
                 )
             } else {
-                ExpandableTextContent(
-                    text = block.content,
+                SelectableReadOnlyText(
+                    block = block,
+                    onCiteBlockToAi = onCiteBlockToAi,
                     modifier = modifier
                 )
             }
@@ -194,6 +197,29 @@ private fun TodoBlockContent(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = modifier.fillMaxWidth()
         )
+    }
+}
+
+/**
+ * 只读正文：**可选中复制**（长按划词），块级菜单（复制此块 / 引用到 AI）与选区共用长按手势。
+ *
+ * 复制内容一律走 [readOnlyBlockClipboardText]：它按块类型分派，并会剥掉行内标记
+ * （粘到聊天里带一串 `{{k:` 没有意义）。
+ */
+@Composable
+private fun SelectableReadOnlyText(
+    block: Block,
+    onCiteBlockToAi: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val clipboard = LocalClipboardManager.current
+    SelectableBlockText(
+        menuLabel = readOnlyBlockCopyMenuLabel(),
+        onCopyBlock = { clipboard.setText(readOnlyBlockClipboardText(block)) },
+        onCiteToAi = onCiteBlockToAi,
+        modifier = modifier
+    ) {
+        ExpandableTextContent(text = block.content)
     }
 }
 

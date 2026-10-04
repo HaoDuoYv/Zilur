@@ -261,6 +261,9 @@ fun CardBlockList(
                     } else {
                         ReadOnlyBlock(
                             block = block,
+                            // 以前这里是 `onCopy = {}`（空实现）：长按菜单里的「复制此块」
+                            // 一直点得动但什么都不发生。现在只读正文的复制走 SelectableBlockText，
+                            // 这个回调只负责"复制后收起菜单"这类副作用。
                             onCopy = {},
                             todoItems = todoItems,
                             showCompletedTodos = showCompletedTodos,
