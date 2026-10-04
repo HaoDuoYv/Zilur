@@ -34,6 +34,16 @@ import com.example.zhilu.ui.note.blocks.AtomVisibility
 import com.example.zhilu.ui.note.blocks.LocalAtomVisibility as LocalVisibilitySink
 import com.example.zhilu.ui.note.blocks.LatexBlockEditor
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -176,6 +186,133 @@ private fun LatexBlockProbe() {
 
     HorizontalDivider()
     LayoutVariantProbe()
+
+    HorizontalDivider()
+    SelectableTextProbe()
+}
+
+/**
+ * 「点一下」与「划词」能不能共存。
+ *
+ * 要回答的问题：`SelectionContainer` 会不会把手势整个吃掉，导致
+ * - 点一下**不触发**外层的 clickable（分支标题点不动 = 展开不了）
+ * - 长按**不弹**块级菜单
+ *
+ * 三种写法并排，各自带计数，点一下看数字涨不涨：
+ * A 外层 clickable + SelectionContainer          （线上旧写法）
+ * B 同上，另外把 SelectionContainer 的 hover 手势禁掉
+ * C 完全不套 SelectionContainer（对照：点一下必然有效）
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SelectableTextProbe() {
+    Text("F 点一下 vs 划词（看计数涨不涨）", style = MaterialTheme.typography.titleSmall)
+    val plain = "点我这一行文字看计数"
+
+    var countA by remember { mutableStateOf(0) }
+    Text("A 外层 clickable + SelectionContainer（计数=$countA）", style = MaterialTheme.typography.labelMedium)
+    Box(modifier = Modifier.fillMaxWidth().clickable { countA++ }) {
+        SelectionContainer {
+            Text(plain, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+
+    var countB by remember { mutableStateOf(0) }
+    Text("B 禁掉 hover 手势（计数=$countB）", style = MaterialTheme.typography.labelMedium)
+    Box(modifier = Modifier.fillMaxWidth().clickable { countB++ }) {
+        SelectionContainer(modifier = Modifier.disableSelectionHover()) {
+            Text(plain, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+
+    var countC by remember { mutableStateOf(0) }
+    Text("C 不套 SelectionContainer（计数=$countC）", style = MaterialTheme.typography.labelMedium)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { countC++ }
+    ) {
+        Text(plain, style = MaterialTheme.typography.bodyLarge)
+    }
+
+    var countD by remember { mutableStateOf(0) }
+    Text("D 长按不拖（应记为 1）计数=$countD", style = MaterialTheme.typography.labelMedium)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val still = withTimeoutOrNull(600L) {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.none { it.pressed }) return@withTimeoutOrNull false
+                            val drift = event.changes.filter { it.pressed }
+                                .maxOfOrNull { (it.position - down.position).getDistance() } ?: 0f
+                            if (drift > 12f) return@withTimeoutOrNull false
+                        }
+                        @Suppress("UNREACHABLE_CODE") false
+                    }
+                    if (still == null) countD++
+                }
+            }
+    ) {
+        SelectionContainer {
+            Text(plain, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+
+    // E 复刻线上写法：外层 clickable + 内层 combinedClickable + SelectionContainer
+    var countE by remember { mutableStateOf(0) }
+    var longE by remember { mutableStateOf(0) }
+    Text(
+        "E 外层clickable+combinedClickable（点=$countE 长=$longE）",
+        style = MaterialTheme.typography.labelMedium
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { countE++ }
+    ) {
+        Box(
+            modifier = Modifier.combinedClickable(onClick = {}, onLongClick = { longE++ })
+        ) {
+            SelectionContainer {
+                Text(plain, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
+
+    // F 修法：把"点一下"收进内层，与长按组合在同一个 combinedClickable 里（不再依赖外层）
+    var countF by remember { mutableStateOf(0) }
+    var longF by remember { mutableStateOf(0) }
+    Text("F 点击内收（点=$countF 长=$longF）", style = MaterialTheme.typography.labelMedium)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = { countF++ }, onLongClick = { longF++ })
+    ) {
+        SelectionContainer {
+            Text(plain, style = MaterialTheme.typography.bodyLarge)
+        }
+    }
+}
+
+/**
+ * 把 `SelectionContainer` 的**悬停划词**手势挤掉。
+ *
+ * 手机上根本没有鼠标，这个手势只会白占一层指针输入 —— 而它可能正是"点一下不生效"的原因。
+ */
+@Composable
+private fun Modifier.disableSelectionHover(): Modifier = this.pointerInput(Unit) {
+    awaitPointerEventScope {
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            event.changes.forEach { change ->
+                if (change.type == PointerType.Mouse) change.consume()
+            }
+        }
+    }
 }
 
 /**
