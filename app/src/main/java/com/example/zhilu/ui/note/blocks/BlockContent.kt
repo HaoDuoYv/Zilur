@@ -152,7 +152,8 @@ fun BlockContent(
                     modifier = modifier,
                     todoItems = todoItems,
                     showCompletedTodos = showCompletedTodos,
-                    onToggleCompletedTodos = onToggleCompletedTodos
+                    onToggleCompletedTodos = onToggleCompletedTodos,
+                    onCiteToAi = onCiteBlockToAi
                 )
             }
         }

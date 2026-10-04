@@ -31,8 +31,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.domain.markup.InlineMarkup
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
@@ -136,7 +139,9 @@ fun BranchBlockView(
     modifier: Modifier = Modifier,
     todoItems: List<TodoItem>? = null,
     showCompletedTodos: Boolean = false,
-    onToggleCompletedTodos: (() -> Unit)? = null
+    onToggleCompletedTodos: (() -> Unit)? = null,
+    /** 只读态长按分支标题时的「引用到 AI」（与正文块的块级菜单同一个出口）。 */
+    onCiteToAi: () -> Unit = {}
 ) {
     var viewingImageUri by remember { mutableStateOf<String?>(null) }
 
@@ -155,7 +160,8 @@ fun BranchBlockView(
                 isExpanded = isExpanded,
                 isEditing = false,
                 onTitleChange = {},
-                onToggleExpanded = onToggleExpanded
+                onToggleExpanded = onToggleExpanded,
+                onCiteToAi = onCiteToAi
             )
             if (isExpanded) {
                 Spacer(modifier = Modifier.height(BranchHeaderSpacing))
@@ -187,6 +193,20 @@ fun BranchBlockView(
     }
 }
 
+/**
+ * 分支标题行。
+ *
+ * 三个动作必须共存，所以**不能各自挂一层会互相吃手势的 clickable**：
+ * - 点箭头 / 点标题空白 → 展开收起（外层的 `clickable`）
+ * - 点/拖标题文字 → 划词选择（[SelectableBlockText] 里的 `SelectionContainer`）
+ * - 长按标题不动 → 块级菜单（复制此分支 / 引用到 AI）
+ *
+ * 顺序上外层 `clickable` 是**父级**：父级在 Main 通道上先于子级收到 up 事件，
+ * 所以"点一下"仍然能触发展开；而长按后拖动会被 `SelectionContainer` 消费掉，
+ * 那时 `clickable` 拿不到未消费的 up，于是不会误触展开。
+ *
+ * `SelectionContainer` 只包**标题文字**，不包整行 —— 包整行会把箭头的点击也纳进去。
+ */
 @Composable
 private fun BranchHeader(
     title: String,
@@ -194,7 +214,8 @@ private fun BranchHeader(
     isEditing: Boolean,
     onTitleChange: (String) -> Unit,
     onToggleExpanded: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onCiteToAi: () -> Unit = {}
 ) {
     val rotation by animateFloatAsState(
         targetValue = if (isExpanded) 90f else 0f,
@@ -214,7 +235,7 @@ private fun BranchHeader(
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = if (isExpanded) "收起" else "展开",
+            contentDescription = if (isExpanded) "收起分支" else "展开分支",
             modifier = Modifier
                 .size(20.dp)
                 .rotate(rotation),
@@ -241,11 +262,19 @@ private fun BranchHeader(
                 }
             )
         } else {
-            Text(
-                text = title.ifBlank { "分支" },
-                style = textStyle,
+            val display = title.ifBlank { "分支" }
+            // 标题里可能有行内语法（`{{k:…}}`），展示与复制前都要剥掉 ——
+            // 与 `readOnlyBlockClipboardText` 对 BRANCH 的处理保持一致。
+            val plain = remember(display) { InlineMarkup.stripMarkup(display) }
+            val clipboard = LocalClipboardManager.current
+            SelectableBlockText(
+                menuLabel = "复制此分支",
+                onCopyBlock = { clipboard.setText(AnnotatedString(plain)) },
+                onCiteToAi = onCiteToAi,
                 modifier = Modifier.weight(1f)
-            )
+            ) {
+                Text(text = plain, style = textStyle)
+            }
         }
     }
 }

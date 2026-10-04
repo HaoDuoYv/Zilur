@@ -90,8 +90,7 @@ fun CardBlockList(
     generatingBlockIds: Set<Long> = emptySet(),
     isCardGenerating: Boolean = false,
     modifier: Modifier = Modifier
-) {
-    val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
+) {    val topLevelBlocks = card.blocks.filter { it.parentBranchId == null }
     var pendingInsertIndex by remember { mutableIntStateOf(-1) }
     var draggingBlockId by remember { mutableStateOf<Long?>(null) }
     var dragOffsetPx by remember { mutableFloatStateOf(0f) }
@@ -162,11 +161,7 @@ fun CardBlockList(
                     else -> 0.dp
                 }
                 val childBlocks = card.blocks.filter { it.parentBranchId == block.id }
-                val isBranchExpanded = if (isEditing) {
-                    branchExpandedStates[block.id] ?: true
-                } else {
-                    true
-                }
+                val isBranchExpanded = isBranchExpanded(branchExpandedStates, block.id)
                 val blockIndexInAll = card.blocks.indexOfFirst { it.id == block.id }
                 val childCount = card.blocks.count { it.parentBranchId == block.id }
                 val isDragging = draggingBlockId == block.id
@@ -297,3 +292,13 @@ fun CardBlockList(
         )
     }
 }
+
+/**
+ * 分支块当前该展开还是收起。
+ *
+ * **与编辑态无关** —— 只读态曾经被写死成"永远展开"，于是箭头照画、点了没反应，
+ * 分支内容永远收不起来（真机反馈）。`NoteViewModel.toggleBranchExpanded` 本来就不区分
+ * 编辑态，没有理由在显示层分叉。默认展开，这样新加的分支不会看起来像空的。
+ */
+internal fun isBranchExpanded(states: Map<Long, Boolean>, branchId: Long): Boolean =
+    states[branchId] ?: true
