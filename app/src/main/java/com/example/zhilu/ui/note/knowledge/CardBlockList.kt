@@ -37,8 +37,11 @@ import com.example.zhilu.ui.note.blocks.EditableBlock
 import com.example.zhilu.ui.note.blocks.ReadOnlyBlock
 import com.example.zhilu.ui.note.blocks.blockIndexLabel
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.cardAccentColor
+import com.example.zhilu.ui.theme.LocalThemePalette
 import kotlin.math.roundToInt
 
 private val BlockGap = 8.dp
@@ -97,7 +100,7 @@ fun CardBlockList(
     val blockHeights = remember { mutableStateMapOf<Long, Int>() }
     val blockGapPx = with(LocalDensity.current) { BlockGap.toPx() }
     val darkTheme = LocalExtendedColors.current.isDark
-    val accent = cardAccentColor(card.accent, cardIndex, darkTheme)
+    val accent = cardAccentColor(card.accent, cardIndex, darkTheme, LocalThemePalette.current)
     val gutterPx = with(LocalDensity.current) { BlockGutterWidth.toPx() }
     val spineWidthPx = with(LocalDensity.current) { 1.dp.toPx() }
 

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.example.zhilu.domain.markup.InlineMarkup
 import com.example.zhilu.domain.markup.InlineSpan
 import com.example.zhilu.ui.component.FindHighlight
+import com.example.zhilu.data.datastore.ThemePalette
 import com.example.zhilu.ui.theme.inlineToneSpanStyle
 
 /**
@@ -100,7 +101,9 @@ fun buildInlineLatexText(
     /** 页内查找的命中高亮（§6.4）。为 null 时完全不影响既有渲染。 */
     highlight: FindHighlight? = null,
     /** 无障碍色板（§3.9）。 */
-    accessibleEmphasis: Boolean = false
+    accessibleEmphasis: Boolean = false,
+    /** 语义标记的色值跟着外观走。同样必须由调用方传（本函数非 @Composable）。 */
+    palette: ThemePalette = ThemePalette.DEFAULT
 ): InlineLatexParts {
     val parsed = InlineMarkup.parseSpans(raw)
     val visible = parsed.visibleText
@@ -215,7 +218,7 @@ fun buildInlineLatexText(
             val end = segmentEnd.coerceAtLeast(index + 1).coerceAtMost(visible.length)
             if (span != null) {
                 pushStyle(
-                    inlineToneSpanStyle(span.tone, span.brush, darkTheme, accessibleEmphasis)
+                    inlineToneSpanStyle(span.tone, span.brush, darkTheme, accessibleEmphasis, palette)
                 )
                 emitTokens(index, end)
                 pop()
@@ -257,7 +260,8 @@ fun rememberInlineLatexContent(
     /** 与 [formulas] 一一对应：覆盖该公式的语义标记，决定公式图的墨色与底色。 */
     spans: List<InlineSpan?> = emptyList(),
     darkTheme: Boolean = false,
-    accessibleEmphasis: Boolean = false
+    accessibleEmphasis: Boolean = false,
+    palette: ThemePalette = ThemePalette.DEFAULT
 ): Map<String, InlineTextContent> {
     if (formulas.isEmpty()) return emptyMap()
     val density = LocalDensity.current
@@ -269,7 +273,8 @@ fun rememberInlineLatexContent(
             density = density,
             span = spans.getOrNull(index),
             darkTheme = darkTheme,
-            accessibleEmphasis = accessibleEmphasis
+            accessibleEmphasis = accessibleEmphasis,
+            palette = palette
         )
         inlineLatexId(index) to content
     }.toMap()
@@ -283,12 +288,13 @@ private fun inlineLatexContent(
     density: androidx.compose.ui.unit.Density,
     span: InlineSpan? = null,
     darkTheme: Boolean = false,
-    accessibleEmphasis: Boolean = false
+    accessibleEmphasis: Boolean = false,
+    palette: ThemePalette = ThemePalette.DEFAULT
 ): InlineTextContent {
     // 被语义标记覆盖时，公式用**角色的墨色**绘制，并在图后面铺上同一支笔触的底色 ——
     // Compose 不会把 span 的背景/字色套到 inline content 上，所以这两件事只能自己画。
     // 样式直接取只读路径那支 [inlineToneSpanStyle]，保证"文字上的标记"与"公式上的标记"同色。
-    val toneStyle = span?.let { inlineToneSpanStyle(it.tone, it.brush, darkTheme, accessibleEmphasis) }
+    val toneStyle = span?.let { inlineToneSpanStyle(it.tone, it.brush, darkTheme, accessibleEmphasis, palette) }
     val inkColor = toneStyle?.color?.takeIf { it != Color.Unspecified } ?: color
     val backgroundColor = toneStyle?.background ?: Color.Unspecified
 

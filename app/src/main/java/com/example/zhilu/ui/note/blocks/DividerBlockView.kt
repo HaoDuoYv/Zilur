@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import com.example.zhilu.ui.component.WaveDivider
+import com.example.zhilu.ui.theme.LocalThemePalette
+import com.example.zhilu.ui.theme.palettePaint
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +69,18 @@ private fun DividerLine(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    val paint = palettePaint(LocalThemePalette.current)
+    if (paint.componentBorder != Color.Unspecified) {
+        // 动森：分割线画成**波浪**（参考仓库 wave_yellow 那条的做法，但改成现画的正弦波——
+        // 位图在高密度屏上会糊，而且拉到别的宽度上浪形会被压扁）。
+        WaveDivider(
+            color = color,
+            modifier = modifier,
+            height = thickness * 3,
+            strokeWidth = thickness
+        )
+        return
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()

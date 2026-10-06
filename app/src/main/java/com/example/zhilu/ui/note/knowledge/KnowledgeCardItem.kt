@@ -30,11 +30,17 @@ import com.example.zhilu.ui.component.ElevationTokens
 import com.example.zhilu.ui.component.GeneratingBadge
 import com.example.zhilu.ui.component.rememberGeneratingPulse
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.cardAccentColor
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.motionEnterTween
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 /**
  * 知识卡片：头部（图钉 + 标题）与块列表的容器。
@@ -119,7 +125,7 @@ fun KnowledgeCardItem(
     val shape = MaterialTheme.shapes.medium
     val darkTheme = LocalExtendedColors.current.isDark
     // 卡片身份色：用户改过就用存的，没改过按序号回退到轮转色（§5.2）。
-    val accent = cardAccentColor(card.accent, cardIndex, darkTheme)
+    val accent = cardAccentColor(card.accent, cardIndex, darkTheme, LocalThemePalette.current)
     val isCollapsed = !card.isExpanded
 
     Surface(

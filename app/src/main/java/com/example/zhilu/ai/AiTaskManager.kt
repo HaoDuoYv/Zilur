@@ -8,6 +8,7 @@ import com.example.zhilu.domain.ai.model.AiTask
 import com.example.zhilu.domain.ai.model.AiTaskPhase
 import com.example.zhilu.domain.ai.model.AiTaskState
 import com.example.zhilu.domain.ai.repository.AiAssistantRepository
+import com.example.zhilu.domain.ai.repository.AiAttempt
 import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.domain.model.AiRole
 import com.example.zhilu.domain.model.BlockType
@@ -119,7 +120,19 @@ class AiTaskManager @Inject constructor(
     }
 
     private suspend fun run(taskId: String, request: AiSubmitRequest) {
-        val config = userPreferences.aiConfig.first()
+        // 每次生成都重新解析当前服务：用户可能在生成开始前刚切了 AI，
+        // 缓存下来会让"切了但没用上"这种问题极难查。
+        val settings = userPreferences.aiSettings.first()
+        val active = settings.resolveActive()
+        if (active == null) {
+            fail(taskId, "没有可用的 AI 服务，请先在「我的 → AI 配置」里添加")
+            return
+        }
+        val attempt = AiAttempt(
+            service = active,
+            fallbacks = settings.fallbackChain(),
+            fallbackEnabled = settings.fallbackOnFailure
+        )
         val contextText = resolveRefContext(request.refs) + resolveImageContext(request.images)
 
         // 1. 会话解析 + 用户消息落库。
@@ -150,7 +163,7 @@ class AiTaskManager @Inject constructor(
 
         // 3. 生成（流式），全程在 app scope。
         val result = aiAssistantRepository.generateReply(
-            config = config,
+            attempt = attempt,
             history = history,
             onDelta = { delta ->
                 update(taskId) { it.copy(phase = AiTaskPhase.STREAMING, streamText = it.streamText + delta) }
@@ -163,6 +176,19 @@ class AiTaskManager @Inject constructor(
                         role = AiRole.TOOL,
                         content = "调用了 $toolName",
                         toolName = toolName
+                    )
+                )
+            },
+            onFallback = { serviceName ->
+                // 只有一字未出时才会走到这里（仓库层保证），所以提示"换了个模型"是安全的，
+                // 不会出现"回答说到一半换人"的错乱。
+                update(taskId) { it.copy(toolName = null, phase = AiTaskPhase.RUNNING) }
+                conversationRepository.addMessage(
+                    AiMessage(
+                        conversationId = conversationId,
+                        role = AiRole.TOOL,
+                        content = "已切换到 $serviceName",
+                        toolName = serviceName
                     )
                 )
             },

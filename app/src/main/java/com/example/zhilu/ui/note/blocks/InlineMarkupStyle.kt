@@ -2,6 +2,7 @@ package com.example.zhilu.ui.note.blocks
 
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
+import com.example.zhilu.data.datastore.ThemePalette
 import com.example.zhilu.domain.markup.InlineSpan
 import com.example.zhilu.ui.theme.inlineToneSpanStyle
 
@@ -16,7 +17,9 @@ fun buildToneStyledText(
     text: String,
     spans: List<InlineSpan>,
     darkTheme: Boolean,
-    accessible: Boolean = false
+    accessible: Boolean = false,
+    /** 语义标记的色值跟着外观走（见 `ThemePalettes.kt` 的 `toneBlocks`）。 */
+    palette: ThemePalette = ThemePalette.DEFAULT
 ): AnnotatedString {
     if (spans.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {
@@ -26,7 +29,7 @@ fun buildToneStyledText(
             val end = span.end.coerceIn(0, text.length)
             if (end <= start) continue
             if (start > cursor) append(text.substring(cursor, start))
-            pushStyle(inlineToneSpanStyle(span.tone, span.brush, darkTheme, accessible))
+            pushStyle(inlineToneSpanStyle(span.tone, span.brush, darkTheme, accessible, palette))
             append(text.substring(start, end))
             pop()
             cursor = end

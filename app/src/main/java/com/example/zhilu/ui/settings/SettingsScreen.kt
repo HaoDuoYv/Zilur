@@ -16,8 +16,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -125,23 +130,40 @@ fun SettingsScreen(
                 onToggleReminders = viewModel::setRemindersEnabled
             )
 
-            AppearanceSection(
-                themeMode = state.themeMode,
-                accentColor = state.accentColor,
-                accessibleEmphasis = state.accessibleEmphasis,
-                onSelectThemeMode = viewModel::setThemeMode,
-                onSelectAccent = viewModel::setAccentColor,
-                onToggleAccessibleEmphasis = viewModel::setAccessibleEmphasis
-            )
+            // 外观不再是内联的三组控件，而是一行**独立入口**：进去之后有配色缩略卡
+            // 和一句话说明，选起来比在长列表里翻开关清楚得多。行尾直接写出当前外观，
+            // 不进去也知道现在是什么。
+            SettingsGroup(title = "外观") {
+                SettingsRow(
+                    title = "配色与主题",
+                    description = appearanceSummary(state.themePalette, state.themeMode),
+                    leadingIcon = Icons.Outlined.Palette,
+                    onClick = { navController.navigate(Destination.Appearance.path) },
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
 
+            // AI 配置与外观一样，走**独立入口**：多供应商之后它有服务列表 + 表单 +
+            // 默认与回退三组，塞在这里既放不下也找不到。行尾直接写出当前服务名。
             SettingsGroup(title = "AI 助手") {
-                AiSettingsSection(
-                    config = state.aiConfig,
-                    testInProgress = state.aiTestInProgress,
-                    testResult = state.aiTestResult,
-                    onConfigChange = viewModel::updateAiConfig,
-                    onSave = viewModel::saveAiConfig,
-                    onTest = viewModel::testAiConnection
+                SettingsRow(
+                    title = "AI 配置",
+                    description = aiConfigSummary(state.aiSettings),
+                    leadingIcon = Icons.Outlined.SmartToy,
+                    onClick = { navController.navigate(Destination.AiConfig.path) },
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 )
             }
 

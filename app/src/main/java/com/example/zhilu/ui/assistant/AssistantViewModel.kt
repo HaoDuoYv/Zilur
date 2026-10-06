@@ -52,10 +52,24 @@ class AssistantViewModel @Inject constructor(
     private var lastSubmittedText: String? = null
     private val surfacedErrorTaskIds = mutableSetOf<String>()
 
+    /**
+     * 一键切换当前 AI。
+     *
+     * 只改 `activeId` 并落库 —— **不影响正在进行的生成**：`AiTaskManager` 是每次
+     * 生成开始时才解析当前服务，中途换不会把两段回答拼在一起。
+     */
+    fun switchActiveService(serviceId: String) {
+        viewModelScope.launch {
+            val settings = _uiState.value.aiSettings
+            if (settings.activeId == serviceId) return@launch
+            userPreferences.setAiSettings(settings.copy(activeId = serviceId))
+        }
+    }
+
     init {
         viewModelScope.launch {
-            userPreferences.aiConfig.collect { config ->
-                _uiState.update { it.copy(aiConfig = config) }
+            userPreferences.aiSettings.collect { settings ->
+                _uiState.update { it.copy(aiSettings = settings) }
             }
         }
         viewModelScope.launch {
@@ -285,9 +299,10 @@ class AssistantViewModel @Inject constructor(
         val refs = state.attachedRefs
         if ((text.isEmpty() && images.isEmpty() && file == null && refs.isEmpty()) || state.isGenerating) return
 
-        val config = state.aiConfig
-        if (!config.isConfigured) {
-            _uiState.update { it.copy(error = "请先在设置中配置 AI 助手") }
+        // 判断的是「有没有可用的服务」，而不是某一份配置填全没有 ——
+        // 服务列表为空、或全都停用/没填全时才算没配置。
+        if (!state.aiSettings.hasUsable) {
+            _uiState.update { it.copy(error = "请先在「我的 → AI 配置」里添加一个 AI 服务") }
             return
         }
 

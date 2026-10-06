@@ -33,6 +33,7 @@ import com.example.zhilu.domain.markup.InlineSpan
 import com.example.zhilu.ui.note.latex.LatexRenderState
 import com.example.zhilu.ui.note.latex.rememberLatexImage
 import com.example.zhilu.ui.theme.emphasisInkColor
+import com.example.zhilu.ui.theme.LocalThemePalette
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -199,7 +200,7 @@ private fun InlineAtom(
         .firstOrNull { it.start <= node.start && it.end >= node.end && !it.isCollapsed }
         ?.tone
     val color = tone
-        ?.let { emphasisInkColor(it, darkTheme, accessibleEmphasis) }
+        ?.let { emphasisInkColor(it, darkTheme, accessibleEmphasis, LocalThemePalette.current) }
         ?: MaterialTheme.colorScheme.onSurface
 
     val state = rememberLatexImage(

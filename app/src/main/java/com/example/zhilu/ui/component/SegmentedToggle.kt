@@ -1,6 +1,9 @@
 package com.example.zhilu.ui.component
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
+import com.example.zhilu.ui.theme.LocalThemePalette
+import com.example.zhilu.ui.theme.palettePaint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -53,13 +56,19 @@ fun <T> SegmentedToggle(
     onSelect: (T) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val paint = palettePaint(LocalThemePalette.current)
+    val border = paint.componentBorder
+    val bordered = border != Color.Unspecified
     Box(
         modifier = modifier.minimumInteractiveComponentSize(),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceVariant
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            // 动森：分段控件也描边（参考仓库 `Tabs` 是「圆角 + 2dp 描边 + 底边线」）。
+            // 纸墨不加 —— 那里靠底色深浅分清容器与选中项就够了。
+            border = if (bordered) BorderStroke(2.dp, border) else null
         ) {
             Row(
                 modifier = Modifier

@@ -22,8 +22,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.cardAccentColor
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 /**
  * 页内目录（设计文档 §6.1）。
@@ -56,7 +59,7 @@ fun CardOutlineSheet(
                 modifier = Modifier.padding(start = 20.dp, bottom = 6.dp)
             )
             cards.forEachIndexed { index, card ->
-                val accent = cardAccentColor(card.accent, index, darkTheme)
+                val accent = cardAccentColor(card.accent, index, darkTheme, LocalThemePalette.current)
                 val isCurrent = index == currentIndex
                 Row(
                     modifier = Modifier

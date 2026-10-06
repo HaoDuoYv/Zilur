@@ -32,7 +32,9 @@ data class ChatCompletionRequest(
     val stream: Boolean = false,
     val tools: List<ToolDto>? = null,
     @SerialName("tool_choice") val toolChoice: String? = null,
-    val temperature: Double? = null
+    val temperature: Double? = null,
+    /** 上限。OpenAI 兼容接口统一叫 `max_tokens`（`max_completion_tokens` 是 OpenAI 较新的别名，兼容面更窄）。 */
+    @SerialName("max_tokens") val maxTokens: Int? = null
 )
 
 @Serializable

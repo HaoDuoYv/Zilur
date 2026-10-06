@@ -20,8 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import com.example.zhilu.ui.component.AppSwitch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,7 +40,8 @@ import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
-import com.example.zhilu.ui.theme.accentPaint
+import com.example.zhilu.ui.theme.LocalThemePalette
+import com.example.zhilu.ui.theme.palettePaint
 import com.example.zhilu.ui.theme.emphasisInkColor
 import com.example.zhilu.ui.theme.emphasisToneColor
 
@@ -74,6 +75,8 @@ fun AppearanceSection(
     onSelectAccent: (AccentColor) -> Unit,
     onToggleAccessibleEmphasis: (Boolean) -> Unit
 ) {
+    // 色板跟着当前外观走：同一个 AccentColor 档位在纸墨下是墨蓝、在动森下是叶绿。
+    val palette = LocalThemePalette.current
     SettingsGroup(title = "外观") {
         SegmentedToggle(
             options = listOf(
@@ -98,7 +101,7 @@ fun AppearanceSection(
             Spacer(modifier = Modifier.weight(1f))
             // 色板本身只有颜色没有名字，选中的是哪一档得靠这里说出来。
             Text(
-                text = accentPaint(accentColor).label,
+                text = palettePaint(palette).accent(accentColor).label,
                 style = ZhiLuType.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -129,7 +132,7 @@ fun AppearanceSection(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Switch(
+            AppSwitch(
                 checked = accessibleEmphasis,
                 onCheckedChange = onToggleAccessibleEmphasis
             )
@@ -146,6 +149,8 @@ private fun EmphasisPreviewRow(
     modifier: Modifier = Modifier
 ) {
     val darkTheme = LocalExtendedColors.current.isDark
+    // 预览要**按当前外观**取色：切到动森后这一排跟着变，用户才能确认新配色长什么样。
+    val palette = LocalThemePalette.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -161,12 +166,12 @@ private fun EmphasisPreviewRow(
                     modifier = Modifier
                         .size(10.dp)
                         .clip(CircleShape)
-                        .background(emphasisToneColor(tone, darkTheme, accessible))
+                        .background(emphasisToneColor(tone, darkTheme, accessible, palette))
                 )
                 Text(
                     text = tone.label,
                     style = ZhiLuType.meta,
-                    color = emphasisInkColor(tone, darkTheme, accessible)
+                    color = emphasisInkColor(tone, darkTheme, accessible, palette)
                 )
             }
         }
@@ -225,7 +230,8 @@ private fun AccentSwatch(
     onSelect: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val paint = accentPaint(accent)
+    val palette = LocalThemePalette.current
+    val paint = palettePaint(palette).accent(accent)
     // 预览色板必须显示「当前深浅模式下的主色」，否则浅色模式挑的色到了深色模式下
     // 会变成完全另一个观感——用户是在为两套方案同时做选择。
     val roles = if (darkTheme) paint.dark else paint.light

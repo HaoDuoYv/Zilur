@@ -17,6 +17,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import com.example.zhilu.ui.theme.LocalThemePalette
+import com.example.zhilu.ui.theme.Radius
+import com.example.zhilu.ui.theme.palettePaint
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -107,18 +113,45 @@ private fun CreateOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val paint = palettePaint(LocalThemePalette.current)
+    val border = paint.componentBorder
+    val toy = border != Color.Unspecified
+    // 动森：方块也是「卡片脸」——2dp 描边 + 更大的圆角 + 暖褐投影（参考仓库卡片的手法）。
+    // 纸墨保持原来那片浅底、无框。
+    val shape = RoundedCornerShape(if (toy) Radius.CardAnimalIsland else CreateOptionCorner)
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .then(
+                if (toy) {
+                    Modifier.shadow(
+                        elevation = 4.dp,
+                        shape = shape,
+                        ambientColor = paint.cardShadow,
+                        spotColor = paint.cardShadow
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .clip(shape)
+            .background(
+                if (toy) {
+                    MaterialTheme.colorScheme.surface
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                }
+            )
+            .then(
+                if (toy) Modifier.border(2.dp, border, shape) else Modifier
+            )
             .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.Sm, vertical = Spacing.Sm),
+            .padding(horizontal = Spacing.Md, vertical = Spacing.Md),
         verticalArrangement = Arrangement.spacedBy(Spacing.Xs)
     ) {
         Box(
             modifier = Modifier
                 .size(38.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(if (toy) ControlCornerToy else CreateIconCorner))
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
@@ -141,3 +174,7 @@ private fun CreateOption(
         )
     }
 }
+
+private val CreateOptionCorner = 16.dp
+private val CreateIconCorner = 12.dp
+private val ControlCornerToy = 12.dp

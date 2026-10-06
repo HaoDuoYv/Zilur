@@ -38,6 +38,22 @@ sealed class Destination(val path: String) {
     data object Trash : Destination("trash")
     data object Reminders : Destination("reminders")
 
+    /**
+     * 外观设置。
+     *
+     * 从「我的」里独立出来：外观项已经长到三组（配色方案 / 明暗 / 强调色 + 无障碍色板），
+     * 还要放配色缩略卡，混在设置长列表里既难找也没空间。
+     */
+    data object Appearance : Destination("appearance")
+
+    /**
+     * AI 配置。
+     *
+     * 与 [Appearance] 同一个理由从「我的」里独立出来：多供应商之后这里有服务列表、
+     * 增删改表单、默认模型与失败回退三组，塞进设置长列表既放不下也找不到。
+     */
+    data object AiConfig : Destination("ai_config")
+
     data object NoteEdit : Destination("note/{noteId}") {
         const val ARG_NOTE_ID = "noteId"
 

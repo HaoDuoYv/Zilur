@@ -34,6 +34,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.theme.palettePaint
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 private const val CODE_BLOCK_MAX_HEIGHT_DP = 280
 
@@ -46,9 +48,15 @@ fun CodeBlockEditor(
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
+    // 代码块用"深色终端"配色（两套外观都如此，见 PalettePaint.codeSurface 的说明）：
+    // 底、字、描边三者成套取，别混用 colorScheme 里的角色。
+    val codePaint = palettePaint(LocalThemePalette.current)
+    val codeSurface = codePaint.codeSurface
+    val codeBorder = codePaint.codeBorder
+    val onCode = codePaint.onCodeSurface
     val codeStyle = MaterialTheme.typography.bodyMedium.merge(
         TextStyle(
-            color = MaterialTheme.colorScheme.onSurface,
+            color = onCode,
             fontFamily = FontFamily.Monospace,
             lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
         )
@@ -62,7 +70,8 @@ fun CodeBlockEditor(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant
+        color = codeSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, codeBorder)
     ) {
         Column(
             modifier = Modifier
@@ -151,6 +160,10 @@ fun ReadOnlyCodeBlockContent(
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val codePaint = palettePaint(LocalThemePalette.current)
+    val codeSurface = codePaint.codeSurface
+    val codeBorder = codePaint.codeBorder
+    val onCode = codePaint.onCodeSurface
     val verticalScrollState = rememberScrollState()
     val horizontalScrollState = rememberScrollState()
     val showScrollHint by remember {
@@ -160,7 +173,8 @@ fun ReadOnlyCodeBlockContent(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.small,
-        color = MaterialTheme.colorScheme.surfaceVariant
+        color = codeSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, codeBorder)
     ) {
         Column(
             modifier = Modifier

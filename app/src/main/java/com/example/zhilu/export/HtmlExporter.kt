@@ -316,9 +316,9 @@ class HtmlExporter(
             p { line-height: 1.8; margin: 10px 0; }
             img { max-width: 100%; border-radius: 8px; display: block; margin: 12px 0; }
             img.formula { display: inline-block; margin: 2px 2px; vertical-align: middle; border-radius: 0; }
-            pre { background: #f4f2ee; padding: 12px; border-radius: 8px; overflow-x: auto; }
+            pre { background: #2B2118; color: #E8D5BC; padding: 14px 16px; border-radius: 12px; border: 1px solid #3D3028; overflow-x: auto; }
             code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.92em; background: #f1eee8; padding: 1px 5px; border-radius: 4px; }
-            pre code { background: none; padding: 0; }
+            pre code { background: none; padding: 0; color: inherit; }
             hr { border: none; border-top: 1px solid #e6e1d8; margin: 18px 0; }
             .latex { text-align: center; margin: 14px 0; }
             .latex img { display: inline-block; }

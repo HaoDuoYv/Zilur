@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.background
@@ -35,6 +36,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.Color
+import com.example.zhilu.ui.component.ToySurface
+import com.example.zhilu.ui.component.DefaultThickness
+import com.example.zhilu.ui.theme.LocalThemePalette
+import com.example.zhilu.ui.theme.Radius
+import com.example.zhilu.ui.theme.palettePaint
+import com.example.zhilu.ui.theme.shade
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -199,6 +208,9 @@ private fun RowScope.CenterCreateItem(
         label = "create_item_rotation"
     )
     val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val paint = palettePaint(LocalThemePalette.current)
+    val isAnimal = paint.componentBorder != Color.Unspecified
     Box(
         modifier = Modifier
             .weight(1f)
@@ -212,21 +224,42 @@ private fun RowScope.CenterCreateItem(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(width = CreateButtonWidth, height = CreateButtonHeight)
-                .clip(RoundedCornerShape(CreateButtonCorner))
-                .background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
+        // 动森：把 ＋ 做成**有厚度的实体按钮**（参考仓库 `AnimalButton` 的手法）——
+        // 底下压一层同色当厚度、面抬起来，按下时面落到厚度上。纸墨保持原来的平面方块。
+        // 动森用全胶囊（`Radius.Chip` 是百分比），纸墨保持它自己的 12dp 方块角。
+        val shape = if (isAnimal) {
+            RoundedCornerShape(Radius.Chip)
+        } else {
+            RoundedCornerShape(CreateButtonCorner)
+        }
+        val faceModifier = Modifier.size(
+            width = CreateButtonWidth,
+            height = CreateButtonHeight
+        )
+        ToySurface(
+            // 高度显式给死（ToySurface 不再用 matchParentSize，见其 KDoc）
+            faceHeight = CreateButtonHeight,
+            modifier = Modifier.width(CreateButtonWidth),
+            shape = shape,
+            faceColor = MaterialTheme.colorScheme.primary,
+            // 厚度 = 面色同色相压暗一档（参考仓库的 ShadowBtn 就是这个关系）
+            thicknessColor = shade(MaterialTheme.colorScheme.primary),
+            thickness = if (isAnimal) DefaultThickness else 0.dp,
+            pressed = pressed
         ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = if (expanded) "收起新建菜单" else "新建或导入",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .size(IconSize)
-                    .graphicsLayer { rotationZ = rotation }
-            )
+            Box(
+                modifier = faceModifier.background(MaterialTheme.colorScheme.primary, shape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = if (expanded) "收起新建菜单" else "新建或导入",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .size(IconSize)
+                        .graphicsLayer { rotationZ = rotation }
+                )
+            }
         }
     }
 }

@@ -32,7 +32,8 @@ fun SettingsGroup(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         SectionHeader(title = title)
-        AppCard {
+        // 设置分组是「孤立的面」，正好用手作圆角（动森下生效，纸墨不受影响）
+        AppCard(irregular = true) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.Md)

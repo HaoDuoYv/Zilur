@@ -41,10 +41,13 @@ import com.example.zhilu.domain.markup.MathSpans
 import com.example.zhilu.domain.markup.applyTypedText
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.LocalThemePalette
 import kotlinx.coroutines.launch
 import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 /**
  * 正文编辑器（设计文档 §3.7）。
@@ -367,7 +370,8 @@ fun TextBlockEditor(
                         buffer,
                         spans,
                         darkTheme,
-                        LocalAccessibleEmphasis.current
+                        LocalAccessibleEmphasis.current,
+                        LocalThemePalette.current
                     ),
                     selection = selection,
                     composition = composition

@@ -3,7 +3,8 @@ package com.example.zhilu.ui.assistant
 import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.ai.model.AiTask
 import com.example.zhilu.domain.ai.model.AiTaskPhase
-import com.example.zhilu.domain.model.AiConfig
+import com.example.zhilu.domain.model.AiService
+import com.example.zhilu.domain.model.AiSettings
 import com.example.zhilu.domain.model.AiConversation
 import com.example.zhilu.domain.model.AiMessage
 
@@ -21,7 +22,8 @@ data class AssistantUiState(
     val attachedImages: List<String> = emptyList(),
     val attachedFile: AttachedFile? = null,
     val attachedRefs: List<AiRef> = emptyList(),
-    val aiConfig: AiConfig = AiConfig(),
+    /** 全部 AI 配置。当前用哪个由 esolveActive() 决定，不单独存字段。 */
+    val aiSettings: AiSettings = AiSettings.EMPTY,
     /** 当前会话的活跃生成任务（若无则为 null）。 */
     val activeTask: AiTask? = null,
     /** 助手页「引用笔记」选择器的候选（NOTE 级引用）。 */

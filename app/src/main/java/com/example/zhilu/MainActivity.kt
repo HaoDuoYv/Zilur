@@ -13,6 +13,7 @@ import com.example.zhilu.ai.AiTaskNotifications
 import com.example.zhilu.common.AppForegroundTracker
 import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
+import com.example.zhilu.data.datastore.ThemePalette
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.reminder.ReminderNotifier
 import com.example.zhilu.ui.navigation.AppShell
@@ -42,6 +43,8 @@ class MainActivity : ComponentActivity() {
             val themeMode by userPreferences.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val accentColor by userPreferences.accentColor
                 .collectAsState(initial = AccentColor.DEFAULT)
+            val themePalette by userPreferences.themePalette
+                .collectAsState(initial = ThemePalette.DEFAULT)
             val accessibleEmphasis by userPreferences.accessibleEmphasis
                 .collectAsState(initial = false)
             val controller = rememberNavController()
@@ -49,6 +52,7 @@ class MainActivity : ComponentActivity() {
             ZhiLuTheme(
                 themeMode = themeMode,
                 accentColor = accentColor,
+                palette = themePalette,
                 accessibleEmphasis = accessibleEmphasis
             ) {
                 AppShell(

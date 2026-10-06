@@ -10,8 +10,9 @@ import com.example.zhilu.data.ai.dto.textContent
 import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.domain.ai.model.AiToolDefinition
 import com.example.zhilu.domain.ai.repository.AiAssistantRepository
+import com.example.zhilu.domain.ai.repository.AiAttempt
 import com.example.zhilu.domain.ai.usecase.AiToolExecutor
-import com.example.zhilu.domain.model.AiConfig
+import com.example.zhilu.domain.model.AiService
 import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.domain.model.AiRole
 import javax.inject.Inject
@@ -36,65 +37,105 @@ class AiAssistantRepositoryImpl @Inject constructor(
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun generateReply(
-        config: AiConfig,
+        attempt: AiAttempt,
+        history: List<AiMessage>,
+        onDelta: (String) -> Unit,
+        onToolEvent: suspend (String) -> Unit,
+        onFallback: suspend (String) -> Unit,
+        contextText: String
+    ): Result<String> {
+        val chain = buildList {
+            add(attempt.service)
+            if (attempt.fallbackEnabled) addAll(attempt.fallbacks)
+        }
+        var lastError: Throwable? = null
+        chain.forEachIndexed { index, service ->
+            if (index > 0) onFallback(service.displayName)
+            val result = runCatching {
+                streamOnce(service, history, onDelta, onToolEvent, contextText)
+            }
+            if (result.isSuccess) return result
+            lastError = result.exceptionOrNull()
+            // 已经吐出过增量就不能再换服务重来 —— 那会把两段回答接在一起，
+            // 用户看到的是"两个模型各说了一半"。只有一字未出时才允许回退。
+            if (hasEmitted) return Result.failure(lastError ?: LlmApiException("模型请求失败"))
+        }
+        return Result.failure(lastError ?: LlmApiException("没有可用的 AI 服务"))
+    }
+
+    /** 本次生成是否已经往外吐过增量文本。跨服务尝试共享，见 [generateReply]。 */
+    private var hasEmitted = false
+
+    private suspend fun streamOnce(
+        service: AiService,
         history: List<AiMessage>,
         onDelta: (String) -> Unit,
         onToolEvent: suspend (String) -> Unit,
         contextText: String
-    ): Result<String> = runCatching {
-        withContext(Dispatchers.IO) {
-            val hasImages = history.any { it.images.isNotEmpty() }
-            val model = if (hasImages) config.visionModel.ifBlank { config.model } else config.model
-            val messages = buildMessages(history, contextText).toMutableList()
-            val tools = toolExecutor.definitions.map { it.toToolDto() }
+    ): String = withContext(Dispatchers.IO) {
+        hasEmitted = false
+        val messages = buildMessages(service, history, contextText).toMutableList()
+        val tools = toolExecutor.definitions.map { it.toToolDto() }
 
-            var round = 0
-            while (round < MAX_TOOL_ROUNDS) {
-                val outcome = llmApiClient.chatStream(
-                    endpoint = config.endpoint,
-                    apiKey = config.apiKey,
-                    request = ChatCompletionRequest(
-                        model = model,
-                        messages = messages,
-                        tools = tools
-                    ),
-                    onDelta = onDelta
-                )
-                if (outcome.toolCalls.isEmpty()) {
-                    return@withContext outcome.text
+        var round = 0
+        while (round < MAX_TOOL_ROUNDS) {
+            val outcome = llmApiClient.chatStream(
+                endpoint = service.endpoint,
+                apiKey = service.apiKey,
+                request = ChatCompletionRequest(
+                    // 只用这一个模型：当前主流大模型本身就能同时处理文本与图片，
+                    // 不再分「文本模型 / 视觉模型」两个字段（见 AiService 的类注释）。
+                    model = service.model,
+                    messages = messages,
+                    tools = tools,
+                    temperature = service.temperature.toDouble(),
+                    maxTokens = service.maxTokens
+                ),
+                onDelta = { delta ->
+                    hasEmitted = true
+                    onDelta(delta)
                 }
+            )
+            if (outcome.toolCalls.isEmpty()) {
+                return@withContext outcome.text
+            }
 
-                // 工具调用阶段：追加 assistant 消息（含 tool_calls），执行工具后回填 tool 消息。
-                messages.add(
-                    ChatMessageDto(
-                        role = "assistant",
-                        content = null,
-                        toolCalls = outcome.toolCalls
-                    )
+            // 工具调用阶段：追加 assistant 消息（含 tool_calls），执行工具后回填 tool 消息。
+            messages.add(
+                ChatMessageDto(
+                    role = "assistant",
+                    content = null,
+                    toolCalls = outcome.toolCalls
                 )
+            )
             outcome.toolCalls.forEach { call ->
                 onToolEvent(call.function.name)
                 val result = toolExecutor.execute(call.function.name, call.function.arguments)
-                    messages.add(
-                        ChatMessageDto(
-                            role = "tool",
-                            content = JsonPrimitive(result),
-                            toolCallId = call.id
-                        )
+                messages.add(
+                    ChatMessageDto(
+                        role = "tool",
+                        content = JsonPrimitive(result),
+                        toolCallId = call.id
                     )
-                }
-                round++
+                )
             }
-            throw LlmApiException("工具调用轮次过多，已中止")
+            round++
         }
+        throw LlmApiException("工具调用轮次过多，已中止")
     }
 
-    private fun buildMessages(history: List<AiMessage>, contextText: String): List<ChatMessageDto> {
+    private fun buildMessages(
+        service: AiService,
+        history: List<AiMessage>,
+        contextText: String
+    ): List<ChatMessageDto> {
         val messages = mutableListOf<ChatMessageDto>()
+        // 每个服务可以带自己的系统提示词；留空就用应用内置那份。
+        val basePrompt = service.systemPrompt.ifBlank { SYSTEM_PROMPT }
         val systemPrompt = if (contextText.isBlank()) {
-            SYSTEM_PROMPT
+            basePrompt
         } else {
-            "$SYSTEM_PROMPT\n\n$contextText"
+            "$basePrompt\n\n$contextText"
         }
         messages.add(ChatMessageDto(role = "system", content = textContent(systemPrompt)))
         history.forEach { message ->

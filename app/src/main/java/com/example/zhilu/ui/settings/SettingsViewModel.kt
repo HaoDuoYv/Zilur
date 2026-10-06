@@ -6,14 +6,10 @@ import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
-import com.example.zhilu.data.ai.LlmApiClient
-import com.example.zhilu.data.ai.dto.ChatCompletionRequest
-import com.example.zhilu.data.ai.dto.ChatMessageDto
-import com.example.zhilu.data.ai.dto.textContent
 import com.example.zhilu.data.local.file.MediaFileManager
-import com.example.zhilu.domain.model.AiConfig
 import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
+import com.example.zhilu.data.datastore.ThemePalette
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
@@ -50,8 +46,7 @@ class SettingsViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
     private val mediaFileManager: MediaFileManager,
     private val userPreferences: UserPreferences,
-    private val reminderScheduler: ReminderScheduler,
-    private val llmApiClient: LlmApiClient
+    private val reminderScheduler: ReminderScheduler
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -74,6 +69,11 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            userPreferences.themePalette.collect { palette ->
+                _uiState.update { it.copy(themePalette = palette) }
+            }
+        }
+        viewModelScope.launch {
             userPreferences.accessibleEmphasis.collect { enabled ->
                 _uiState.update { it.copy(accessibleEmphasis = enabled) }
             }
@@ -84,8 +84,8 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            userPreferences.aiConfig.collect { config ->
-                _uiState.update { it.copy(aiConfig = config) }
+            userPreferences.aiSettings.collect { settings ->
+                _uiState.update { it.copy(aiSettings = settings) }
             }
         }
     }
@@ -102,6 +102,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setThemePalette(palette: ThemePalette) {
+        viewModelScope.launch {
+            userPreferences.setThemePalette(palette)
+        }
+    }
+
     fun setAccessibleEmphasis(enabled: Boolean) {
         viewModelScope.launch {
             userPreferences.setAccessibleEmphasis(enabled)
@@ -112,49 +118,6 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setRemindersEnabled(enabled)
             reminderScheduler.setEnabled(enabled)
-        }
-    }
-
-    fun updateAiConfig(config: AiConfig) {
-        _uiState.update { it.copy(aiConfig = config, aiTestResult = null) }
-    }
-
-    fun saveAiConfig() {
-        viewModelScope.launch {
-            userPreferences.setAiConfig(_uiState.value.aiConfig)
-            _uiState.update { it.copy(exportMessage = "AI 配置已保存") }
-        }
-    }
-
-    fun testAiConnection() {
-        val config = _uiState.value.aiConfig
-        if (!config.isConfigured) {
-            _uiState.update { it.copy(aiTestResult = "请先填写端点、Key 和模型") }
-            return
-        }
-        viewModelScope.launch {
-            _uiState.update { it.copy(aiTestInProgress = true, aiTestResult = null) }
-            val outcome = runCatching {
-                llmApiClient.chat(
-                    endpoint = config.endpoint,
-                    apiKey = config.apiKey,
-                    request = ChatCompletionRequest(
-                        model = config.model,
-                        messages = listOf(
-                            ChatMessageDto(role = "user", content = textContent("你好，请回复「连接成功」"))
-                        )
-                    )
-                )
-            }
-            _uiState.update {
-                it.copy(
-                    aiTestInProgress = false,
-                    aiTestResult = outcome.fold(
-                        onSuccess = { "连接成功" },
-                        onFailure = { e -> "连接失败：${e.message ?: "未知错误"}" }
-                    )
-                )
-            }
         }
     }
 

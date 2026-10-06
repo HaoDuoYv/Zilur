@@ -31,9 +31,14 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.shadow
+import com.example.zhilu.ui.component.AppCircleButton
+import com.example.zhilu.ui.theme.LocalThemePalette
+import com.example.zhilu.ui.theme.palettePaint
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -98,6 +103,8 @@ fun AssistantInputBar(
 ) {
     val canSend = (text.isNotBlank() || attachedImages.isNotEmpty() ||
         attachedFile != null || attachedRefs.isNotEmpty()) && !isGenerating
+    val paint = palettePaint(LocalThemePalette.current)
+    val composerBorder = paint.componentBorder
 
     Column(
         modifier = Modifier
@@ -105,10 +112,29 @@ fun AssistantInputBar(
             .padding(horizontal = Spacing.Md, vertical = Spacing.Sm)
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (composerBorder == Color.Unspecified) {
+                        Modifier
+                    } else {
+                        // 动森：输入区也描边（比卡片粗一档 —— 它是整屏最大的一块面）
+                        Modifier.shadow(
+                            elevation = 5.dp,
+                            shape = RoundedCornerShape(Radius.Composer),
+                            ambientColor = paint.cardShadow,
+                            spotColor = paint.cardShadow
+                        )
+                    }
+                ),
             shape = RoundedCornerShape(Radius.Composer),
             color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            border = if (composerBorder == Color.Unspecified) {
+                // 纸墨：只有一根发丝线，靠底色分层
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            } else {
+                BorderStroke(2.5.dp, composerBorder)
+            }
         ) {
             Column(modifier = Modifier.padding(horizontal = Spacing.Lg, vertical = Spacing.Md)) {
                 if (attachedImages.isNotEmpty()) {
@@ -243,24 +269,21 @@ fun AssistantInputBar(
 
                     // 生成中把「发送」换成「停止」：任务现在可以活在页面之外（前台服务保活），
                     // 没有一个随时可点的出口，用户就只能等它自己结束。
+                    // 动森下这两颗走 AppCircleButton —— 带厚度的实体圆钮，按下会沉下去。
                     if (isGenerating) {
-                        Surface(
+                        AppCircleButton(
+                            icon = Icons.Default.Stop,
+                            contentDescription = "停止生成",
                             onClick = onStop,
-                            shape = CircleShape,
                             color = MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Stop,
-                                contentDescription = "停止生成",
-                                modifier = Modifier.padding(10.dp)
-                            )
-                        }
+                        )
                     } else {
-                        Surface(
+                        AppCircleButton(
+                            icon = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "发送",
                             onClick = onSend,
                             enabled = canSend,
-                            shape = CircleShape,
                             color = if (canSend) {
                                 MaterialTheme.colorScheme.primary
                             } else {
@@ -271,13 +294,7 @@ fun AssistantInputBar(
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "发送",
-                                modifier = Modifier.padding(10.dp)
-                            )
-                        }
+                        )
                     }
                 }
             }

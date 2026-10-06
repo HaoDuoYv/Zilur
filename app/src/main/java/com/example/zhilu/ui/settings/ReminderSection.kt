@@ -7,7 +7,7 @@ import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
+import com.example.zhilu.ui.component.AppSwitch
 import androidx.compose.runtime.Composable
 
 /** 提醒：提醒中心入口 + 通知权限 + 总开关。 */
@@ -55,7 +55,7 @@ fun ReminderSection(
             },
             leadingIcon = Icons.Outlined.Alarm,
             trailing = {
-                Switch(
+                AppSwitch(
                     checked = remindersEnabled,
                     onCheckedChange = onToggleReminders
                 )

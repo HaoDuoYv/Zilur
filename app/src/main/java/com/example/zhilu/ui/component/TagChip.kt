@@ -1,5 +1,8 @@
 package com.example.zhilu.ui.component
 
+import androidx.compose.foundation.BorderStroke
+import com.example.zhilu.ui.theme.LocalThemePalette
+import com.example.zhilu.ui.theme.palettePaint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -59,6 +62,11 @@ fun TagChip(
     onClick: () -> Unit = {}
 ) {
     val tagColor = rememberTagAccent(tagColor = tag.color)
+    val paint = palettePaint(LocalThemePalette.current)
+    val border = paint.componentBorder
+    // 动森：未选中的胶囊也要**描边**（参考仓库的标签/输入框全带边框）。
+    // 选中的用标签色描边——这样"选中"不只靠底色深浅表达，色觉障碍下也读得出来。
+    val bordered = border != Color.Unspecified
     val backgroundColor = if (selected) {
         tagColor.copy(alpha = AlphaTokens.Hover)
     } else {
@@ -66,6 +74,11 @@ fun TagChip(
     }
     val contentColor = if (selected) tagColor else MaterialTheme.colorScheme.onSurfaceVariant
     val metrics = tagChipMetrics(size)
+    val strokeColor = when {
+        !bordered -> Color.Unspecified
+        selected -> tagColor.copy(alpha = 0.55f)
+        else -> border
+    }
 
     Surface(
         onClick = onClick,
@@ -73,6 +86,7 @@ fun TagChip(
         modifier = if (enabled) Modifier.minimumInteractiveComponentSize() else Modifier,
         shape = CircleShape,
         color = backgroundColor,
+        border = if (bordered) BorderStroke(2.dp, strokeColor) else null,
         shadowElevation = 0.dp
     ) {
         Row(

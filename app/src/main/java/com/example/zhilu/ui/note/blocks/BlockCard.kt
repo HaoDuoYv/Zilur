@@ -42,10 +42,15 @@ import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.emphasisToneColor
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 private val BlockTypeIconSize = 20.dp
 private val BlockTypeIconSpacing = 8.dp
@@ -101,7 +106,7 @@ fun BlockCard(
     // 刻意不做整块染色（可读性差、像报错），也不加图标（4 个图标反而增加识别成本）。
     val tone = block.emphasis
     val toneColor = tone?.let {
-        emphasisToneColor(it, darkTheme, LocalAccessibleEmphasis.current)
+        emphasisToneColor(it, darkTheme, LocalAccessibleEmphasis.current, LocalThemePalette.current)
     }
     val dragTint = MaterialTheme.colorScheme.primaryContainer.copy(alpha = AlphaTokens.DragTint)
     val focusTint = MaterialTheme.colorScheme.onSurface.copy(alpha = AlphaTokens.BlockFocus)

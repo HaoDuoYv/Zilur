@@ -400,19 +400,27 @@ fun AssistantScreen(
             }
         }
     ) { padding ->
+        Column(modifier = Modifier.padding(padding)) {
+        // 「当前 AI」条放在顶栏正下方：模型是可切换的**状态**，不该混进页面标题，
+        // 但也得一眼看见 —— 主流对话应用都是这个位置。
+        AiModelBar(
+            settings = state.aiSettings,
+            onSwitch = viewModel::switchActiveService,
+            onManage = { navController.navigate(Destination.AiConfig.path) }
+        )
         if (state.messages.isEmpty() && !state.isGenerating) {
             AssistantEmptyState(
-                configured = state.aiConfig.isConfigured,
-                modifier = Modifier.padding(padding),
-                onOpenSettings = { navController.navigate(Destination.Settings.path) },
+                configured = state.aiSettings.hasUsable,
+                // 这条模型栏之外的内容不再需要额外留白，padding 已提到外层
+                modifier = Modifier,
+                // AI 配置现在有独立入口，不再藏在设置的通用列表里。
+                onOpenSettings = { navController.navigate(Destination.AiConfig.path) },
                 onSuggestion = viewModel::updateInput
             )
         } else {
             LazyColumn(
                 state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(vertical = Spacing.Sm)
             ) {
                 val lastToolId = state.messages.lastOrNull { it.role == AiRole.TOOL }?.id
@@ -444,8 +452,9 @@ fun AssistantScreen(
                 }
             }
         }
+        }
     }
-    }
+    // ↑ 依次闭合：LazyColumn / else / if / Column
 
     if (state.showRefPicker) {
         RefNotePickerSheet(
@@ -455,6 +464,7 @@ fun AssistantScreen(
         )
     }
 
+    }
 }
 
 /**

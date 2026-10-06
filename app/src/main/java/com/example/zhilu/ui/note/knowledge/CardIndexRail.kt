@@ -28,9 +28,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.ui.theme.AlphaTokens
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.cardAccentColor
+import com.example.zhilu.ui.theme.LocalThemePalette
 import kotlinx.coroutines.delay
 
 /** 命中区宽度。刻意 ≤ 24dp：再宽就会跟列表的纵向滚动抢手势（§6.2）。 */
@@ -127,7 +131,7 @@ fun CardIndexRail(
             verticalArrangement = Arrangement.spacedBy(tickGap)
         ) {
             cards.forEachIndexed { index, card ->
-                val accent = cardAccentColor(card.accent, index, darkTheme)
+                val accent = cardAccentColor(card.accent, index, darkTheme, LocalThemePalette.current)
                 val isCurrent = index == currentIndex
                 Box(
                     modifier = Modifier

@@ -25,15 +25,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.markup.InlineBrush
 import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.ui.theme.ShapeTokens
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.emphasisToneColor
+import com.example.zhilu.ui.theme.inkOnFill
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 /**
  * 划词起色的浮动工具条（设计文档 §3.8）。
@@ -156,7 +162,11 @@ private fun ToneSwatch(
     darkTheme: Boolean,
     onClick: () -> Unit
 ) {
-    val color = emphasisToneColor(tone, darkTheme, LocalAccessibleEmphasis.current)
+    val color = emphasisToneColor(tone, darkTheme, LocalAccessibleEmphasis.current, LocalThemePalette.current)
+    // 圆内的首字必须是**对比色**而不是写死的白。动森的「要点」标记色 `#A0741C`
+    // 配白字只有 4.19（低于正文门槛）；纸墨四档是 5.4~6.1，所以这个 bug 也只在
+    // 动森下才显出来。按填充色的相对亮度选黑/白，两套外观都稳。
+    val onColor = inkOnFill(color)
     Box(
         modifier = Modifier
             .size(22.dp)
@@ -175,7 +185,7 @@ private fun ToneSwatch(
             Text(
                 text = tone.label.take(1),
                 style = ZhiLuType.label,
-                color = Color.White
+                color = onColor
             )
         }
     }

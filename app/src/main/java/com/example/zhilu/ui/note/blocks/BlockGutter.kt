@@ -29,8 +29,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalAccessibleEmphasis
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.emphasisToneColor
+import com.example.zhilu.ui.theme.inkOnFill
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 /** gutter 宽度。序号与标记圆点都落在这条固定列里，内容区因此左缘对齐。 */
 val BlockGutterWidth = 28.dp
@@ -64,7 +68,7 @@ fun BlockGutter(
 ) {
     var pickerOpen by remember { mutableStateOf(false) }
     val toneColor = emphasis?.let {
-        emphasisToneColor(it, darkTheme, LocalAccessibleEmphasis.current)
+        emphasisToneColor(it, darkTheme, LocalAccessibleEmphasis.current, LocalThemePalette.current)
     }
 
     Column(
@@ -101,7 +105,11 @@ fun BlockGutter(
                 style = ZhiLuType.meta,
                 textAlign = TextAlign.Center,
                 color = when {
-                    isActive -> Color.White
+                    // 激活态用**当前主题的主色对比色**，不是写死的白。
+                    // 实测写死白的代价：深色模式下动森的嫩叶绿上只有 **1.68**、纸墨的
+                    // 浅墨蓝上是 2.01 —— 序号直接糊掉；换成 onPrimary 后是 8.25 / 7.19。
+                    // （浅色模式下两者恰好都是白，所以这个 bug 只在深色模式露出来。）
+                    isActive -> inkOnFill(accent)
                     toneColor != null -> toneColor
                     else -> accent.copy(alpha = 0.4f)
                 }

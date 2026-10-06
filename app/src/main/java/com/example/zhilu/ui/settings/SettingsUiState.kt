@@ -1,8 +1,9 @@
 package com.example.zhilu.ui.settings
 
-import com.example.zhilu.domain.model.AiConfig
+import com.example.zhilu.domain.model.AiSettings
 import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
+import com.example.zhilu.data.datastore.ThemePalette
 
 data class SettingsUiState(
     val noteCount: Int = 0,
@@ -15,10 +16,12 @@ data class SettingsUiState(
     val notificationPermissionGranted: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val accentColor: AccentColor = AccentColor.DEFAULT,
+    /** 配色外观（纸墨 / 动森）。与 [themeMode] 正交：外观决定长什么样，模式决定明暗。 */
+    val themePalette: ThemePalette = ThemePalette.DEFAULT,
     /** 无障碍语义色板（§3.9）。 */
     val accessibleEmphasis: Boolean = false,
     val remindersEnabled: Boolean = true,
-    val aiConfig: AiConfig = AiConfig(),
+    val aiSettings: AiSettings = AiSettings.EMPTY,
     val aiTestInProgress: Boolean = false,
     val aiTestResult: String? = null,
     val exportMessage: String? = null,

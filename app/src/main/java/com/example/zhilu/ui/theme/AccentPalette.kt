@@ -3,6 +3,7 @@ package com.example.zhilu.ui.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import com.example.zhilu.data.datastore.AccentColor
+import com.example.zhilu.data.datastore.ThemePalette
 
 /**
  * 强调色的 M3 角色组合（一套浅色或一套深色）。
@@ -35,7 +36,7 @@ data class AccentPaint(
 )
 
 /**
- * 7 色强调色板。
+ * 纸墨（默认外观）的 8 色强调色板。
  *
  * 色相取自 `TagColors` 已经在用的那一套（紫 / 蓝 / 青 / 绿 / 赭 / 红 / 灰），
  * 只是把明度压到当主色够用的程度——用户挑的强调色要和列表里花花绿绿的标签胶囊
@@ -44,8 +45,11 @@ data class AccentPaint(
  * 只换 `primary` 这一族，`secondary`（暖褐）与 `tertiary`（橄榄）保持不动。
  * 这两个角色在纸墨主题里其实是「次级中性色」，承担的是次级信息的层次，
  * 跟着强调色一起变会把整个界面染成一个颜色，纸墨的中性底子就没了。
+ *
+ * **动森外观不走这里**：它自带一套同键不同值的柔和色，见 `ThemePalettes.kt`。
+ * 两者键一一对应，所以切换外观不会丢用户已选的档位。
  */
-fun accentPaint(accent: AccentColor): AccentPaint = when (accent) {
+internal fun paperInkAccentPaint(accent: AccentColor): AccentPaint = when (accent) {
     AccentColor.INK -> AccentPaint(
         label = "墨蓝",
         light = AccentRoles(
@@ -180,6 +184,16 @@ fun accentPaint(accent: AccentColor): AccentPaint = when (accent) {
     )
 }
 
-/** 取某一套（浅 / 深）的角色色。 */
-fun accentRoles(accent: AccentColor, darkTheme: Boolean): AccentRoles =
-    if (darkTheme) accentPaint(accent).dark else accentPaint(accent).light
+/**
+ * 取某一套（浅 / 深）的角色色。
+ *
+ * 用**当前外观**的色板：`accentRoles(CRIMSON, …)` 在纸墨下是绛红、在动森下是樱花粉。
+ */
+fun accentRoles(
+    accent: AccentColor,
+    darkTheme: Boolean,
+    palette: ThemePalette = ThemePalette.DEFAULT
+): AccentRoles {
+    val paint = palettePaint(palette).accent(accent)
+    return if (darkTheme) paint.dark else paint.light
+}

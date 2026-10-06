@@ -21,12 +21,19 @@ import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.ui.component.ElevationTokens
 import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.theme.LocalExtendedColors
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalReducedMotion
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.MotionDuration
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.ZhiLuType
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.cardAccentColor
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.motionEnterTween
+import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.motionExitTween
+import com.example.zhilu.ui.theme.LocalThemePalette
 
 /** 卡片头滚出屏幕多少距离后才浮出提示条（大约一个卡片头的高度）。 */
 val CardStickyThreshold = 56.dp
@@ -56,7 +63,7 @@ fun CardStickyBar(
     val card = cards.getOrNull(currentIndex) ?: return
     val darkTheme = LocalExtendedColors.current.isDark
     val reducedMotion = LocalReducedMotion.current
-    val accent = cardAccentColor(card.accent, currentIndex, darkTheme)
+    val accent = cardAccentColor(card.accent, currentIndex, darkTheme, LocalThemePalette.current)
 
     AnimatedVisibility(
         visible = visible,

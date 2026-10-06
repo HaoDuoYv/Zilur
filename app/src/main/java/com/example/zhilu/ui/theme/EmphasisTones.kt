@@ -3,14 +3,15 @@ package com.example.zhilu.ui.theme
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import com.example.zhilu.data.datastore.AccentColor
+import com.example.zhilu.data.datastore.ThemePalette
 import com.example.zhilu.domain.markup.InlineBrush
 import com.example.zhilu.domain.model.CardAccent
 import com.example.zhilu.domain.model.EmphasisTone
-
 /**
  * 语义角色 → 颜色的映射。
  *
@@ -68,15 +69,22 @@ private fun accessibleToneInk(tone: EmphasisTone, darkTheme: Boolean): Color = w
     EmphasisTone.TODO -> if (darkTheme) Color(0xFF8FD8C4) else Color(0xFF00453A)
 }
 
-/** 取某个角色在指定主题下的**块级**用色（= 该 AccentColor 的 primary）。 */
+/**
+ * 取某个角色在指定主题下的**块级**用色（色条 / gutter 圆点 / 色板预览）。
+ *
+ * 取的是当前外观的 [PalettePaint.toneBlock]，**不是** accent 的 `primary`：
+ * 两者要满足的对比关系不同（填充 vs 小标记），动森的「蜂蜜」当填充好看、当色条看不见。
+ * 详见 `ThemePalettes.kt` 里 `toneBlocks` 的说明。
+ */
 fun emphasisToneColor(
     tone: EmphasisTone,
     darkTheme: Boolean,
-    accessible: Boolean = false
+    accessible: Boolean = false,
+    palette: ThemePalette = ThemePalette.DEFAULT
 ): Color = if (accessible) {
     accessibleToneBlock(tone, darkTheme)
 } else {
-    accentRoles(tone.accent, darkTheme).primary
+    palettePaint(palette).toneBlock(tone, darkTheme)
 }
 
 /**
@@ -112,14 +120,19 @@ private val LightEmphasisInk = EmphasisInkPalette(
 /**
  * 行内文字色：浅色主题用加深墨色；深色主题直接用 primary ——
  * `AccentPalette` 的深色 primary 本来就是"提亮后的版本"，再压明度会糊在深底上。
+ *
+ * **这套墨色不随外观改变**（实测过）：它在动森的奶油底上是 7.40~7.75，
+ * 叠上 20% 语义底色后仍有 5.8+，已经远超门槛；再往亮里调反而会掉到 4.5 以下。
+ * 也就是说这里没有"填充好看、当文字看不见"的矛盾，不需要第二套。
  */
 fun emphasisInkColor(
     tone: EmphasisTone,
     darkTheme: Boolean,
-    accessible: Boolean = false
+    accessible: Boolean = false,
+    palette: ThemePalette = ThemePalette.DEFAULT
 ): Color = when {
     accessible -> accessibleToneInk(tone, darkTheme)
-    darkTheme -> accentRoles(tone.accent, true).primary
+    darkTheme -> accentRoles(tone.accent, true, palette).primary
     else -> LightEmphasisInk.of(tone)
 }
 
@@ -133,13 +146,14 @@ fun inlineToneSpanStyle(
     tone: EmphasisTone,
     brush: InlineBrush,
     darkTheme: Boolean,
-    accessible: Boolean = false
+    accessible: Boolean = false,
+    palette: ThemePalette = ThemePalette.DEFAULT
 ): SpanStyle {
-    val ink = emphasisInkColor(tone, darkTheme, accessible)
+    val ink = emphasisInkColor(tone, darkTheme, accessible, palette)
     return when (brush) {
         InlineBrush.HIGHLIGHT -> SpanStyle(
             color = ink,
-            background = emphasisToneColor(tone, darkTheme, accessible)
+            background = emphasisToneColor(tone, darkTheme, accessible, palette)
                 .copy(alpha = AlphaTokens.InlineMark),
             fontWeight = FontWeight.SemiBold
         )
@@ -174,10 +188,100 @@ fun cardAccentAt(index: Int): Int = CardAccent.at(index).argb
 /**
  * 卡片身份色在指定主题下的显示色。
  *
- * `stored == null` → 按卡片序号回退到轮转色。这样导入一份不带 `accent` 的备份后，
- * 外观仍然是合理的（设计文档 §9.3）。
+ * - `stored == null`（用户没改过）→ 按卡片序号回退到**当前外观**的轮转色。
+ *   这样切到动森时卡片颜色会跟着变柔和，不会出现"奶油底上钉着 7 个纸墨深色"的拼贴感；
+ * - `stored != null`（用户显式改过）→ **原样保留**。那是他的选择，不该被外观切换覆盖。
+ *
+ * 导入一份不带 `accent` 的备份后外观仍然合理（设计文档 §9.3），走的就是前一条。
  */
-fun cardAccentColor(stored: Int?, index: Int, darkTheme: Boolean): Color {
-    val raw = stored ?: cardAccentAt(index)
+fun cardAccentColor(
+    stored: Int?,
+    index: Int,
+    darkTheme: Boolean,
+    palette: ThemePalette = ThemePalette.DEFAULT
+): Color {
+    val raw = stored ?: paletteCardAccentAt(palette, index)
     return if (darkTheme) darkTagColor(raw) else Color(raw)
+}
+
+/** 当前外观下第 [index] 张卡片的默认身份色（argb）。 */
+private fun paletteCardAccentAt(palette: ThemePalette, index: Int): Int {
+    val rotation = palettePaint(palette).cardAccents
+    val size = rotation.size
+    return rotation[((index % size) + size) % size]
+}
+
+/**
+ * 压在**实心色块**上的文字色（gutter 激活序号、语义色圆里的首字）。
+ *
+ * 别写死 `Color.White`：深色模式下主色是**提亮后**的浅色，白字会直接糊掉 ——
+ * 实测动森的嫩叶绿上白字只有 **1.68**、纸墨的浅墨蓝上 2.01（浅色模式下两者恰好都是白，
+ * 所以这个 bug 只在深色模式露出来）。亮底用深字、暗底用白字，两套外观都稳。
+ */
+/**
+ * WCAG 对比度，用于**校验配色**（测试与取色共用，避免两处口径不一致）。
+ *
+ * 亮度用 [Color.luminance]（Compose 自带）而不是自己写公式 —— 这是本次真正的教训：
+ * 我另写了一份按 WCAG gamma 线性化的版本，与 Compose 的实际口径差了将近一倍
+ * （同一个 `#A8B8D2`，一个算出 0.47、另一个 0.72），于是"该配深字的亮底"被误判成
+ * 该配白字，阈值也跟着定错。**别在同一件事上维护两份算法。**
+ */
+fun contrastRatio(a: Color, b: Color): Float {
+    val la = a.luminance()
+    val lb = b.luminance()
+    return (maxOf(la, lb) + 0.05f) / (minOf(la, lb) + 0.05f)
+}
+
+/** 亮底上用的深字。比纯黑柔一档，压在亮色块上不刺眼。 */
+private val InkOnLightFill = Color(0xFF1A1A1A)
+
+/**
+ * 白字与深字对比度**相等**的那个填充亮度 —— 取它当判据就是"永远选更清楚的那一边"，
+ * 不是拍出来的魔数。由 `1.05 / (L + 0.05) == (L + 0.05) / (L_dark + 0.05)` 解出正根。
+ */
+private val FILL_LUMINANCE_FLIP: Float = run {
+    val dark = InkOnLightFill.luminance()
+    kotlin.math.sqrt(1.05f * (dark + 0.05f)) - 0.05f
+}
+
+/**
+ * 压在**实心色块**上的文字色（gutter 激活序号、语义色圆里的首字）。
+ *
+ * 别写死 `Color.White`：深色模式下主色是**提亮后**的浅色，白字会直接糊掉 ——
+ * 实测动森的嫩叶绿上白字只有 **1.68**、纸墨的浅墨蓝上 2.01、身份色圆上 2.64。
+ * 浅色模式下这些恰好都该配白字，所以这个缺陷**只在深色模式露出来**。
+ *
+ * 已知边界：中间亮度的填充两种字色都到不了 4.5（最多 3.0~3.4），这是"中等明度填充"
+ * 的天花板，换字色解决不了。这两处都是短标签（一位数序号 / 单个汉字），按 WCAG
+ * 大字号标准 3.0 够用；要更高只能改填充色本身。
+ */
+fun inkOnFill(fill: Color): Color =
+    if (fill.luminance() > FILL_LUMINANCE_FLIP) InkOnLightFill else Color.White
+
+/**
+ * 在若干候选里挑对比度最高的那个字色（定 `on*` 角色、验证配色时用）。
+ *
+ * 与其手算每个 `on*` 再逐个校验，不如把"候选里最能看清的"写成代码 —— 加新配色时不会漏。
+ */
+fun bestInkOn(fill: Color, candidates: List<Color>): Color =
+    candidates.maxByOrNull { contrastRatio(fill, it) } ?: Color.White
+
+/**
+ * 压暗一档，用来做「厚度」层（参考仓库 `AnimalButton` 的阴影层就是这么来的）。
+ *
+ * 按比例缩 RGB 而不是叠黑色：叠黑会同时降饱和，暖色会发灰；
+ * 参考仓库的按钮厚度色 `ShadowBtn #BDAEA0` 相对面色 `BgColor #F8F8F0` 也正是"同色相压暗"。
+ */
+fun shade(color: Color, factor: Float = 0.78f): Color {
+    val argb = (color.value shr 32).toInt()
+    val a = (argb ushr 24) and 0xFF
+    val r = ((argb ushr 16) and 0xFF) * factor
+    val g = ((argb ushr 8) and 0xFF) * factor
+    val b = (argb and 0xFF) * factor
+    return Color(
+        red = r.coerceIn(0f, 255f) / 255f,
+        green = g.coerceIn(0f, 255f) / 255f,
+        blue = b.coerceIn(0f, 255f) / 255f,
+        alpha = a / 255f
+    )
 }

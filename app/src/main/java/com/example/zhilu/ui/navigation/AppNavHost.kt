@@ -16,6 +16,8 @@ import com.example.zhilu.ui.camera.CameraScreen
 import com.example.zhilu.ui.home.HomeScreen
 import com.example.zhilu.ui.note.NoteEditScreen
 import com.example.zhilu.ui.reminder.ReminderCenterScreen
+import com.example.zhilu.ui.settings.AppearanceScreen
+import com.example.zhilu.ui.settings.AiConfigScreen
 import com.example.zhilu.ui.settings.SettingsScreen
 import com.example.zhilu.ui.tag.TagsScreen
 import com.example.zhilu.ui.trash.TrashScreen
@@ -115,6 +117,24 @@ fun AppNavHost(
             popExitTransition = { backExit(motion) }
         ) {
             ReminderCenterScreen(navController = navController)
+        }
+        composable(
+            route = Destination.Appearance.path,
+            enterTransition = { forwardEnter(motion) },
+            exitTransition = { forwardExit(motion) },
+            popEnterTransition = { backEnter(motion) },
+            popExitTransition = { backExit(motion) }
+        ) {
+            AppearanceScreen(navController = navController)
+        }
+        composable(
+            route = Destination.AiConfig.path,
+            enterTransition = { forwardEnter(motion) },
+            exitTransition = { forwardExit(motion) },
+            popEnterTransition = { backEnter(motion) },
+            popExitTransition = { backExit(motion) }
+        ) {
+            AiConfigScreen(navController = navController)
         }
         composable(
             route = Destination.NoteEdit.path,

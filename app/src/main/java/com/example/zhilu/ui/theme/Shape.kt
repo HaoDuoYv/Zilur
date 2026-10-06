@@ -31,6 +31,16 @@ object Radius {
      */
     val Composer = 22.dp
     const val Chip = 50  // percent
+
+    // ── 动森外观专用（参考仓库 AnimalIslandUI 的尺度）──────────────────
+    /** 动森的卡片圆角：参考仓库是 20dp，比纸墨的 14dp 明显更圆。 */
+    val CardAnimalIsland = 20.dp
+
+    /** 动森的输入框/按钮：全胶囊（参考仓库按钮是 50dp）。 */
+    const val FieldAnimalIsland = 50
+
+    /** 动森的小控件（勾选框）：8dp。 */
+    val ControlAnimalIsland = 8.dp
 }
 
 val AppShapes = Shapes(

@@ -44,4 +44,30 @@ class HtmlExporterTest {
         assertTrue(html.contains("<code class=\"language-cpp\">"))
         assertTrue(html.contains("int x = 1;"))
     }
+
+    /**
+     * 代码块在导出里也要是**深色终端**，而不是浅灰底。
+     *
+     * 与 app 内 `PalettePaint.codeSurface`（动森 `#2B2118` + `#E8D5BC`）保持一致 ——
+     * 导出件与 app 里看到的应当是同一个东西，否则用户会以为导出坏了。
+     */
+    @Test
+    fun exportNote_codeBlockUsesTerminalPalette() = runTest {
+        val html = exporter.exportNote(
+            Note(blocks = listOf(Block(type = BlockType.CODE, content = "let x = 1", language = "kotlin")))
+        ).getOrThrow()
+
+        assertTrue("代码块底应是深色终端色（#2B2118）", html.contains("#2B2118"))
+        assertTrue("代码块字应是暖米色（#E8D5BC）", html.contains("#E8D5BC"))
+        assertTrue("pre code 要不透出自己的浅底", html.contains("pre code { background: none;"))
+    }
+
+    @Test
+    fun exportNote_dividerBecomesHr() = runTest {
+        val html = exporter.exportNote(
+            Note(blocks = listOf(Block(type = BlockType.DIVIDER, content = "")))
+        ).getOrThrow()
+
+        assertTrue("分割线块要导出成 <hr>", html.contains("<hr>"))
+    }
 }
