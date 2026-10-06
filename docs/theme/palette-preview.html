@@ -1,0 +1,197 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8">
+<title>知录 · 主题预览</title>
+<style>
+            body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #222; }
+            h1 { font-size: 22px; margin: 0 0 4px; }
+            h2 { font-size: 18px; margin: 28px 0 2px; }
+            h3 { font-size: 15px; margin: 0 0 12px; opacity: 0.8; }
+            h4 { font-size: 13px; margin: 18px 0 6px; opacity: 0.7; font-weight: 600; }
+            .note, .desc, .dim { opacity: 0.6; font-size: 12px; }
+            .small { font-size: 11px; }
+            .mode { padding: 18px; border-radius: 14px; margin: 10px 0; }
+            .row { display: flex; flex-wrap: wrap; gap: 10px; }
+            .sw { text-align: center; font-size: 11px; }
+            .chip { width: 78px; height: 46px; border-radius: 8px; border: 1px solid rgba(128,128,128,0.25); }
+            .name { margin-top: 4px; }
+            .hex { opacity: 0.55; font-family: monospace; font-size: 10px; }
+            .radius { width: 78px; height: 46px; border: 1px dashed currentColor; opacity: 0.75; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; }
+            table { border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+            th, td { padding: 3px 10px 3px 0; text-align: left; }
+            th { opacity: 0.6; font-weight: 600; }
+            .num { font-family: monospace; }
+            .ok { color: #2e7d32; }
+            .bad { color: #c62828; font-weight: 700; }
+        </style></head><body>
+<h1>主题预览</h1>
+<p class="note">由 <code>ThemePreviewGeneratorTest</code> 从 <code>palettePaint()</code> 直接生成 —— 与真机同源，不是另画的一份。</p>
+<h2>纸墨 <span class="dim">PAPER_INK</span></h2>
+<p class="desc">暖纸底 + 墨蓝，克制的编辑式排版</p>
+<section class="mode" style="background:#141413;color:#F2F0E9">
+<h3>纸墨 · 深色</h3>
+<div class="row"><div class="sw"><div class="chip" style="background:#141413"></div><div class="name">background</div><div class="hex">#141413</div></div><div class="sw"><div class="chip" style="background:#1D1D1B"></div><div class="name">surface</div><div class="hex">#1D1D1B</div></div><div class="sw"><div class="chip" style="background:#262624"></div><div class="name">surfaceVariant</div><div class="hex">#262624</div></div><div class="sw"><div class="chip" style="background:#4A4843"></div><div class="name">outline</div><div class="hex">#4A4843</div></div><div class="sw"><div class="chip" style="background:#33322E"></div><div class="name">outlineVariant</div><div class="hex">#33322E</div></div></div>
+<div class="row"><div class="sw"><div class="chip" style="background:#F2F0E9"></div><div class="name">onBackground</div><div class="hex">#F2F0E9</div></div><div class="sw"><div class="chip" style="background:#F2F0E9"></div><div class="name">onSurface</div><div class="hex">#F2F0E9</div></div><div class="sw"><div class="chip" style="background:#A8A49A"></div><div class="name">onSurfaceVariant</div><div class="hex">#A8A49A</div></div></div>
+<h4>主色族（按钮 / FAB）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#A8B8D2"></div><div class="name">primary</div><div class="hex">#A8B8D2</div></div><div class="sw"><div class="chip" style="background:#C7B9A8"></div><div class="name">secondary</div><div class="hex">#C7B9A8</div></div><div class="sw"><div class="chip" style="background:#B1BCA7"></div><div class="name">tertiary</div><div class="hex">#B1BCA7</div></div><div class="sw"><div class="chip" style="background:#F2B8B5"></div><div class="name">error</div><div class="hex">#F2B8B5</div></div><div class="sw"><div class="chip" style="background:#2F3D53"></div><div class="name">primaryContainer</div><div class="hex">#2F3D53</div></div></div>
+<h4>语义角色（要点 / 想法 / 注意 / 待办）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#DCC09A"></div><div class="name">要点</div><div class="hex">#DCC09A</div></div><div class="sw"><div class="chip" style="background:#AFCDB2"></div><div class="name">想法</div><div class="hex">#AFCDB2</div></div><div class="sw"><div class="chip" style="background:#F2938A"></div><div class="name">注意</div><div class="hex">#F2938A</div></div><div class="sw"><div class="chip" style="background:#A5D2CF"></div><div class="name">待办</div><div class="hex">#A5D2CF</div></div></div>
+<h4>卡片身份色轮转</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#96A0B2"></div><div class="name">#0</div><div class="hex">#96A0B2</div></div><div class="sw"><div class="chip" style="background:#BBA98D"></div><div class="name">#1</div><div class="hex">#BBA98D</div></div><div class="sw"><div class="chip" style="background:#96B2B2"></div><div class="name">#2</div><div class="hex">#96B2B2</div></div><div class="sw"><div class="chip" style="background:#BB96A0"></div><div class="name">#3</div><div class="hex">#BB96A0</div></div><div class="sw"><div class="chip" style="background:#96A9A0"></div><div class="name">#4</div><div class="hex">#96A9A0</div></div><div class="sw"><div class="chip" style="background:#A9A9A9"></div><div class="name">#5</div><div class="hex">#A9A9A9</div></div><div class="sw"><div class="chip" style="background:#A9A0BB"></div><div class="name">#6</div><div class="hex">#A9A0BB</div></div><div class="sw"><div class="chip" style="background:#D28D88"></div><div class="name">#7</div><div class="hex">#D28D88</div></div></div>
+<h4>强调色板（8 档）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#A8B8D2"></div><div class="name">墨蓝</div><div class="hex">#A8B8D2</div></div><div class="sw"><div class="chip" style="background:#C6B9DE"></div><div class="name">黛紫</div><div class="hex">#C6B9DE</div></div><div class="sw"><div class="chip" style="background:#A5D2CF"></div><div class="name">松石</div><div class="hex">#A5D2CF</div></div><div class="sw"><div class="chip" style="background:#AFCDB2"></div><div class="name">苔绿</div><div class="hex">#AFCDB2</div></div><div class="sw"><div class="chip" style="background:#DCC09A"></div><div class="name">赭土</div><div class="hex">#DCC09A</div></div><div class="sw"><div class="chip" style="background:#EDB9BF"></div><div class="name">绛红</div><div class="hex">#EDB9BF</div></div><div class="sw"><div class="chip" style="background:#C7C6C0"></div><div class="name">石墨</div><div class="hex">#C7C6C0</div></div><div class="sw"><div class="chip" style="background:#F2938A"></div><div class="name">正红</div><div class="hex">#F2938A</div></div></div>
+<h4>圆角阶梯</h4><div class="row">
+<div class="radius" style="border-radius:4px">XS<br><small>4dp</small></div><div class="radius" style="border-radius:8px">S<br><small>8dp</small></div><div class="radius" style="border-radius:14px">M<br><small>14dp</small></div><div class="radius" style="border-radius:16px">L<br><small>16dp</small></div><div class="radius" style="border-radius:24px">XL<br><small>24dp</small></div></div>
+<h4>对比度实测（文字需 ≥ 4.5，图形 ≥ 3.0）</h4>
+<table><tr><th>配对</th><th>实测</th><th>门槛</th><th>结果</th></tr>
+<tr><td>正文 / 背景</td><td class="num">16.17</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>正文 / 卡面</td><td class="num">14.81</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>次级文字 / 凹陷面</td><td class="num">6.09</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onPrimary / primary</td><td class="num">7.19</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onSecondary / secondary</td><td class="num">6.42</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onTertiary / tertiary</td><td class="num">6.32</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onError / error</td><td class="num">7.66</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>要点标记 / 卡面</td><td class="num">9.69</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>想法标记 / 卡面</td><td class="num">9.81</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>注意标记 / 卡面</td><td class="num">7.49</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>待办标记 / 卡面</td><td class="num">10.23</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#0 上的字</td><td class="num">6.60</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#1 上的字</td><td class="num">7.60</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#2 上的字</td><td class="num">7.71</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#3 上的字</td><td class="num">6.62</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#4 上的字</td><td class="num">7.03</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#5 上的字</td><td class="num">7.41</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#6 上的字</td><td class="num">6.99</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#7 上的字</td><td class="num">6.55</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+</table>
+<p class="dim small">PAPER_INK/dark · 由 palettePaint() 生成</p>
+</section>
+<section class="mode" style="background:#FAF8F3;color:#191917">
+<h3>纸墨 · 浅色</h3>
+<div class="row"><div class="sw"><div class="chip" style="background:#FAF8F3"></div><div class="name">background</div><div class="hex">#FAF8F3</div></div><div class="sw"><div class="chip" style="background:#FFFFFF"></div><div class="name">surface</div><div class="hex">#FFFFFF</div></div><div class="sw"><div class="chip" style="background:#F3F0E9"></div><div class="name">surfaceVariant</div><div class="hex">#F3F0E9</div></div><div class="sw"><div class="chip" style="background:#C9C2B4"></div><div class="name">outline</div><div class="hex">#C9C2B4</div></div><div class="sw"><div class="chip" style="background:#E7E2D8"></div><div class="name">outlineVariant</div><div class="hex">#E7E2D8</div></div></div>
+<div class="row"><div class="sw"><div class="chip" style="background:#191917"></div><div class="name">onBackground</div><div class="hex">#191917</div></div><div class="sw"><div class="chip" style="background:#191917"></div><div class="name">onSurface</div><div class="hex">#191917</div></div><div class="sw"><div class="chip" style="background:#77746C"></div><div class="name">onSurfaceVariant</div><div class="hex">#77746C</div></div></div>
+<h4>主色族（按钮 / FAB）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#3D4F6B"></div><div class="name">primary</div><div class="hex">#3D4F6B</div></div><div class="sw"><div class="chip" style="background:#6B5B4A"></div><div class="name">secondary</div><div class="hex">#6B5B4A</div></div><div class="sw"><div class="chip" style="background:#5A6650"></div><div class="name">tertiary</div><div class="hex">#5A6650</div></div><div class="sw"><div class="chip" style="background:#B3261E"></div><div class="name">error</div><div class="hex">#B3261E</div></div><div class="sw"><div class="chip" style="background:#E3E8F0"></div><div class="name">primaryContainer</div><div class="hex">#E3E8F0</div></div></div>
+<h4>语义角色（要点 / 想法 / 注意 / 待办）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#7C5C31"></div><div class="name">要点</div><div class="hex">#7C5C31</div></div><div class="sw"><div class="chip" style="background:#4B6B4F"></div><div class="name">想法</div><div class="hex">#4B6B4F</div></div><div class="sw"><div class="chip" style="background:#C0392B"></div><div class="name">注意</div><div class="hex">#C0392B</div></div><div class="sw"><div class="chip" style="background:#3D6E6B"></div><div class="name">待办</div><div class="hex">#3D6E6B</div></div></div>
+<h4>卡片身份色轮转</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#4A5C7A"></div><div class="name">#0</div><div class="hex">#4A5C7A</div></div><div class="sw"><div class="chip" style="background:#8A6B3A"></div><div class="name">#1</div><div class="hex">#8A6B3A</div></div><div class="sw"><div class="chip" style="background:#4A7A7A"></div><div class="name">#2</div><div class="hex">#4A7A7A</div></div><div class="sw"><div class="chip" style="background:#8A4A5B"></div><div class="name">#3</div><div class="hex">#8A4A5B</div></div><div class="sw"><div class="chip" style="background:#4A6B5B"></div><div class="name">#4</div><div class="hex">#4A6B5B</div></div><div class="sw"><div class="chip" style="background:#6B6B6B"></div><div class="name">#5</div><div class="hex">#6B6B6B</div></div><div class="sw"><div class="chip" style="background:#6B5B8A"></div><div class="name">#6</div><div class="hex">#6B5B8A</div></div><div class="sw"><div class="chip" style="background:#B23B32"></div><div class="name">#7</div><div class="hex">#B23B32</div></div></div>
+<h4>强调色板（8 档）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#3D4F6B"></div><div class="name">墨蓝</div><div class="hex">#3D4F6B</div></div><div class="sw"><div class="chip" style="background:#5F4F80"></div><div class="name">黛紫</div><div class="hex">#5F4F80</div></div><div class="sw"><div class="chip" style="background:#3D6E6B"></div><div class="name">松石</div><div class="hex">#3D6E6B</div></div><div class="sw"><div class="chip" style="background:#4B6B4F"></div><div class="name">苔绿</div><div class="hex">#4B6B4F</div></div><div class="sw"><div class="chip" style="background:#7C5C31"></div><div class="name">赭土</div><div class="hex">#7C5C31</div></div><div class="sw"><div class="chip" style="background:#8A4550"></div><div class="name">绛红</div><div class="hex">#8A4550</div></div><div class="sw"><div class="chip" style="background:#4A4A46"></div><div class="name">石墨</div><div class="hex">#4A4A46</div></div><div class="sw"><div class="chip" style="background:#C0392B"></div><div class="name">正红</div><div class="hex">#C0392B</div></div></div>
+<h4>圆角阶梯</h4><div class="row">
+<div class="radius" style="border-radius:4px">XS<br><small>4dp</small></div><div class="radius" style="border-radius:8px">S<br><small>8dp</small></div><div class="radius" style="border-radius:14px">M<br><small>14dp</small></div><div class="radius" style="border-radius:16px">L<br><small>16dp</small></div><div class="radius" style="border-radius:24px">XL<br><small>24dp</small></div></div>
+<h4>对比度实测（文字需 ≥ 4.5，图形 ≥ 3.0）</h4>
+<table><tr><th>配对</th><th>实测</th><th>门槛</th><th>结果</th></tr>
+<tr><td>正文 / 背景</td><td class="num">16.59</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>正文 / 卡面</td><td class="num">17.61</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>次级文字 / 凹陷面</td><td class="num">4.10</td><td class="num">4.5</td><td class="bad">不足</td></tr>
+<tr><td>onPrimary / primary</td><td class="num">8.30</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onSecondary / secondary</td><td class="num">6.52</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onTertiary / tertiary</td><td class="num">6.08</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onError / error</td><td class="num">6.54</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>要点标记 / 卡面</td><td class="num">6.12</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>想法标记 / 卡面</td><td class="num">5.97</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>注意标记 / 卡面</td><td class="num">5.44</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>待办标记 / 卡面</td><td class="num">5.77</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#0 上的字</td><td class="num">6.77</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#1 上的字</td><td class="num">4.95</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#2 上的字</td><td class="num">4.82</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#3 上的字</td><td class="num">6.54</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#4 上的字</td><td class="num">5.92</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#5 上的字</td><td class="num">5.33</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#6 上的字</td><td class="num">6.02</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#7 上的字</td><td class="num">5.89</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+</table>
+<p class="dim small">PAPER_INK/light · 由 palettePaint() 生成</p>
+</section>
+<h2>动森 <span class="dim">ANIMAL_ISLAND</span></h2>
+<p class="desc">奶油底 + 草绿，圆润活泼的岛屿风</p>
+<section class="mode" style="background:#231C15;color:#EFE3D2">
+<h3>动森 · 深色</h3>
+<div class="row"><div class="sw"><div class="chip" style="background:#231C15"></div><div class="name">background</div><div class="hex">#231C15</div></div><div class="sw"><div class="chip" style="background:#2E251C"></div><div class="name">surface</div><div class="hex">#2E251C</div></div><div class="sw"><div class="chip" style="background:#3A2F24"></div><div class="name">surfaceVariant</div><div class="hex">#3A2F24</div></div><div class="sw"><div class="chip" style="background:#4C544A"></div><div class="name">outline</div><div class="hex">#4C544A</div></div><div class="sw"><div class="chip" style="background:#333A33"></div><div class="name">outlineVariant</div><div class="hex">#333A33</div></div></div>
+<div class="row"><div class="sw"><div class="chip" style="background:#EFE3D2"></div><div class="name">onBackground</div><div class="hex">#EFE3D2</div></div><div class="sw"><div class="chip" style="background:#EFE3D2"></div><div class="name">onSurface</div><div class="hex">#EFE3D2</div></div><div class="sw"><div class="chip" style="background:#C4B8A0"></div><div class="name">onSurfaceVariant</div><div class="hex">#C4B8A0</div></div></div>
+<h4>主色族（按钮 / FAB）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#3FD9C8"></div><div class="name">primary</div><div class="hex">#3FD9C8</div></div><div class="sw"><div class="chip" style="background:#F0B49C"></div><div class="name">secondary</div><div class="hex">#F0B49C</div></div><div class="sw"><div class="chip" style="background:#AEC3E2"></div><div class="name">tertiary</div><div class="hex">#AEC3E2</div></div><div class="sw"><div class="chip" style="background:#F0A79A"></div><div class="name">error</div><div class="hex">#F0A79A</div></div><div class="sw"><div class="chip" style="background:#17403B"></div><div class="name">primaryContainer</div><div class="hex">#17403B</div></div></div>
+<h4>语义角色（要点 / 想法 / 注意 / 待办）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#F7CD67"></div><div class="name">要点</div><div class="hex">#F7CD67</div></div><div class="sw"><div class="chip" style="background:#A8D97A"></div><div class="name">想法</div><div class="hex">#A8D97A</div></div><div class="sw"><div class="chip" style="background:#F2A392"></div><div class="name">注意</div><div class="hex">#F2A392</div></div><div class="sw"><div class="chip" style="background:#67D9CC"></div><div class="name">待办</div><div class="hex">#67D9CC</div></div></div>
+<h4>卡片身份色轮转</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#F0C0A6"></div><div class="name">#0</div><div class="hex">#F0C0A6</div></div><div class="sw"><div class="chip" style="background:#BBDEBB"></div><div class="name">#1</div><div class="hex">#BBDEBB</div></div><div class="sw"><div class="chip" style="background:#BAC6F6"></div><div class="name">#2</div><div class="hex">#BAC6F6</div></div><div class="sw"><div class="chip" style="background:#FAE2A7"></div><div class="name">#3</div><div class="hex">#FAE2A7</div></div><div class="sw"><div class="chip" style="background:#D5B4F5"></div><div class="name">#4</div><div class="hex">#D5B4F5</div></div><div class="sw"><div class="chip" style="background:#B7E7D8"></div><div class="name">#5</div><div class="hex">#B7E7D8</div></div><div class="sw"><div class="chip" style="background:#C4B79F"></div><div class="name">#6</div><div class="hex">#C4B79F</div></div></div>
+<h4>强调色板（8 档）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#3FD9C8"></div><div class="name">青绿</div><div class="hex">#3FD9C8</div></div><div class="sw"><div class="chip" style="background:#C9AFE6"></div><div class="name">绣球紫</div><div class="hex">#C9AFE6</div></div><div class="sw"><div class="chip" style="background:#8FD8D1"></div><div class="name">薄荷</div><div class="hex">#8FD8D1</div></div><div class="sw"><div class="chip" style="background:#B8D68C"></div><div class="name">嫩芽绿</div><div class="hex">#B8D68C</div></div><div class="sw"><div class="chip" style="background:#FBE0A0"></div><div class="name">阳光黄</div><div class="hex">#FBE0A0</div></div><div class="sw"><div class="chip" style="background:#F0AEC0"></div><div class="name">樱花粉</div><div class="hex">#F0AEC0</div></div><div class="sw"><div class="chip" style="background:#C6BFB0"></div><div class="name">温灰</div><div class="hex">#C6BFB0</div></div><div class="sw"><div class="chip" style="background:#F2A392"></div><div class="name">暖橙</div><div class="hex">#F2A392</div></div></div>
+<h4>圆角阶梯</h4><div class="row">
+<div class="radius" style="border-radius:8px">XS<br><small>8dp</small></div><div class="radius" style="border-radius:14px">S<br><small>14dp</small></div><div class="radius" style="border-radius:20px">M<br><small>20dp</small></div><div class="radius" style="border-radius:26px">L<br><small>26dp</small></div><div class="radius" style="border-radius:34px">XL<br><small>34dp</small></div></div>
+<h4>对比度实测（文字需 ≥ 4.5，图形 ≥ 3.0）</h4>
+<table><tr><th>配对</th><th>实测</th><th>门槛</th><th>结果</th></tr>
+<tr><td>正文 / 背景</td><td class="num">13.29</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>正文 / 卡面</td><td class="num">11.87</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>次级文字 / 凹陷面</td><td class="num">6.64</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onPrimary / primary</td><td class="num">8.21</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onSecondary / secondary</td><td class="num">7.52</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onTertiary / tertiary</td><td class="num">7.21</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onError / error</td><td class="num">6.56</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>要点标记 / 卡面</td><td class="num">9.93</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>想法标记 / 卡面</td><td class="num">9.21</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>注意标记 / 卡面</td><td class="num">7.46</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>待办标记 / 卡面</td><td class="num">8.85</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#0 上的字</td><td class="num">10.60</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#1 上的字</td><td class="num">11.83</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#2 上的字</td><td class="num">10.36</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#3 上的字</td><td class="num">13.68</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#4 上的字</td><td class="num">9.68</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#5 上的字</td><td class="num">12.79</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#6 上的字</td><td class="num">8.80</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+</table>
+<p class="dim small">ANIMAL_ISLAND/dark · 由 palettePaint() 生成</p>
+</section>
+<section class="mode" style="background:#F8F8F0;color:#794F27">
+<h3>动森 · 浅色</h3>
+<div class="row"><div class="sw"><div class="chip" style="background:#F8F8F0"></div><div class="name">background</div><div class="hex">#F8F8F0</div></div><div class="sw"><div class="chip" style="background:#F7F3DF"></div><div class="name">surface</div><div class="hex">#F7F3DF</div></div><div class="sw"><div class="chip" style="background:#F0E8D8"></div><div class="name">surfaceVariant</div><div class="hex">#F0E8D8</div></div><div class="sw"><div class="chip" style="background:#C4B89E"></div><div class="name">outline</div><div class="hex">#C4B89E</div></div><div class="sw"><div class="chip" style="background:#E3DCCB"></div><div class="name">outlineVariant</div><div class="hex">#E3DCCB</div></div></div>
+<div class="row"><div class="sw"><div class="chip" style="background:#794F27"></div><div class="name">onBackground</div><div class="hex">#794F27</div></div><div class="sw"><div class="chip" style="background:#794F27"></div><div class="name">onSurface</div><div class="hex">#794F27</div></div><div class="sw"><div class="chip" style="background:#6D6455"></div><div class="name">onSurfaceVariant</div><div class="hex">#6D6455</div></div></div>
+<h4>主色族（按钮 / FAB）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#0F766D"></div><div class="name">primary</div><div class="hex">#0F766D</div></div><div class="sw"><div class="chip" style="background:#8D5745"></div><div class="name">secondary</div><div class="hex">#8D5745</div></div><div class="sw"><div class="chip" style="background:#4E6E9E"></div><div class="name">tertiary</div><div class="hex">#4E6E9E</div></div><div class="sw"><div class="chip" style="background:#C94444"></div><div class="name">error</div><div class="hex">#C94444</div></div><div class="sw"><div class="chip" style="background:#E6F9F6"></div><div class="name">primaryContainer</div><div class="hex">#E6F9F6</div></div></div>
+<h4>语义角色（要点 / 想法 / 注意 / 待办）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#8A6A0F"></div><div class="name">要点</div><div class="hex">#8A6A0F</div></div><div class="sw"><div class="chip" style="background:#4C7A1D"></div><div class="name">想法</div><div class="hex">#4C7A1D</div></div><div class="sw"><div class="chip" style="background:#B4423F"></div><div class="name">注意</div><div class="hex">#B4423F</div></div><div class="sw"><div class="chip" style="background:#11655F"></div><div class="name">待办</div><div class="hex">#11655F</div></div></div>
+<h4>卡片身份色轮转</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#E59266"></div><div class="name">#0</div><div class="hex">#E59266</div></div><div class="sw"><div class="chip" style="background:#8AC68A"></div><div class="name">#1</div><div class="hex">#8AC68A</div></div><div class="sw"><div class="chip" style="background:#889DF0"></div><div class="name">#2</div><div class="hex">#889DF0</div></div><div class="sw"><div class="chip" style="background:#F7CD67"></div><div class="name">#3</div><div class="hex">#F7CD67</div></div><div class="sw"><div class="chip" style="background:#B77DEE"></div><div class="name">#4</div><div class="hex">#B77DEE</div></div><div class="sw"><div class="chip" style="background:#82D5BB"></div><div class="name">#5</div><div class="hex">#82D5BB</div></div><div class="sw"><div class="chip" style="background:#9A835A"></div><div class="name">#6</div><div class="hex">#9A835A</div></div></div>
+<h4>强调色板（8 档）</h4>
+<div class="row">
+<div class="sw"><div class="chip" style="background:#0F766D"></div><div class="name">青绿</div><div class="hex">#0F766D</div></div><div class="sw"><div class="chip" style="background:#B77DEE"></div><div class="name">绣球紫</div><div class="hex">#B77DEE</div></div><div class="sw"><div class="chip" style="background:#82D5BB"></div><div class="name">薄荷</div><div class="hex">#82D5BB</div></div><div class="sw"><div class="chip" style="background:#8AC68A"></div><div class="name">嫩芽绿</div><div class="hex">#8AC68A</div></div><div class="sw"><div class="chip" style="background:#F7CD67"></div><div class="name">阳光黄</div><div class="hex">#F7CD67</div></div><div class="sw"><div class="chip" style="background:#F8A6B2"></div><div class="name">樱花粉</div><div class="hex">#F8A6B2</div></div><div class="sw"><div class="chip" style="background:#736D60"></div><div class="name">温灰</div><div class="hex">#736D60</div></div><div class="sw"><div class="chip" style="background:#E59266"></div><div class="name">暖橙</div><div class="hex">#E59266</div></div></div>
+<h4>圆角阶梯</h4><div class="row">
+<div class="radius" style="border-radius:8px">XS<br><small>8dp</small></div><div class="radius" style="border-radius:14px">S<br><small>14dp</small></div><div class="radius" style="border-radius:20px">M<br><small>20dp</small></div><div class="radius" style="border-radius:26px">L<br><small>26dp</small></div><div class="radius" style="border-radius:34px">XL<br><small>34dp</small></div></div>
+<h4>对比度实测（文字需 ≥ 4.5，图形 ≥ 3.0）</h4>
+<table><tr><th>配对</th><th>实测</th><th>门槛</th><th>结果</th></tr>
+<tr><td>正文 / 背景</td><td class="num">6.65</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>正文 / 卡面</td><td class="num">6.36</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>次级文字 / 凹陷面</td><td class="num">4.78</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onPrimary / primary</td><td class="num">5.48</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onSecondary / secondary</td><td class="num">5.86</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onTertiary / tertiary</td><td class="num">5.19</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>onError / error</td><td class="num">4.78</td><td class="num">4.5</td><td class="ok">通过</td></tr>
+<tr><td>要点标记 / 卡面</td><td class="num">4.54</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>想法标记 / 卡面</td><td class="num">4.59</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>注意标记 / 卡面</td><td class="num">4.97</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>待办标记 / 卡面</td><td class="num">6.18</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#0 上的字</td><td class="num">7.16</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#1 上的字</td><td class="num">8.72</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#2 上的字</td><td class="num">6.74</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#3 上的字</td><td class="num">11.51</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#4 上的字</td><td class="num">5.95</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#5 上的字</td><td class="num">10.10</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+<tr><td>身份色#6 上的字</td><td class="num">4.78</td><td class="num">3.0</td><td class="ok">通过</td></tr>
+</table>
+<p class="dim small">ANIMAL_ISLAND/light · 由 palettePaint() 生成</p>
+</section>
+</body></html>

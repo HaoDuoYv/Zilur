@@ -86,6 +86,83 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
     }
     ```
 
+## AI 配置（多供应商）
+
+**一套配置 = 一个 `AiService`，列表存在 `AiSettings` 里**（`domain/model/AiService.kt`）。
+DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Preferences 键 ——
+服务是**列表**，拆键就得自己编号、还得处理删除留下的空洞。
+
+- **不预设模型清单**。早先的 `AiProvider` 给每个供应商挂 `textModels`/`visionModels` 硬编码清单，那是错的：模型增删比 app 发版快得多，清单过期后用户填不了新的、也删不掉下线的。**模型 ID 一律手填**，供应商预设（`AiVendorPreset`）只负责带出端点。
+- **只有一个 `model`，没有 `visionModel`**。早先分两个字段是因为默认了"识图要用专门的 VL 模型"；现在主流大模型一个就能同时处理文本和图片，逼用户填两个字段只会让人以为必须配两个服务。发图时用的就是 `model` 本身。
+- **端点永远可编辑**。`AiVendorPreset` 只是填表便利，不是白名单 —— 自建网关 / 中转站改端点即可。
+- `AiSettings.resolveActive()` **三层回退，顺序固定**：显式 `activeId` → 第一个启用的 → null。第二层不能省：用户删掉或停用当前服务时 `activeId` 会变成悬空引用，不回退就会出现"界面写着当前使用 X、实际一个请求都发不出去"。
+- `AiSettings.fallbackChain()` 是**去掉自己、从当前之后绕回队首**的启用服务序列，保证每个最多试一次。
+- **失败回退只在"一字未出"时发生**（`AiAssistantRepositoryImpl` 的 `hasEmitted`）。一旦往外吐过增量就不能换服务重来 —— 那会把两段回答接在一起，用户看到"两个模型各说了一半"。有 `AiSettingsTest` 钉住解析与回退链。
+- **旧单配置会自动迁移**（`UserPreferences.legacyAiSettings`）：只读一次旧的 `ai_endpoint`/`ai_api_key`/`ai_model` 键，且**只在 `ai_settings` 为空时**执行 —— 否则用户清空服务列表后旧配置会"复活"。
+- **AI 配置有独立入口**：`Destination.AiConfig`（「我的」→ AI 配置）。行尾用 `aiConfigSummary()` 写出「当前使用：X · 共 N 个」，三种状态各给一句（没接入 / 没可用的 / 正常）。
+- **一键切换在两处**：配置页点某一行即可切换（最高频动作不该藏在菜单里）；助手页顶栏下方的 `AiModelBar` 点开底部弹层切换。**模型条放在顶栏下方而不是挤进标题** —— 标题只承载"这是哪个页面"，模型是可切换的**状态**，混在一起用户会以为模型名是标题的一部分。
+- **AI 的三处列表一律是「胶囊块」，不是裸行**（配置页服务列表、切换层选项、顶部模型条）：块内左侧 `ProviderAvatar`（圆角方块 + 品牌色 + 首字），中间名字 + 供应商·模型，右侧操作。套一层胶囊是为了把"这是一个 AI"的边界画出来 —— 一行里同时有整块点击/开关/编辑/删除四个交互，裸行时它们就是四个散落图标，用户分不清点到哪是哪。
+  - **居中的写法有坑**：`Arrangement.Center` + `horizontalScroll` 是错的 —— 居中下横向滚动会把溢出部分推到屏幕外且**滚不回来**（滚动起点在内容中间），长名字直接消失。用 `widthIn(max = 220.dp)` 限宽。
+  - 也**别用"两侧等宽占位配平"**去把内容挤到中间：右侧的勾（图标 + 间距）比预估的占位宽，整组会偏左。让**整组作为一个单位**居中，别自己算。
+  - `ProviderAvatar` 取首字的规则是**先找 ASCII 再退回汉字**（`OpenAI` → `O`，`通义千问` → `通`）。用首字而不是真 logo：各家 logo 是注册商标，且要随包分发一堆矢量资源。
+  - 品牌色取各家主色，**认不出来的回落到主题主色**（与其编一个颜色，不如跟随外观）。
+- **`SettingsGroup` 的 `Spacing.Md` 是给"设置行"之间留的**，用在胶囊列表上会松得像散了架。列表处自己套一层 `Column(spacedBy(Spacing.Xs))` 重排。
+- **密钥没有额外加密**，就在 DataStore 里。UI 上必须**诚实标注**这一点（别说"本地加密存储"）：它保护不了 root 设备或已导出的备份。真要做需要 EncryptedSharedPreferences 或 Tink，是独立的一件事。
+- 改这块要跑：`AiSettingsTest`（解析与回退链）、`assembleDebug` + 真机看一眼配置页与切换层。
+
+## 主题与外观（三个正交维度，别混成一个开关）
+
+| 维度 | 类型 | 落库键 | 决定什么 |
+| --- | --- | --- | --- |
+| 外观 | `ThemePalette`（PAPER_INK / ANIMAL_ISLAND） | `theme_palette` | 长什么样：配色、圆角、卡片身份色轮转序 |
+| 明暗 | `ThemeMode`（SYSTEM / LIGHT / DARK） | `theme_mode` | 亮还是暗（每种外观自带浅深两套） |
+| 强调色 | `AccentColor`（8 档） | `accent_color` | `primary` 那一族 |
+
+- **色值全在 `ui/theme/ThemePalettes.kt`，存储层只放名字**（与 `AccentColor` 同一个道理）。`palettePaint(palette)` 返回一份 `PalettePaint`：浅深两套 `ColorScheme`、两套 `ExtendedColors`、`Shapes`、卡片身份色轮转序，外加**该外观自己的强调色表**。
+- **强调色的键在两套外观下一一对应、色值不同**：纸墨的 `CRIMSON` 是绛红，动森的 `CRIMSON` 是樱花粉。这样**切换外观不会丢用户已选的档位**（`AccentPaletteTest` 钉着"两套色值必须不同"）。
+- **圆角跟着外观走**（`PalettePaint.shapes`）：动森整体放大约 1.6 倍，"一切都是圆的"是它观感的一半。取圆角优先用 `MaterialTheme.shapes`，别直接写死 `RoundedCornerShape(12.dp)`。
+- **`cardAccentColor` 与 `accentRoles` 都要传 `palette`**（缺省是纸墨）：用户**改过**的卡片身份色（`stored != null`）原样保留——那是显式选择；没改过的按当前外观轮转，否则奶油底上会钉着 7 个纸墨深色。
+- **语义色分两种用途，取色函数也不同**：
+  - **小标记**（块级色条、gutter 圆点、设置页预览）走 `emphasisToneColor` → `PalettePaint.toneBlock`；
+  - **行内文字**走 `emphasisInkColor`（浅色用一套加深墨色，深色用 accent 的深色 primary）。
+  为什么不能都直接用 accent 的 `primary`：两者要满足的对比关系不同。动森的「蜂蜜」`#D9A441` 当按钮填充配深字很好看（6.16），但压在奶油底上当色条只有 **2.08** —— 等于色条消失（对照纸墨 5.67）。所以小标记另取一档更暗的暖金 `#A0741C`（3.04~3.88）。有 `toneBlockColorsAreVisibleOnEverySurface` 守着（门槛 3.0，图形按 WCAG 非文本要求）。
+  - 反过来说，**`emphasisInkColor` 那套墨色不随外观变**：实测在奶油底上 7.40~7.75、叠 20% 语义底色后仍 5.8+，再往亮里调反而掉到 4.5 以下。别为了"统一"去改它。
+- **只读行内路径在 `RichText` 里读一次 `LocalThemePalette`** 再往下传（`buildInlineLatexText` / `rememberInlineLatexContent` / `inlineToneSpanStyle` 都是普通函数或带默认值的，读不了 CompositionLocal）。**别让 8 个 `RichText` 调用点各传一遍** —— 那是漏一个就有一处配错颜色的做法。
+- **压在有填充色块上的文字一律走 `inkOnFill(fill)`，别写死 `Color.White`**（gutter 激活序号、语义色圆里的首字都踩过）。深色模式下主色是**提亮后**的浅色，白字实测只有 **1.68**（动森嫩叶绿）、2.01（纸墨浅墨蓝）、身份色圆上 2.64；浅色模式下这些恰好都该配白字，所以**这个缺陷只在深色模式露出来**。
+  - 阈值不是魔数：`FILL_LUMINANCE_FLIP` 是"白字与深字对比度相等"的那个填充亮度（解二次方程得来），取它就是"永远选更清楚的那一边"。
+  - **别自己写第二份亮度/对比度公式**：`contrastRatio(a, b)` 用 Compose 的 `Color.luminance()`。我另写了一份按 WCAG gamma 线性化的版本，与 Compose 口径差了近一倍（同一个 `#A8B8D2`：0.47 vs 0.72），于是"该配深字的亮底"被判成该配白字，阈值也定错了。
+  - 已知边界：中等明度填充两种字色都到不了 4.5（最多 3.0~3.4），是物理天花板；那两处是短标签，按 3.0 卡。要更高只能改填充色。
+- **`on*` 角色要用数值定，不能凭"浅色配白字"的直觉**。动森浅色的 `onSecondary`（桃粉上）白字只有 **2.62**、`onTertiary`（天蓝上）3.50、`onError` 4.45 —— 前两个换深墨后是 6.64 / 4.98，第三个把填充压深一档后白字 5.36。`AccentPaletteTest.printRecommendedOnColors` 会把每个填充的"当前值 vs 最佳值"打出来，调色时直接抄。
+- **标签颜色不跟外观走**：`tag.color` 是**落库数据**（建标签时从 `TagColors` 抽的），按外观重映射等于悄悄改用户数据。`AnimalIslandTagColors` 只给**新建**标签用。
+- **动森的「组件外观」不只是配色**（只改色值等于没换 UI —— 用户这么反馈过）。它有一套材质语言，统一落在 `PalettePaint.componentBorder`：**纸墨 = `Color.Unspecified`（无描边，靠阴影分层）；动森 = 有描边，靠描边立形状**。各组件读**这一个值**决定走"纸"还是走"塑料"，**不要各自去比 `ThemePalette.ANIMAL_ISLAND`**。
+  - `ui/component/ToySurface.kt` — **「玩具按钮」**：底下一层同色实心当"厚度"、上面那层抬起来当面，按下时面落到厚度上。参考仓库里 Button / Switch 手柄 / Checkbox **全都**用这个手法，是那套 UI"像玩具"的主要来源。**普通 `shadow()` 给不出这个效果** —— 阴影是虚的，厚度是实的。厚度色用 `shade(面色)`（同色相压暗，对应参考仓库 `ShadowBtn` 与面色 `BgColor` 的关系）。
+  - `AppCard` — 动森下加 2dp 描边 + `Modifier.shadow`（**暖褐** `spotColor`，不是中性黑；中性黑压米白底会发脏）+ 20dp 圆角；`irregular = true` 时换成**四角半径不等**的手作圆角。
+  - `AppSwitch`（`ui/component/AppSwitch.kt`）— 动森下自绘（胶囊轨道 + 2.5dp 描边 + 浮起手柄）；纸墨仍用 M3 `Switch`。**开启色用强调色而不是参考仓库的 `SuccessColor`**：绿色已被语义角色「想法」占掉，「一色一义」不允许再拿它当"开启"。
+  - `TagChip` / `SegmentedToggle` — 动森下加描边。
+  - `HomeSearchField` — 动森下胶囊 + 2.5dp 描边 + 底部厚度。**刻意不做参考仓库那种"聚焦整体上浮"**：布局盒高度不变、底部会空出 3dp 位移，字段密集处会看着在抖；这里只换描边色。
+- **`animalHandDrawnShape` 别再改回 `GenericShape` 手画贝塞尔**（`ui/theme/IrregularShape.kt`）。第一版照参考仓库 `Modal.kt` 的 `AnimalModalShape` 自己写了一整圈曲线，**四个角渲染成内凹的尖角**、卡片像被咬了一口 —— `GenericShape` 画错方向不报错，只安静地画出错形状，是**真机截图**才发现的。现在用 `RoundedCornerShape` 逐角指定不等半径：观感来源相同（不等角半径才是"手作感"的真来源），路径交给框架生成就不会写反。
+- **`ColorScheme` 的"没显式给的角色"会落到 material3 的默认值上，而那是淡紫**。踩过：`ModalBottomSheet` 的容器读的是 `surfaceContainerLow`，我没设过，于是真机上新建弹层的底色是 `#F7F2FA`（两套外观都没有这个色）。M3 的**组件**（底部弹层 / 菜单 / 对话框 / 滚动条）会读 `surfaceContainerLowest…Highest`、`surfaceBright`、`surfaceDim`、`inverseSurface`、`inverseOnSurface`、`inversePrimary`、`surfaceTint`，**两套外观都要显式给全**（纸墨与动森各一组，见 `ThemePalettes.kt`）。
+  - 判据不是"代码里有没有引用"，而是"**M3 组件会不会读**"——上面那些角色在 app 代码里 grep 不到，但组件内部在读。
+- **`ToySurface` 的高度是显式参数（`faceHeight`），别改回 `matchParentSize()`**。第一版靠它对齐两层，外层若没有固定尺寸（比如只有 `wrapContentSize` 的圆钮）厚度层就退化成 0 高度、**按钮整个消失**。现在高度由参数决定，外层尺寸从它推出来，不存在这条退化路径。改这个签名时记得同步 `BottomBar` 的调用点。
+- **代码块用"深色终端"配色，两套外观都是**（`PalettePaint.codeSurface` / `onCodeSurface` / `codeBorder`）。参考仓库的 `AnimalCodeBlock` 就是 `#2B2118` 底 + `#E8D5BC` 字（配字对比 11.01），而它的浅色主题也用这套。理由是代码块**越像另一个世界越好**：它和正文性质不同，用浅底会跟周围卡片糊在一起。
+  - 顺带修掉纸墨原来的问题：它之前拿 `surfaceVariant` 当代码底，也就是**灰底灰字**，跟卡片只差一档明度、几乎看不出是个代码块。
+  - 导出端（`HtmlExporter` 的 `<pre>`）跟着改成同一组色值，并有 `exportNote_codeBlockUsesTerminalPalette` 守着 —— **导出件与 app 里看到的必须是同一个东西**。
+  - 动森深色下代码底 `#1B1510` 与卡面 `#2E251C` 只差 1.20，光靠明度分不开，所以**描边是必需的**（`#8A7B66`，与卡面 3.65）。
+- **分割线在动森下画成波浪**（`ui/component/WaveDivider.kt`）。参考仓库是位图（`wave_yellow`）且按 `FillHeight` 拉伸；这里改成**现画的正弦波**：位图在高密度屏会糊、拉到别的宽度上浪形会被压扁、而且两套外观得各备一张图。**波峰数按宽度算而不是写死个数**，所以容器多宽浪的疏密都一样。
+- **`GeneratingBadge` 的指示器跟着外观换**：纸墨是 M3 转圈；动森是**三颗挨个弹起的小球**（`BouncingDots`）。刻意**不是转圈** —— 动森那套东西没有"旋转"这个语汇，它的一切都是浮、沉、弹。
+  - **没有照搬参考仓库的 `IslandAnimation`**（会摇的树 + 游动的鱼）：那是主视觉动画，几百行矢量路径、还用 `System.currentTimeMillis()` 驱动鱼，塞进一个 12dp 高的徽章里完全看不出是什么，却会拖慢每次重组。取的是它的**动势**，不是它的实现。
+- **改完外观必须在真机上看一眼**：`lintDebug` 与 481 条单测全绿也照不出"形状画反了""底色是淡紫"这类问题。两轮都是靠截图才发现的。
+- **模拟器的合成点击测不了 Compose 的展开态**：`adb shell input tap` 打不开知识卡片（点箭头、点卡片都试过，截图逐像素相同）。要看展开后的块，别在这上面磨 —— 直接把待验的块 `sortOrder` 改成负数（提到最前）重开，或者走导出路径用文本断言。改完记得把注入的测试块删掉。
+- **外观有独立入口**：`Destination.Appearance`（"我的" → 配色与主题）。外观项已经长到三组 + 配色缩略卡，混在设置长列表里既难找也没空间。入口行尾用 `appearanceSummary()` 写出「当前外观 · 明暗」，不进去也知道现在是什么。
+- **动森的色值来自参考仓库 `E:\study\gitproject\ui\AnimalIslandUI` 的 `theme/Color.kt`**（`ml.liuyuhong.animalislandui`）：
+  - **直接用原值的**：`BgColor #F8F8F0`（页面底，原来是凭观感调的 `#FBF6E9`）、`TextColor #794F27`（正文暖褐）、`BgColorContent #F7F3DF`、`BgColorSecondary #F0E8D8`、`BorderColorLight #C4B89E`、`PrimaryColorBg #E6F9F6`，以及 `App*` 那组 NookPhone 图标色用作**卡片身份色轮转**与**强调色板**。
+  - **必须改值才能用的**：参考实现是展示型 UI，不承担正文对比度。它的 `PrimaryColor #19C8B9` 配白字只有 **2.10**、`TextColorSecondary #9F927D` 只有 **2.86**、`SuccessColor` 2.25、`FocusYellow` 1.55、`WarmPeachPink` 2.40。这些都**按同一色相压暗**到过线（青绿 → `#0F766D`，次级文字 → `#6D6455` 等），保留"同一个游戏"的观感。
+  - **参考仓库没有暗色方案**（只有 `values-night/themes.xml`，无 `colors.xml`），所以动森的深色是**按它的品牌色相推的**：青绿提亮、底色取"夜色暖褐"而不是把米白压黑。
+  - **一动参考值就要回去量**：参考的 `#E18C6F` 压到 `#B37059` 时落进了"白字 3.90 / 深字 4.46"的中等明度带，两种字色都到不了 4.5，得再压一档到 `#8D5745`。
+- **新配色必须过对比度测试**（`AccentPaletteTest`，WCAG 相对亮度，门槛 4.5）：逐对检查 8 档强调色 × 2 套外观 × 浅深 ×（实心主色 + 容器色），外加背景/卡面/凹陷面上的正文与次级文字。**动森这套前后被它挡下来七次**——叶绿配白字 3.46、绣球紫 4.12、薄荷 2.84、苔绿 3.30、樱花粉 3.07、珊瑚 3.13、温灰 4.39，肉眼完全看不出来，全是量出来才发现的。已知例外只有纸墨浅色的次级文字（4.10，见 `acceptedShortfalls`），**逐条列出而不是整体放行**。
+- **`docs/theme/` 下有预览页与真机截图**：`palette-preview.html` 由 `ThemePreviewGeneratorTest` 从 `palettePaint()` 直接生成（与真机同源），改色后重跑该测试再截图即可。设备不在手边时用它看配色。
+- 组件里读 `LocalThemePalette` 即可，由 `ZhiLuTheme` 一处下发，别逐层传参。
+
 ## 行内标记与语义强调（这一块最容易改错）
 
 三套**刻意取值分离**的颜色系统，改任何一套前先确认改的是哪一套：
