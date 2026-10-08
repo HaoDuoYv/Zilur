@@ -107,6 +107,7 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
   - `ProviderAvatar` 取首字的规则是**先找 ASCII 再退回汉字**（`OpenAI` → `O`，`通义千问` → `通`）。用首字而不是真 logo：各家 logo 是注册商标，且要随包分发一堆矢量资源。
   - 品牌色取各家主色，**认不出来的回落到主题主色**（与其编一个颜色，不如跟随外观）。
 - **`SettingsGroup` 的 `Spacing.Md` 是给"设置行"之间留的**，用在胶囊列表上会松得像散了架。列表处自己套一层 `Column(spacedBy(Spacing.Xs))` 重排。
+- **`maxTokens` 是「思考 + 正文」的总预算**：推理模型（会输出 `reasoning_content` 的那些）的思考 token 也算在内 —— 给它 2048 等于正文没额度可用，详见「AI 流式响应」一节。
 - **密钥没有额外加密**，就在 DataStore 里。UI 上必须**诚实标注**这一点（别说"本地加密存储"）：它保护不了 root 设备或已导出的备份。真要做需要 EncryptedSharedPreferences 或 Tink，是独立的一件事。
 - 改这块要跑：`AiSettingsTest`（解析与回退链）、`assembleDebug` + 真机看一眼配置页与切换层。
 
@@ -230,6 +231,16 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
   - **切会话 / 新建对话不要手动清任务字段**（旧实现这么干，顺手把互斥信号一起清了）。会话隔离由 `activeTask` 的派生天然完成。
   - 新建会话的「回流」（任务解析出会话 id 后把视图带过去）只认**本 VM 提交**的那条任务（`pendingOwnTaskId`），否则刚点开空白对话的用户会被别人的任务拽走；用户主动切会话/新建对话时作废这个标记。
 - 当前会话与输入草稿镜像进 `SavedStateHandle`（`persistDraft()` 一处集中镜像，别在六七个写入点各写一遍）。
+
+## AI 流式响应（结束判定 / 空产出 / 截断）
+
+- **「流读完了」不等于「流正常结束」**：`LlmApiClient.chatStream` 原先用 `readUtf8Line() ?: break` 收尾 —— 连接被提前关闭时循环"正常"退出，空文本走成功路径落库成一条 **0 长度 ASSISTANT 消息**（界面一个空白气泡，且不报错）。结束判定现在集中在 `SseStreamAssembler`：收到 `data: [DONE]` **或**某个分片带 `finish_reason` 才算正常结束，否则 `finish()` 抛错。改这里先读 `SseStreamAssemblerTest`。
+- **正常结束但既没正文也没工具调用，同样是失败**："成功但空"只会变成空白气泡（历史 bug：`ai_messages` 里那几条 `length=0` 的 ASSISTANT）。
+- **`finish_reason == "length"` 一律当失败**：被 `max_tokens` 截断的回答不可信 —— 正文可能只说了一半，工具调用的 arguments JSON 也可能是残的。给的是可执行提示（去 AI 配置调大上限），而不是把半句话当结果存下来（半截回复留在会话里只会被当成完整结果看）。
+- **推理模型的思考 token 也计入 `max_tokens`**（「回答莫名其妙只有开头几个字」的根因）。真机实证：`glm-5.3` 一次小问题的 `reasoning_content` 就吃掉 1599 token（`maxTokens: 2048` 时正文只剩 3 个字）；同一个模型被要求写 1200 词长文时 **8190/8192 token 全用在思考上、正文只吐出 1 个字符**（`finish_reason=length`），而 DashScope 上该模型的思考**关不掉**（`enable_thinking` 只接受 `True`）。
+  - `DeltaDto` 目前**只读 `content`**、丢掉 `reasoning_content`：思考期间界面只有状态条的「AI 正在生成…」，不会卡死，但也看不到进展。要接思考展示得先把它加进 `DeltaDto` 与聚合器。
+  - 配推理模型时 `maxTokens` 要给「思考 + 正文」的总预算（按上万给），长文场景更建议换非推理模型。
+- **HTTP 200 但流里塞的是错误对象**（`{"error":{...}}`，如额度耗尽）时 `accept()` 直接把服务端原话抛出去，不再被当成"没有内容的正常响应"吞掉。
 
 ## AI 引用与引用回复（两条独立链路）
 
