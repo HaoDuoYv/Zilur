@@ -221,6 +221,24 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
 - 任何写入都会**重建块 id**，工具描述里已写明"先用 get_note 取最新 id"。
 - 标题（笔记标题、小节标题）是纯文本，**必须过 `stripMarkup`**；正文才走 `normalize` 保留标记。
 
+## AI 任务与互斥（全局单任务）
+
+- **同一时刻只允许一条生成任务**：`AiTaskManager.submit()` 里的 `synchronized(submitLock)` 是唯一裁决点，返回 `AiSubmitResult.Accepted/Rejected`。UI 的 `isGenerating` 只是**显示投影**，不再承担门控职责——它由 `taskManager.state` 异步回填，拿它当锁一定有空窗期（真机 bug：任务还在跑却允许再发一条）。
+  - 被拒时**不产生任何副作用**：`AssistantViewModel` 保留输入框、图片、引用，只弹提示。别在 Rejected 分支里清输入。
+  - 已完成的任务**留在任务表里但不算活跃**（`AndroidAiTaskHost` 靠差集发通知、笔记页靠「刚成功完成」消费结果），所以别写「任务完成就把它删掉」。
+- `AssistantUiState` 只存一份任务（`runningTask`，全局唯一），其余全部派生：`isGenerating`（全局，输入栏显示「停止」）/ `activeTask`（属于当前会话，渲染流式气泡）/ `isStreamingVisible`（本会话在生成，滚动锚点与工具高亮）。
+  - **切会话 / 新建对话不要手动清任务字段**（旧实现这么干，顺手把互斥信号一起清了）。会话隔离由 `activeTask` 的派生天然完成。
+  - 新建会话的「回流」（任务解析出会话 id 后把视图带过去）只认**本 VM 提交**的那条任务（`pendingOwnTaskId`），否则刚点开空白对话的用户会被别人的任务拽走；用户主动切会话/新建对话时作废这个标记。
+- 当前会话与输入草稿镜像进 `SavedStateHandle`（`persistDraft()` 一处集中镜像，别在六七个写入点各写一遍）。
+
+## AI 引用与引用回复（两条独立链路）
+
+- **引用知识内容**（笔记/卡片/块）：内容在**点引用那一刻**由 `AiRefSnapshot` 格式化成 `AiRef.snapshot` 冻存，**不按 id 回查**——编辑器 id 是内存坐标（新建为负、`saveInternal` 不回写主键），按 id 查必然 miss。只有快照为空（老数据/异常入口）才走 `ensureRefSnapshots` 的按 id 兜底。
+  - 快照随消息落库（`ai_messages.refsJson`），历史回看时用户气泡顶部渲染引用 chips；去重按 `targetKey()`（`distinctByTarget`），不要用 `equals`（同一目标不同时刻的快照不相等）。
+- **引用消息**（IM 式引用回复）：只存 `quotedMessageId`（同会话内自洽），正文在请求组装时按 id 从历史里现取——抄一份副本只会多一份可能过期的内容。
+- 两条链路都注入 **user 消息本体**（`data/ai/AiUserMessageText.kt`），顺序固定：引用内容 → 引用的消息 → 用户问题 → 附件。**不要再往 system prompt 里塞引用**：超长提示词末尾的上下文会被模型当背景噪音（真机表现是「引用了，但它当没看见」）。`SYSTEM_PROMPT` 里的【用户引用】规则段是配套说明，别删。
+- 请求组装时**所有带 refs 的历史消息都会注入**（不只最新一条），否则「把它整理成卡片」这类追问轮会丢源材料。
+
 ## 约定（与默认不同或容易踩坑）
 
 - Commit：`feat:` / `fix:` / `refactor:` / `docs:` / `test:` / `style:` / `chore:`（见 `CHANGELOG.md`、git log）。
@@ -237,14 +255,16 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
   - 所以**行左划/右划露出操作槽时不需要再收起任何悬浮件** —— 以前 FAB 会压住删除键，`HomeScreen` 里那段"露出态隐藏 FAB"的联动已随 FAB 一起移除。若哪天把 FAB 加回来，记得把这层联动也加回来。
   - ＋ 上浮 24dp，必须画在底栏 `Surface` **之外**：Surface 会把内容裁到边界内，放在里面只剩半个圆（真机第一版就是这样）。
 - 设置页只留**导出**；导入（JSON / .dtk）在 ＋ 的弹层里。逻辑本体在两个共用用例：`RestoreJsonBackupUseCase`、`ImportKnowledgeUseCase`。
-- 「AI 创建」= 跳助手页并把输入框预填成「帮我创建：」，靠助手路由的可选参数 `assistant?prefill=`。
-- **`Destination.path` 与 `Destination.route` 是两件事，别混用**：`path` 是在 NavHost 里注册的**路由模板**（助手页是 `assistant?prefill={prefill}`），`route` 才是拿去 `navigate()` 的**实际路由**（`assistant`）。混用的两种翻车这轮都踩了：拿模板比选中态 → 助手页被判定为非平级页、**底栏整条消失**；拿模板去 navigate → `{prefill}` 被当字面值传进去，**输入框里出现 `{prefill}` 这行字**。涉及助手页的三处（`TopLevelRoutes`、底栏 `isOn`、`switchTopLevel`）都必须用 `route`。
+- 「AI 创建」= 投一句「帮我创建：」到进程级 `AiPromptHandoff`，再走一次**普通底栏切换**到助手页（`navigateToAssistant()`）；助手页 ViewModel 观察 `prompt` 落进输入框、用完即清。
+  - **跨页交接一律不要用路由参数**（助手页曾经的 `assistant?prefill=` 已删）：带参数的路由每次都是一次**新导航 entry**，会造出第二个 ViewModel，把正在跑的生成、当前会话、输入草稿全部重置（真机 bug：「任务在后台跑，切回来是一张白纸」）；而「不经过导航、直接拼路由串」的入口（通知跳转）还会把 `{prefill}` 这种**模板占位符**当字面值填进输入框。同类交接用进程级单例：引用走 `AiRefManager`，开场白走 `AiPromptHandoff`。
+  - 通知/提醒跳助手页也走 `navigateToAssistant()`（`launchSingleTop + restoreState`），**别裸 `navigate("assistant")`**——会压入第二个助手页实例；冷启动则固定 **home 起栈 + 构图后 push**（把目标页当 `startDestination` 会让返回键从助手页直接退出应用），配置变更重建时不再重复导航。
+- **`Destination.path` 与 `Destination.route` 是两件事，别混用**：`path` 是在 NavHost 里注册的**路由模板**（还剩 `note/{noteId}` 一个带参数的页面），`route` 才是拿去 `navigate()` 的**实际路由**。混用的两种翻车都踩过：拿模板比选中态 → 页面被判定为非平级页、**底栏整条消失**；拿模板去 navigate → `{noteId}` 这类占位符被当字面值传进去。`TopLevelRoutes`、底栏 `isOn`、`switchTopLevel`、通知跳转都必须用 `route`。
 - 底栏 tab 的选中态**只改颜色**（原型 `.nav .tab.cur{color:var(--accent)}`，没有胶囊背景）；图标另做成对切换（实心 ↔ 描边）——纯靠颜色表达选中，对色觉障碍与灰度屏是失效的。
 - **小节默认收起，但两种状态都能展开**：`CardMapper.toDomain` 显式 `isExpanded = false`，打开笔记先看到目录（标题 + 摘要 + 收起箭头）。`KnowledgeCard.isExpanded` 的默认值仍是 `true`，那是给"扁平笔记的隐式单卡"用的（只有一节时收起等于什么都看不见）。
   - 点一张收起的小节会顺手把它展开；**只读态同样有效**（`KnowledgeCardItem` 的 `clickable` 只按 `!isGenerating` 门控，`onFocus` 才判 `isEditing`）。
   - 曾经只读态整卡不可点（`enabled = isEditing`），后果是 **AI 刚建的笔记点进去全是空壳卡片** —— 小节默认收起 + 只读态展不开 = 用户以为没生成内容。别再把它锁回去。
   - 展开状态是**会话态**：没有落库列，重开笔记回到目录。
-- **只读正文可选中复制**（`SelectableBlockText`）：`SelectionContainer` 提供划词与系统复制工具栏；长按不动弹块级菜单（复制 / 引用到 AI）。TEXT 块与**分支标题**都用它。
+- **只读正文可选中复制**（`SelectableBlockText`，手势本体在 `ui/component/LongPressSelectableText.kt`）：`SelectionContainer` 提供划词与系统复制工具栏；长按不动弹菜单（条目由调用方给）。TEXT 块与**分支标题**用它，**助手页消息气泡也用它**（条目是「复制全文 / 引用」）。
   - **三个动作必须共存，靠"是否消费事件"分流，顺序不能换**：① 点一下 → **不消费**，让事件往上冒给祖先的 clickable（分支标题靠它展开、正文块靠它展开所属小节）；② 长按后拖动 → 交给 `SelectionContainer` 划词；③ 长按不动 → 弹块级菜单，**只有这一种情况才消费事件**（否则祖先会把长按当成点击，展开态乱跳）。
   - **不要用 `combinedClickable(onClick = {})` 挂菜单**：那个空 `onClick` 会把点击**消费掉**，祖先的 clickable 收不到 —— 表现是"点一下没反应"（真机实测：分支标题点不动、正文块点不开小节）。必须用裸 `pointerInput`。`FormulaProbeActivity` 的 F 段并列了正确与错误两种写法，改这里之前先看那一屏。
   - **不要把块级菜单挂在最外层**（`ReadOnlyBlock` 曾经的 `detectTapGestures(onLongPress = …)`）：父级指针输入先于子级收到事件，外层一旦认领长按，`SelectionContainer` 的选区永远起不来 —— "文字看着能选、实际选不动"。
