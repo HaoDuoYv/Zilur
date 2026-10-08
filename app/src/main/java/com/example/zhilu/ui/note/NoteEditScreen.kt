@@ -74,6 +74,7 @@ import com.example.zhilu.ui.note.knowledge.CardStickyBar
 import com.example.zhilu.ui.note.knowledge.CardStickyThreshold
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.navigation.Destination
+import com.example.zhilu.ui.navigation.LocalAppIntents
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.navigation.navigateToAssistant
 import com.example.zhilu.ui.note.blocks.PastePositionSheet
@@ -112,6 +113,15 @@ fun NoteEditScreen(
     // 底部工具栏「标记」→ 编辑器 的指令通道（§3.8）
     val markChannel = remember { MarkChannel() }
     var previousCardCount by remember { mutableIntStateOf(0) }
+    val intents = LocalAppIntents.current
+
+    // 复习中心「开始复习」→ 打开本笔记时自动弹出复习面板。
+    // 意图只对本笔记生效（其他笔记不消费、不误弹）；noteId 从占位 0 变为真实值后触发。
+    LaunchedEffect(state.noteId) {
+        if (state.noteId > 0L && intents.consumeReviewSheetNoteId(state.noteId)) {
+            showReviewSheet = true
+        }
+    }
 
     LaunchedEffect(state.cards.size) {
         if (state.cards.size > previousCardCount && previousCardCount > 0) {
@@ -126,7 +136,7 @@ fun NoteEditScreen(
         onResult = { granted ->
             if (!granted) {
                 coroutineScope.launch {
-                    snackbar.showSnackbar("通知权限未开启，可在提醒中心查看到期项目")
+                    snackbar.showSnackbar("通知权限未开启，可在复习中心查看到期项目")
                 }
             }
         }

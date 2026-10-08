@@ -6,7 +6,9 @@ import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderType
+import com.example.zhilu.domain.model.ReminderWithContext
 import com.example.zhilu.domain.model.ReviewPlan
+import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.model.TodoItem
@@ -322,6 +324,13 @@ private class TodoTestTodoRepository(
         completedIds += id
         return RepositoryResult.Success(Unit)
     }
+
+    override suspend fun updateRemindAt(
+        id: Long,
+        remindAt: Long?,
+        updatedAt: Long
+    ): RepositoryResult<Unit> =
+        RepositoryResult.Success(Unit)
 }
 
 private class TodoTestReminderRepository : ReminderRepository {
@@ -330,6 +339,9 @@ private class TodoTestReminderRepository : ReminderRepository {
     val canceled = mutableListOf<Pair<ReminderType, Long>>()
 
     override fun observeAll(): Flow<RepositoryResult<List<ReminderInstance>>> =
+        flowOf(RepositoryResult.Success(emptyList()))
+
+    override fun observeAllWithContext(): Flow<RepositoryResult<List<ReminderWithContext>>> =
         flowOf(RepositoryResult.Success(emptyList()))
 
     override suspend fun getDueReminders(now: Long): RepositoryResult<List<ReminderInstance>> =
@@ -407,7 +419,7 @@ private class TodoTestNoteRepository(
     override suspend fun getNoteById(id: Long): RepositoryResult<Note?> =
         RepositoryResult.Success(note?.takeIf { it.id == id })
 
-    override suspend fun searchNotes(keyword: String): RepositoryResult<List<Note>> =
+    override suspend fun searchNotes(keyword: String, tagIds: List<Long>): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =
@@ -441,6 +453,14 @@ private class TodoTestNoteRepository(
 private class TodoTestReviewRepository : ReviewRepository {
     override suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?> =
         RepositoryResult.Success(null)
+
+    override fun observePlans(): Flow<RepositoryResult<List<ReviewPlanWithNote>>> =
+        flowOf(RepositoryResult.Success(emptyList()))
+
+    override fun observeEventCountSince(since: Long): Flow<Int> = flowOf(0)
+
+    override suspend fun enablePlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan> =
+        RepositoryResult.Success(ReviewPlan(noteId = noteId, nextReviewAt = now))
 
     override suspend fun startPlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan> =
         RepositoryResult.Success(ReviewPlan(noteId = noteId, nextReviewAt = now + 86_400_000L))

@@ -59,6 +59,17 @@ val LocalAppSnackbar = staticCompositionLocalOf<SnackbarHostState> {
 val LocalSuppressBottomBar = staticCompositionLocalOf<(Boolean) -> Unit> { {} }
 
 /**
+ * 跨页一次性意图的下发点（见 [AppIntents]）。
+ *
+ * 页面在 CompositionLocal 里取用而不是逐层传参：AppShell → AppNavHost → 各页的
+ * 参数链太长，且写意图的页面（首页铃铛 / 设置页入口 / 复习中心）与读意图的
+ * ViewModel 并不在同一层。
+ */
+val LocalAppIntents = staticCompositionLocalOf<AppIntents> {
+    error("LocalAppIntents is not provided. Wrap the content with AppShell.")
+}
+
+/**
  * 唯一的根 Scaffold：
  * - 只在底部导航平级页（[TopLevelRoutes]）显示底栏；
  * - 键盘弹出时隐藏底栏，避免遮挡输入；
@@ -72,6 +83,7 @@ fun AppShell(
     startDestination: String = Destination.Home.path,
     aiTaskManager: AiTaskManager,
     promptHandoff: AiPromptHandoff,
+    appIntents: AppIntents,
     createSheetViewModel: CreateSheetViewModel = hiltViewModel()
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -157,7 +169,8 @@ fun AppShell(
                 val bottomPadding = if (isTopLevel) inner.calculateBottomPadding() else 0.dp
                 CompositionLocalProvider(
                     LocalAppSnackbar provides snackbarHostState,
-                    LocalSuppressBottomBar provides { bottomBarSuppressed = it }
+                    LocalSuppressBottomBar provides { bottomBarSuppressed = it },
+                    LocalAppIntents provides appIntents
                 ) {
                     AppNavHost(
                         navController = navController,

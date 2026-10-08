@@ -24,14 +24,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
-import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.automirrored.outlined.Article
-import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -56,7 +56,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.zhilu.ui.component.ZhiLuDivider
@@ -84,11 +83,13 @@ private fun bottomTabs(): List<BottomTab> = listOf(
         selectedIcon = Icons.AutoMirrored.Filled.Article,
         unselectedIcon = Icons.AutoMirrored.Outlined.Article
     ),
+    // 第二格曾是「标签」：标签的终点是筛选，而筛选天然属于搜索，
+    // 整格底栏交给"筛选器的管理页"偏重；这里换成复习中心（复习计划 + 提醒）。
     BottomTab(
-        destination = Destination.Tags,
-        label = "标签",
-        selectedIcon = Icons.AutoMirrored.Filled.Label,
-        unselectedIcon = Icons.AutoMirrored.Outlined.Label
+        destination = Destination.Review,
+        label = "复习",
+        selectedIcon = Icons.Filled.Style,
+        unselectedIcon = Icons.Outlined.Style
     ),
     BottomTab(
         destination = Destination.Assistant,
@@ -142,7 +143,7 @@ fun BottomBar(
                     BottomTabItem(
                         tab = tab,
                         selected = currentDestination.isOn(tab.destination),
-                        onClick = { navController.switchTopLevel(tab.destination) }
+                        onClick = { navController.navigateTopLevel(tab.destination) }
                     )
                 }
 
@@ -154,7 +155,7 @@ fun BottomBar(
                     BottomTabItem(
                         tab = tab,
                         selected = currentDestination.isOn(tab.destination),
-                        onClick = { navController.switchTopLevel(tab.destination) }
+                        onClick = { navController.navigateTopLevel(tab.destination) }
                     )
                 }
             }
@@ -172,16 +173,6 @@ private fun NavDestination?.isOn(destination: Destination): Boolean =
     this?.hierarchy?.any {
         it.route?.substringBefore('?') == destination.route.substringBefore('?')
     } == true
-
-/** 以与底栏一致的选项切到某个平级页（避免返回栈膨胀）。 */
-private fun NavHostController.switchTopLevel(destination: Destination) {
-    // 必须用 route（去掉模板的那一份）：用 path 会把 `{noteId}` 这类占位符当字面值传进去。
-    navigate(destination.route) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
-        launchSingleTop = true
-        restoreState = true
-    }
-}
 
 /**
  * 中央创建项：一枚与底栏**平齐**的小圆角按钮，里面只有一个 ＋（无文字）。

@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.home.formatTime
 import com.example.zhilu.ui.home.notePreviewText
 import com.example.zhilu.ui.theme.Spacing
@@ -39,6 +40,7 @@ enum class NoteRowVariant { Document, Card }
  *   因此卡片形态不带书脊，标签色在标签行里照样看得到。
  * @param accentColor 书脊颜色，默认取首个标签色；仅 Document 形态使用。
  * @param dense 紧凑模式：摘要收为单行、隐藏标签与元信息。
+ * @param onTagClick 非空时行内标签胶囊可点（点标签 = 用该标签筛选）。
  */
 @Composable
 fun NoteRow(
@@ -50,7 +52,8 @@ fun NoteRow(
     dense: Boolean = false,
     trailing: @Composable (() -> Unit)? = null,
     onClick: () -> Unit = {},
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    onTagClick: ((Tag) -> Unit)? = null
 ) {
     val titleStyle = when (variant) {
         NoteRowVariant.Document -> ZhiLuType.rowTitle
@@ -69,7 +72,8 @@ fun NoteRow(
                 titleStyle = titleStyle,
                 highlightQuery = highlightQuery,
                 dense = dense,
-                trailing = trailing
+                trailing = trailing,
+                onTagClick = onTagClick
             )
         }
     } else {
@@ -88,7 +92,8 @@ fun NoteRow(
                 titleStyle = titleStyle,
                 highlightQuery = highlightQuery,
                 dense = dense,
-                trailing = trailing
+                trailing = trailing,
+                onTagClick = onTagClick
             )
         }
     }
@@ -101,6 +106,7 @@ private fun NoteRowBody(
     highlightQuery: String,
     dense: Boolean,
     trailing: @Composable (() -> Unit)?,
+    onTagClick: ((Tag) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val preview = notePreviewText(note).orEmpty()
@@ -132,7 +138,11 @@ private fun NoteRowBody(
             )
         }
         if (!dense && note.tags.isNotEmpty()) {
-            NoteTagsLine(tags = note.tags, modifier = Modifier.padding(top = Spacing.RowGapGroup))
+            NoteTagsLine(
+                tags = note.tags,
+                modifier = Modifier.padding(top = Spacing.RowGapGroup),
+                onTagClick = onTagClick
+            )
         }
         if (!dense) {
             MetaLine(parts = noteMetaParts(note), modifier = Modifier.padding(top = Spacing.RowGapMeta))

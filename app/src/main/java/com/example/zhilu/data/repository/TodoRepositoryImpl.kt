@@ -36,4 +36,13 @@ class TodoRepositoryImpl(
             )
         )
     }.toRepositoryResult("Failed to complete todo")
+
+    override suspend fun updateRemindAt(
+        id: Long,
+        remindAt: Long?,
+        updatedAt: Long
+    ): RepositoryResult<Unit> = runCatching {
+        val todo = todoDao.getById(id)?.let(TodoMapper::toDomain) ?: return@runCatching
+        todoDao.update(TodoMapper.toEntity(todo.copy(remindAt = remindAt, updatedAt = updatedAt)))
+    }.toRepositoryResult("Failed to update todo reminder")
 }

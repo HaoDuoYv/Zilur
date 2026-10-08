@@ -5,15 +5,29 @@ import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.mapper.ReviewMapper
 import com.example.zhilu.domain.model.ReviewEvent
 import com.example.zhilu.domain.model.ReviewPlan
+import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.reminder.ReviewSchedulePolicy
 import com.example.zhilu.domain.repository.ReviewRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 
 class ReviewRepositoryImpl(
     private val reviewDao: ReviewDao,
     private val schedulePolicy: ReviewSchedulePolicy,
     private val transactionRunner: RepositoryTransactionRunner
 ) : ReviewRepository {
+    override fun observePlans(): Flow<RepositoryResult<List<ReviewPlanWithNote>>> =
+        reviewDao.observePlansWithNote()
+            .map { rows ->
+                RepositoryResult.Success(rows.map(ReviewMapper::toDomainWithNote))
+                    as RepositoryResult<List<ReviewPlanWithNote>>
+            }
+            .catch { e -> emit(RepositoryResult.Error("Failed to load review plans", e)) }
+
+    override fun observeEventCountSince(since: Long): Flow<Int> = reviewDao.countEventsSince(since)
+
     override suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?> = runCatching {
         reviewDao.getPlanByNoteId(noteId)?.let(ReviewMapper::toDomain)
     }.toRepositoryResult("Failed to load review plan")
@@ -61,6 +75,19 @@ class ReviewRepositoryImpl(
             }
         }
     }.toRepositoryResult("Failed to start review plan")
+
+    override suspend fun enablePlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan> = runCatching {
+        val existing = reviewDao.getPlanByNoteId(noteId)?.let(ReviewMapper::toDomain)
+            ?: error("Review plan not found for note $noteId")
+        val resumed = existing.copy(
+            enabled = true,
+            nextReviewAt = now,
+            updatedAt = now,
+            completedAt = null
+        )
+        reviewDao.updatePlan(ReviewMapper.toEntity(resumed))
+        resumed
+    }.toRepositoryResult("Failed to enable review plan")
 
     override suspend fun recordReview(
         plan: ReviewPlan,

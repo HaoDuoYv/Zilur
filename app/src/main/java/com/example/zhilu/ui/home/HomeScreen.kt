@@ -39,12 +39,21 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.MetaLine
 import com.example.zhilu.ui.component.RowReveal
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
+import com.example.zhilu.ui.navigation.LocalAppIntents
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.navigation.navigateToReview
+import com.example.zhilu.ui.navigation.navigateToSearchTag
+import com.example.zhilu.ui.review.ReviewTab
+import com.example.zhilu.ui.search.TagDeleteDialog
+import com.example.zhilu.ui.search.TagFilterBar
+import com.example.zhilu.ui.search.TagManageSheet
+import com.example.zhilu.ui.search.TagRenameDialog
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
 import com.example.zhilu.ui.theme.MotionEasing
@@ -61,6 +70,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbar = LocalAppSnackbar.current
+    val intents = LocalAppIntents.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val motion = !LocalReducedMotion.current
@@ -68,6 +78,10 @@ fun HomeScreen(
     var searchFocused by remember { mutableStateOf(false) }
     // 滑动露出的操作槽：同一时刻至多一行，列表层统一持有。
     var reveal by remember { mutableStateOf<RowReveal?>(null) }
+    // 标签管理：重命名 / 删除对话 + 管理弹层（标签页撤销后接管其"管理"职责）。
+    var renamingTag by remember { mutableStateOf<Tag?>(null) }
+    var deletingTag by remember { mutableStateOf<Tag?>(null) }
+    var showTagManage by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let {
@@ -105,7 +119,8 @@ fun HomeScreen(
         topBar = {
             HomeTopBar(
                 dueReminderCount = uiState.dueReminderCount,
-                onOpenReminders = { navController.navigate(Destination.Reminders.path) }
+                // 铃铛背着"到期红点"，语义就是提醒 —— 落点在复习中心的「提醒」档。
+                onOpenReminders = { navController.navigateToReview(intents, ReviewTab.Reminders) }
             )
         },
         // 新建入口已经移到**底栏中央的 ＋**（见 BottomBar / CreateSheet），
@@ -124,6 +139,20 @@ fun HomeScreen(
                 onSubmit = viewModel::submitSearch,
                 onFocusChanged = { searchFocused = it }
             )
+
+            // 聚焦或已在搜索态时露出标签筛选条：点选 = 加筛选（空关键词时就是"标签浏览"）。
+            if (searchFocused || uiState.isSearchActive) {
+                TagFilterBar(
+                    items = uiState.tagFilters,
+                    selectedTagIds = uiState.selectedTagIds,
+                    onToggle = viewModel::toggleTagFilter,
+                    onClearAll = viewModel::clearTagFilters,
+                    onManage = { showTagManage = true },
+                    onRename = { renamingTag = it },
+                    onDelete = { deletingTag = it },
+                    modifier = Modifier.padding(vertical = Spacing.Xs)
+                )
+            }
 
             if (uiState.isSearchActive) {
                 SearchResultHeader(
@@ -166,7 +195,8 @@ fun HomeScreen(
                         onClearQuery = viewModel::clearQuery,
                         onOpenNote = { noteId ->
                             navController.navigate(Destination.NoteEdit.createRoute(noteId))
-                        }
+                        },
+                        onTagClick = { tag -> navController.navigateToSearchTag(intents, tag.id) }
                     )
                 }
 
@@ -203,7 +233,8 @@ fun HomeScreen(
                             navController.navigate(Destination.NoteEdit.createRoute(noteId))
                         },
                         onToggleFavorite = onToggleFavorite,
-                        onDeleteRequest = { note -> pendingDeleteNoteId = note.id }
+                        onDeleteRequest = { note -> pendingDeleteNoteId = note.id },
+                        onTagClick = { tag -> navController.navigateToSearchTag(intents, tag.id) }
                     )
                 }
             }
@@ -217,6 +248,38 @@ fun HomeScreen(
                 pendingDeleteNoteId = null
             },
             onDismiss = { pendingDeleteNoteId = null }
+        )
+    }
+
+    renamingTag?.let { tag ->
+        TagRenameDialog(
+            tag = tag,
+            onConfirm = { newName ->
+                viewModel.renameTag(tag, newName)
+                renamingTag = null
+            },
+            onDismiss = { renamingTag = null }
+        )
+    }
+
+    deletingTag?.let { tag ->
+        TagDeleteDialog(
+            tag = tag,
+            onConfirm = {
+                viewModel.deleteTag(tag)
+                deletingTag = null
+            },
+            onDismiss = { deletingTag = null }
+        )
+    }
+
+    if (showTagManage) {
+        TagManageSheet(
+            items = uiState.tagFilters,
+            onRename = { renamingTag = it },
+            onDelete = { deletingTag = it },
+            onCreate = viewModel::createTag,
+            onDismiss = { showTagManage = false }
         )
     }
 }

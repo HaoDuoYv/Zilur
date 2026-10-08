@@ -2,8 +2,10 @@ package com.example.zhilu.data.local.mapper
 
 import com.example.zhilu.data.local.entity.ReviewEventEntity
 import com.example.zhilu.data.local.entity.ReviewPlanEntity
+import com.example.zhilu.data.local.entity.ReviewPlanRow
 import com.example.zhilu.domain.model.ReviewEvent
 import com.example.zhilu.domain.model.ReviewPlan
+import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
 
 object ReviewMapper {
@@ -16,6 +18,11 @@ object ReviewMapper {
         createdAt = entity.createdAt,
         updatedAt = entity.updatedAt,
         completedAt = entity.completedAt
+    )
+
+    fun toDomainWithNote(row: ReviewPlanRow): ReviewPlanWithNote = ReviewPlanWithNote(
+        plan = toDomain(row.plan),
+        noteTitle = row.noteTitle
     )
 
     fun toEntity(domain: ReviewPlan): ReviewPlanEntity = ReviewPlanEntity(

@@ -15,11 +15,10 @@ import com.example.zhilu.ui.assistant.AssistantScreen
 import com.example.zhilu.ui.camera.CameraScreen
 import com.example.zhilu.ui.home.HomeScreen
 import com.example.zhilu.ui.note.NoteEditScreen
-import com.example.zhilu.ui.reminder.ReminderCenterScreen
+import com.example.zhilu.ui.review.ReviewCenterScreen
 import com.example.zhilu.ui.settings.AppearanceScreen
 import com.example.zhilu.ui.settings.AiConfigScreen
 import com.example.zhilu.ui.settings.SettingsScreen
-import com.example.zhilu.ui.tag.TagsScreen
 import com.example.zhilu.ui.trash.TrashScreen
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
@@ -55,13 +54,13 @@ fun AppNavHost(
             HomeScreen(navController = navController)
         }
         composable(
-            route = Destination.Tags.path,
+            route = Destination.Review.path,
             enterTransition = { bottomNavEnter(motion) },
             exitTransition = { bottomNavExit(motion) },
             popEnterTransition = { bottomNavPopEnter(motion) },
             popExitTransition = { bottomNavPopExit(motion) }
         ) {
-            TagsScreen(navController = navController)
+            ReviewCenterScreen(navController = navController)
         }
         composable(
             route = Destination.Settings.path,
@@ -98,15 +97,6 @@ fun AppNavHost(
             popExitTransition = { backExit(motion) }
         ) {
             TrashScreen(navController = navController)
-        }
-        composable(
-            route = Destination.Reminders.path,
-            enterTransition = { forwardEnter(motion) },
-            exitTransition = { forwardExit(motion) },
-            popEnterTransition = { backEnter(motion) },
-            popExitTransition = { backExit(motion) }
-        ) {
-            ReminderCenterScreen(navController = navController)
         }
         composable(
             route = Destination.Appearance.path,

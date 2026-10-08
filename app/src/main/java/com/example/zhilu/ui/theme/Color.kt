@@ -82,6 +82,22 @@ val TagColors = listOf(
 const val TagColorsNeutral = 0xFF6B6B6B.toInt()
 
 /**
+ * 新建标签时按已有标签数**轮转分配**的色板（存进 `tags.color` 的原始值）。
+ *
+ * 与 [TagColors]（按主题展示、含动森版）是两回事：这里落库的是与主题无关的
+ * 低饱和基色，展示时再由 `rememberTagAccent` 按明暗提亮。
+ * 三个"新建标签"入口（笔记内 TagPicker、标签管理弹层、首页）必须共用同一份，
+ * 否则同一个新标签在不同入口建出来颜色不同。
+ */
+val TagCreationPalette = listOf(
+    0xFF6750A4.toInt(),
+    0xFF0061A4.toInt(),
+    0xFF006B2E.toInt(),
+    0xFF946700.toInt(),
+    0xFF8C1D40.toInt()
+)
+
+/**
  * 深色主题下的标签色：把存储的低饱和深色按固定比例提亮，保证深底上的可读性。
  * 纯函数，便于测试与在 TagChip 中直接调用。
  */

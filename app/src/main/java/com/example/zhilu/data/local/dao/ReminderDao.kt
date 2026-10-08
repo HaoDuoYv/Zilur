@@ -6,12 +6,32 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.zhilu.data.local.entity.ReminderInstanceEntity
+import com.example.zhilu.data.local.entity.ReminderWithContextRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ReminderDao {
     @Query("SELECT * FROM reminder_instances ORDER BY dueAt")
     fun observeAll(): Flow<List<ReminderInstanceEntity>>
+
+    /**
+     * 带展示上下文的提醒列表（笔记标题 / 待办文本 / 复习档位）。
+     *
+     * 两个 JOIN 必须带 `type` 条件——TODO 提醒的 sourceId 是 `todo_items.id`、
+     * REVIEW 提醒的 sourceId 是 `review_plans.id`，不区分类型会串行。
+     * 参数由仓库层传 `ReminderType.*.value`。
+     */
+    @Query(
+        """
+        SELECT r.*, n.title AS noteTitle, t.content AS todoContent, p.currentStep AS reviewStep
+        FROM reminder_instances r
+        LEFT JOIN notes n ON n.id = r.noteId
+        LEFT JOIN todo_items t ON r.type = :todoType AND t.id = r.sourceId
+        LEFT JOIN review_plans p ON r.type = :reviewType AND p.id = r.sourceId
+        ORDER BY r.dueAt
+        """
+    )
+    fun observeAllWithContext(reviewType: Int, todoType: Int): Flow<List<ReminderWithContextRow>>
 
     @Query("SELECT * FROM reminder_instances WHERE dueAt <= :now AND status IN (:statuses) ORDER BY dueAt")
     suspend fun dueReminders(now: Long, statuses: List<Int>): List<ReminderInstanceEntity>

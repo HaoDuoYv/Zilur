@@ -66,7 +66,9 @@ fun ReviewSheet(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "正在录音识别…",
+                        // isRecording 只是"写库中"的忙碌标志（本页没有录音功能），
+                        // 旧文案「正在录音识别…」会让人以为这里有语音识别。
+                        text = "正在保存复习结果…",
                         style = ZhiLuType.meta,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

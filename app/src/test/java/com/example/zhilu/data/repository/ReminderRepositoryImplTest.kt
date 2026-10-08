@@ -2,6 +2,7 @@ package com.example.zhilu.data.repository
 
 import com.example.zhilu.data.local.dao.ReminderDao
 import com.example.zhilu.data.local.entity.ReminderInstanceEntity
+import com.example.zhilu.data.local.entity.ReminderWithContextRow
 import com.example.zhilu.data.local.mapper.ReminderMapper
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.ReminderInstance
@@ -156,6 +157,22 @@ private class FakeReminderDao : ReminderDao {
     private var nextId = 1L
 
     override fun observeAll(): Flow<List<ReminderInstanceEntity>> = flowOf(items)
+
+    // 上下文（笔记标题 / 待办内容 / 复习档位）来自另外三张表，本替身没有它们，
+    // 一律按 LEFT JOIN 的"缺行给 null"语义返回。
+    override fun observeAllWithContext(
+        reviewType: Int,
+        todoType: Int
+    ): Flow<List<ReminderWithContextRow>> = flowOf(
+        items.map { reminder ->
+            ReminderWithContextRow(
+                reminder = reminder,
+                noteTitle = null,
+                todoContent = null,
+                reviewStep = null
+            )
+        }
+    )
 
     override suspend fun dueReminders(
         now: Long,

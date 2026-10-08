@@ -10,6 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.NoteRow
@@ -38,7 +39,8 @@ fun LazyListScope.homeNoteList(
     onRevealChange: (RowReveal?) -> Unit,
     onOpenNote: (Long) -> Unit,
     onToggleFavorite: (Note) -> Unit,
-    onDeleteRequest: (Note) -> Unit
+    onDeleteRequest: (Note) -> Unit,
+    onTagClick: ((Tag) -> Unit)? = null
 ) {
     if (viewMode == ViewMode.TIMELINE) {
         groupNotesByTimeline(notes).forEach { group ->
@@ -64,7 +66,8 @@ fun LazyListScope.homeNoteList(
                             onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
                             onClick = { onOpenNote(note.id) },
                             onToggleFavorite = { onToggleFavorite(note) },
-                            onDeleteRequest = { onDeleteRequest(note) }
+                            onDeleteRequest = { onDeleteRequest(note) },
+                            onTagClick = onTagClick
                         )
                     }
                 }
@@ -80,7 +83,8 @@ fun LazyListScope.homeNoteList(
                     onRevealChange = { side -> onRevealChange(side.toReveal(note.id)) },
                     onClick = { onOpenNote(note.id) },
                     onToggleFavorite = { onToggleFavorite(note) },
-                    onDeleteRequest = { onDeleteRequest(note) }
+                    onDeleteRequest = { onDeleteRequest(note) },
+                    onTagClick = onTagClick
                 )
             }
         }
@@ -93,7 +97,8 @@ fun LazyListScope.homeSearchResults(
     query: String,
     isSearching: Boolean,
     onClearQuery: () -> Unit,
-    onOpenNote: (Long) -> Unit
+    onOpenNote: (Long) -> Unit,
+    onTagClick: ((Tag) -> Unit)? = null
 ) {
     if (results.isEmpty() && !isSearching) {
         item(key = "search-empty") {
@@ -113,7 +118,8 @@ fun LazyListScope.homeSearchResults(
                 note = note,
                 variant = NoteRowVariant.Card,
                 highlightQuery = query,
-                onClick = { onOpenNote(note.id) }
+                onClick = { onOpenNote(note.id) },
+                onTagClick = onTagClick
             )
         }
     }

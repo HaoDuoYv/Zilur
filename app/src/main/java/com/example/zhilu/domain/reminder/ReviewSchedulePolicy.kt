@@ -39,5 +39,13 @@ class ReviewSchedulePolicy(
     companion object {
         private const val DAY = 86_400_000L
         val defaultIntervalsMillis: List<Long> = listOf(1, 3, 7, 15, 30).map { it * DAY }
+
+        /**
+         * 默认阶梯的档位总数（`intervalsMillis.size`）。
+         *
+         * 界面上的「第 N/总次」与进度点个数都从这里取 —— 别在界面里写死数字，
+         * 否则改阶梯长度时文案会悄悄说谎。
+         */
+        val defaultStepCount: Int = defaultIntervalsMillis.size
     }
 }

@@ -40,9 +40,19 @@ class NoteRepositoryImpl(
         noteDao.getById(id)?.let { hydrate(it) }
     }.toRepositoryResult("Failed to load note")
 
-    override suspend fun searchNotes(keyword: String): RepositoryResult<List<Note>> = runCatching {
+    override suspend fun searchNotes(
+        keyword: String,
+        tagIds: List<Long>
+    ): RepositoryResult<List<Note>> = runCatching {
         val normalized = keyword.trim()
-        if (normalized.isEmpty()) emptyList() else noteDao.search(normalized).map { hydrate(it) }
+        when {
+            // 无关键词也无标签：保持旧行为返回空，不意外全量返回。
+            normalized.isEmpty() && tagIds.isEmpty() -> emptyList()
+            // 纯关键词：沿用原查询（不需要 EXISTS + 计数子查询的开销）。
+            tagIds.isEmpty() -> noteDao.search(normalized).map { hydrate(it) }
+            // 标签筛选（关键词可为空串 = 纯标签浏览；SQL 内 `:keyword = ''` 分支兜底）。
+            else -> noteDao.searchWithTags(normalized, tagIds, tagIds.size).map { hydrate(it) }
+        }
     }.toRepositoryResult("Failed to search notes")
 
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> = runCatching {

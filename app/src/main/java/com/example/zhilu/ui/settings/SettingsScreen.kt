@@ -40,7 +40,10 @@ import androidx.navigation.NavHostController
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
+import com.example.zhilu.ui.navigation.LocalAppIntents
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
+import com.example.zhilu.ui.navigation.navigateToReview
+import com.example.zhilu.ui.review.ReviewTab
 import com.example.zhilu.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -53,6 +56,7 @@ fun SettingsScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by viewModel.uiState.collectAsState()
     val snackbar = LocalAppSnackbar.current
+    val intents = LocalAppIntents.current
 
     // 只有导出留在这里；导入已经搬到**底栏中央 ＋** 的「新建 / 导入」弹层
     // （见 AppShell / CreateSheet），所以这里不再持有导入用的文件选择器。
@@ -120,7 +124,7 @@ fun SettingsScreen(
             ReminderSection(
                 notificationPermissionGranted = state.notificationPermissionGranted,
                 remindersEnabled = state.remindersEnabled,
-                onOpenReminders = { navController.navigate(Destination.Reminders.path) },
+                onOpenReminders = { navController.navigateToReview(intents, ReviewTab.Reminders) },
                 onOpenSystemNotificationSettings = {
                     context.startActivity(
                         Intent(SystemSettings.ACTION_APP_NOTIFICATION_SETTINGS)

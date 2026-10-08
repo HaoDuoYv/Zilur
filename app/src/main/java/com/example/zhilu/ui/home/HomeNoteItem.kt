@@ -24,6 +24,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.NoteRow
 import com.example.zhilu.ui.component.NoteRowVariant
 import com.example.zhilu.ui.component.RevealAction
@@ -63,7 +64,8 @@ fun HomeNoteItem(
     onRevealChange: (RevealSide) -> Unit,
     onClick: () -> Unit,
     onToggleFavorite: () -> Unit,
-    onDeleteRequest: () -> Unit
+    onDeleteRequest: () -> Unit,
+    onTagClick: ((Tag) -> Unit)? = null
 ) {
     var menuOpen by remember { mutableStateOf(false) }
 
@@ -129,6 +131,7 @@ fun HomeNoteItem(
                     if (revealedSide != RevealSide.None) onRevealChange(RevealSide.None) else onClick()
                 },
                 onLongClick = { menuOpen = true },
+                onTagClick = onTagClick,
                 trailing = if (note.isFavorite) {
                     {
                         Icon(

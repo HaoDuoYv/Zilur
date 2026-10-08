@@ -40,6 +40,7 @@ import com.example.zhilu.domain.usecase.clipboard.BlockClipboardManager
 import com.example.zhilu.export.DtkExporter
 import com.example.zhilu.export.HtmlExporter
 import com.example.zhilu.export.MarkdownExporter
+import com.example.zhilu.ui.theme.TagCreationPalette
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -1243,7 +1244,10 @@ class NoteViewModel @Inject constructor(
     }
 
     private suspend fun createNewTag(name: String): Tag {
-        val tag = Tag(name = name, color = tagPalette[_uiState.value.availableTags.size % tagPalette.size])
+        val tag = Tag(
+            name = name,
+            color = TagCreationPalette[_uiState.value.availableTags.size % TagCreationPalette.size]
+        )
         return when (val insert = tagRepository.insertTag(tag)) {
             is RepositoryResult.Success -> tag.copy(id = insert.data)
             is RepositoryResult.Error -> {
@@ -1386,14 +1390,6 @@ class NoteViewModel @Inject constructor(
             }
         }
     }
-
-    private val tagPalette = listOf(
-        0xFF6750A4.toInt(),
-        0xFF0061A4.toInt(),
-        0xFF006B2E.toInt(),
-        0xFF946700.toInt(),
-        0xFF8C1D40.toInt()
-    )
 
     private fun ReviewPlan?.isDue(now: Long = System.currentTimeMillis()): Boolean =
         this?.nextReviewAt?.let { nextReviewAt -> enabled && nextReviewAt <= now } ?: false

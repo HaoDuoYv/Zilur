@@ -41,3 +41,11 @@ data class ReminderBucket(
     val future: List<ReminderInstance> = emptyList(),
     val completed: List<ReminderInstance> = emptyList()
 )
+
+/** 提醒 + 展示上下文：笔记标题、待办文本（TODO）、当前档位（REVIEW）。 */
+data class ReminderWithContext(
+    val reminder: ReminderInstance,
+    val noteTitle: String? = null,
+    val todoContent: String? = null,
+    val reviewStep: Int? = null
+)

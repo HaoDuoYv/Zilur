@@ -18,9 +18,12 @@ import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.ThemePalette
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.reminder.ReminderNotifier
+import com.example.zhilu.ui.navigation.AppIntents
 import com.example.zhilu.ui.navigation.AppShell
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.navigateToAssistant
+import com.example.zhilu.ui.navigation.navigateToReview
+import com.example.zhilu.ui.review.ReviewTab
 import com.example.zhilu.ui.theme.ZhiLuTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -37,6 +40,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var promptHandoff: AiPromptHandoff
+
+    @Inject
+    lateinit var appIntents: AppIntents
 
     @Inject
     lateinit var foregroundTracker: AppForegroundTracker
@@ -74,7 +80,8 @@ class MainActivity : ComponentActivity() {
                     navController = controller,
                     startDestination = Destination.Home.path,
                     aiTaskManager = aiTaskManager,
-                    promptHandoff = promptHandoff
+                    promptHandoff = promptHandoff,
+                    appIntents = appIntents
                 )
             }
         }
@@ -117,7 +124,9 @@ class MainActivity : ComponentActivity() {
                 launchSingleTop = true
             }
             intent.getBooleanExtra(ReminderNotifier.EXTRA_REMINDER_CENTER, false) ->
-                controller.navigate(Destination.Reminders.path) { launchSingleTop = true }
+                // 提醒通知 → 复习中心的「提醒」档（顶层页切换 + 一次性档位意图，
+                // 而不是旧的提醒中心独立路由：那里已被复习中心吸收）。
+                controller.navigateToReview(appIntents, ReviewTab.Reminders)
             // AI 任务通知点击：直接回到助手页看结果 / 继续对话。
             // 走底栏那套切换选项（不是裸 navigate）：复用/恢复原有 entry 与 ViewModel，
             // 结果就是「回到原来那条对话」，而不是一张重新开出来的白纸。

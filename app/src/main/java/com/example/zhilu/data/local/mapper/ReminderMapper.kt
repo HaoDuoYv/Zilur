@@ -1,9 +1,11 @@
 package com.example.zhilu.data.local.mapper
 
 import com.example.zhilu.data.local.entity.ReminderInstanceEntity
+import com.example.zhilu.data.local.entity.ReminderWithContextRow
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderStatus
 import com.example.zhilu.domain.model.ReminderType
+import com.example.zhilu.domain.model.ReminderWithContext
 
 object ReminderMapper {
     fun toDomain(entity: ReminderInstanceEntity): ReminderInstance = ReminderInstance(
@@ -17,6 +19,13 @@ object ReminderMapper {
         createdAt = entity.createdAt,
         updatedAt = entity.updatedAt,
         firedAt = entity.firedAt
+    )
+
+    fun toDomainWithContext(row: ReminderWithContextRow): ReminderWithContext = ReminderWithContext(
+        reminder = toDomain(row.reminder),
+        noteTitle = row.noteTitle,
+        todoContent = row.todoContent,
+        reviewStep = row.reviewStep
     )
 
     fun toEntity(domain: ReminderInstance): ReminderInstanceEntity = ReminderInstanceEntity(

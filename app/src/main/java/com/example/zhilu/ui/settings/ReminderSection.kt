@@ -10,7 +10,7 @@ import androidx.compose.material3.MaterialTheme
 import com.example.zhilu.ui.component.AppSwitch
 import androidx.compose.runtime.Composable
 
-/** 提醒：提醒中心入口 + 通知权限 + 总开关。 */
+/** 提醒：复习中心入口 + 通知权限 + 总开关。 */
 @Composable
 fun ReminderSection(
     notificationPermissionGranted: Boolean,
@@ -21,8 +21,8 @@ fun ReminderSection(
 ) {
     SettingsGroup(title = "提醒") {
         SettingsRow(
-            title = "提醒中心",
-            description = "查看待处理、已逾期和已完成的提醒",
+            title = "复习中心",
+            description = "复习计划与提醒（待处理 / 已逾期 / 已完成）",
             leadingIcon = Icons.Outlined.NotificationsNone,
             onClick = onOpenReminders,
             trailing = {

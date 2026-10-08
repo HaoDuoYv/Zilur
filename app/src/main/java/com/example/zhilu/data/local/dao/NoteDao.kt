@@ -43,6 +43,40 @@ interface NoteDao {
     )
     suspend fun search(keyword: String): List<NoteEntity>
 
+    /**
+     * 关键词 × 标签集合的组合查询（搜索页筛选条用）。
+     *
+     * - 关键词为空串时退化为"纯标签浏览"（即老标签页「点标签看笔记」的职责）；
+     * - 多标签为 **AND** 语义：要求笔记命中的选中标签数 = 选中总数；
+     * - [tagIds] **必须非空**——Room 对空集合会生成非法的 `IN ()`（SQLite 语法错误），
+     *   无标签筛选时请走 [search]。
+     */
+    @Query(
+        """
+        SELECT n.* FROM notes n
+        WHERE n.deletedAt IS NULL
+          AND (
+            :keyword = ''
+            OR n.title LIKE '%' || :keyword || '%'
+            OR EXISTS (
+                SELECT 1 FROM note_blocks b
+                WHERE b.noteId = n.id AND b.content LIKE '%' || :keyword || '%'
+            )
+            OR EXISTS (
+                SELECT 1 FROM note_tags nt
+                INNER JOIN tags t ON t.id = nt.tagId
+                WHERE nt.noteId = n.id AND t.name LIKE '%' || :keyword || '%'
+            )
+          )
+          AND (
+            SELECT COUNT(DISTINCT nt2.tagId) FROM note_tags nt2
+            WHERE nt2.noteId = n.id AND nt2.tagId IN (:tagIds)
+          ) = :tagCount
+        ORDER BY n.updatedAt DESC
+        """
+    )
+    suspend fun searchWithTags(keyword: String, tagIds: List<Long>, tagCount: Int): List<NoteEntity>
+
     @Query(
         """
         SELECT n.* FROM notes n

@@ -1,6 +1,8 @@
 package com.example.zhilu.ui.component
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.palettePaint
 import androidx.compose.foundation.background
@@ -52,14 +54,18 @@ fun rememberTagAccent(tagColor: Int?, colorOverride: Color? = null): Color {
 /**
  * 标签胶囊。选中态用标签色 tint + 勾选图标（不只靠颜色区分，色盲友好）；
  * 深色主题下标签色自动提亮以保证对比度。
+ *
+ * [onLongClick] 供搜索筛选条做"就地重命名 / 删除"入口（长按弹菜单）。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TagChip(
     tag: Tag,
     selected: Boolean = false,
     enabled: Boolean = true,
     size: TagChipSize = TagChipSize.Md,
-    onClick: () -> Unit = {}
+    onClick: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null
 ) {
     val tagColor = rememberTagAccent(tagColor = tag.color)
     val paint = palettePaint(LocalThemePalette.current)
@@ -81,9 +87,13 @@ fun TagChip(
     }
 
     Surface(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = if (enabled) Modifier.minimumInteractiveComponentSize() else Modifier,
+        modifier = Modifier
+            .then(if (enabled) Modifier.minimumInteractiveComponentSize() else Modifier)
+            .combinedClickable(
+                enabled = enabled,
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = CircleShape,
         color = backgroundColor,
         border = if (bordered) BorderStroke(2.dp, strokeColor) else null,

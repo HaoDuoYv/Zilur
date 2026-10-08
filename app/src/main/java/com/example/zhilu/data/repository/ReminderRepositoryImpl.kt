@@ -6,6 +6,7 @@ import com.example.zhilu.data.local.mapper.ReminderMapper
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderStatus
 import com.example.zhilu.domain.model.ReminderType
+import com.example.zhilu.domain.model.ReminderWithContext
 import com.example.zhilu.domain.repository.ReminderRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -19,6 +20,17 @@ class ReminderRepositoryImpl(
     override fun observeAll(): Flow<RepositoryResult<List<ReminderInstance>>> = reminderDao.observeAll()
         .map { entities -> RepositoryResult.Success(entities.map(ReminderMapper::toDomain)) as RepositoryResult<List<ReminderInstance>> }
         .catch { e -> emit(RepositoryResult.Error("Failed to load reminders", e)) }
+
+    override fun observeAllWithContext(): Flow<RepositoryResult<List<ReminderWithContext>>> =
+        reminderDao.observeAllWithContext(
+            reviewType = ReminderType.REVIEW.value,
+            todoType = ReminderType.TODO.value
+        )
+            .map { rows ->
+                RepositoryResult.Success(rows.map(ReminderMapper::toDomainWithContext))
+                    as RepositoryResult<List<ReminderWithContext>>
+            }
+            .catch { e -> emit(RepositoryResult.Error("Failed to load reminders", e)) }
 
     override suspend fun getDueReminders(now: Long): RepositoryResult<List<ReminderInstance>> = runCatching {
         reminderDao.dueReminders(
