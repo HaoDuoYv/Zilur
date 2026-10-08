@@ -1,6 +1,7 @@
 package com.example.zhilu.ai
 
 import com.example.zhilu.domain.ai.model.AiRef
+import com.example.zhilu.domain.ai.model.distinctByTarget
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,9 +20,14 @@ class AiRefManager @Inject constructor() {
     private val _pendingRefs = MutableStateFlow<List<AiRef>>(emptyList())
     val pendingRefs: StateFlow<List<AiRef>> = _pendingRefs.asStateFlow()
 
-    /** 笔记页追加一个待引用目标（去重）。 */
+    /**
+     * 笔记页追加一个待引用目标。
+     *
+     * 去重按**坐标键**（`AiRef.targetKey()`）而不是 `equals`：同一目标先后被引用会带
+     * 不同快照，按全字段比较会把它们当成两个引用；保留最后出现的那份（最新快照）。
+     */
     fun addPending(ref: AiRef) {
-        _pendingRefs.value = (_pendingRefs.value + ref).distinct()
+        _pendingRefs.value = (_pendingRefs.value + ref).distinctByTarget()
     }
 
     /** 助手页拉取并清空待引用。 */

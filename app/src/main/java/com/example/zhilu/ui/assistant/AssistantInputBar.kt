@@ -1,17 +1,22 @@
 package com.example.zhilu.ui.assistant
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.ai.model.AiRefKind
+import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
 import com.example.zhilu.ui.theme.MotionEasing
@@ -89,6 +95,7 @@ fun AssistantInputBar(
     attachedImages: List<String>,
     attachedFile: AttachedFile?,
     attachedRefs: List<AiRef>,
+    quotedMessage: AiMessage?,
     isGenerating: Boolean,
     focusRequester: FocusRequester,
     attachPanelOpen: Boolean,
@@ -98,6 +105,7 @@ fun AssistantInputBar(
     onRemoveImage: (Int) -> Unit,
     onRemoveFile: () -> Unit,
     onRemoveRef: (Int) -> Unit,
+    onClearQuoted: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit
 ) {
@@ -137,6 +145,14 @@ fun AssistantInputBar(
             }
         ) {
             Column(modifier = Modifier.padding(horizontal = Spacing.Lg, vertical = Spacing.Md)) {
+                // 引用条：待发送的「引用回复」——发送前随时可取消（右侧 ✕）。
+                quotedMessage?.let { quoted ->
+                    QuotedMessageBar(
+                        message = quoted,
+                        onClear = onClearQuoted,
+                        modifier = Modifier.padding(bottom = Spacing.Md)
+                    )
+                }
                 if (attachedImages.isNotEmpty()) {
                     Row(
                         modifier = Modifier
@@ -333,15 +349,28 @@ private fun ImageThumb(uri: String, onRemove: () -> Unit) {
     }
 }
 
+/**
+ * 引用条目 chip。输入条用它（带移除按钮），消息气泡用它展示「当时引用了什么」（只读，[onRemove] 传 null）。
+ */
 @Composable
-private fun RefChip(ref: AiRef, onRemove: () -> Unit) {
+internal fun RefChip(
+    ref: AiRef,
+    modifier: Modifier = Modifier,
+    onRemove: (() -> Unit)? = null
+) {
     Surface(
+        modifier = modifier,
         shape = RoundedCornerShape(percent = Radius.Chip),
         color = MaterialTheme.colorScheme.secondaryContainer,
         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
     ) {
         Row(
-            modifier = Modifier.padding(start = Spacing.Md, end = Spacing.Xs, top = Spacing.Xs, bottom = Spacing.Xs),
+            modifier = Modifier.padding(
+                start = Spacing.Md,
+                end = if (onRemove != null) Spacing.Xs else Spacing.Md,
+                top = Spacing.Xs,
+                bottom = Spacing.Xs
+            ),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -350,14 +379,74 @@ private fun RefChip(ref: AiRef, onRemove: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            IconButton(onClick = onRemove, modifier = Modifier.size(24.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "移除引用",
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer
-                )
+            if (onRemove != null) {
+                IconButton(onClick = onRemove, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "移除引用",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
             }
+        }
+    }
+}
+
+/**
+ * 输入区顶部的「引用消息」条：告诉用户这条消息会引用谁，✕ 可取消。
+ *
+ * 形态与气泡里的引用块一致（左侧强调竖条 + 来源 + 一行摘要），
+ * 摘要在输入区只给一行 —— 这里越矮，输入框越不容易被挤到键盘外。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun QuotedMessageBar(
+    message: AiMessage,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(ShapeTokens.Small))
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+            .height(IntrinsicSize.Min)
+            .padding(start = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(accent.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
+        )
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp)
+        ) {
+            Text(
+                text = "引用 ${quotedSenderLabel(message)}",
+                style = ZhiLuType.chip,
+                color = accent
+            )
+            Text(
+                text = quotedPreviewText(message),
+                style = ZhiLuType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(onClick = onClear, modifier = Modifier.size(28.dp)) {
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "取消引用",
+                modifier = Modifier.size(15.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

@@ -133,9 +133,52 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun migrate6To7_addsRefsJsonAndQuotedMessageId() {
+        helper.createDatabase(TEST_DB_V7, 6).apply {
+            execSQL(
+                "INSERT INTO ai_conversations (id, title, createdAt, updatedAt) VALUES (1, '老对话', 100, 101)"
+            )
+            execSQL(
+                "INSERT INTO ai_messages (id, conversationId, role, content, createdAt) VALUES (10, 1, 'USER', '老消息', 102)"
+            )
+            close()
+        }
+
+        helper.runMigrationsAndValidate(TEST_DB_V7, 7, true, Migration.MIGRATION_6_7).apply {
+            // 既有消息：refsJson 与 quotedMessageId 都是 NULL（本来就没有引用），正文不能动
+            query("SELECT content, refsJson, quotedMessageId FROM ai_messages WHERE id = 10").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("老消息", cursor.getString(0))
+                assertTrue(cursor.isNull(1))
+                assertTrue(cursor.isNull(2))
+                assertFalse(cursor.moveToNext())
+            }
+            // 新写入能带上真正的值（含引用快照的 JSON）
+            execSQL(
+                """
+                UPDATE ai_messages
+                SET refsJson = '[{"kind":"NOTE","noteId":3,"title":"笔记","snapshot":"正文"}]',
+                    quotedMessageId = 10
+                WHERE id = 10
+                """.trimIndent()
+            )
+            query("SELECT refsJson, quotedMessageId FROM ai_messages WHERE id = 10").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(
+                    "[{\"kind\":\"NOTE\",\"noteId\":3,\"title\":\"笔记\",\"snapshot\":\"正文\"}]",
+                    cursor.getString(0)
+                )
+                assertEquals(10L, cursor.getLong(1))
+            }
+            close()
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test"
         const val TEST_DB_V5 = "migration-test-v5"
         const val TEST_DB_V6 = "migration-test-v6"
+        const val TEST_DB_V7 = "migration-test-v7"
     }
 }

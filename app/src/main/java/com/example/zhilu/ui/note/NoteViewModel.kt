@@ -10,6 +10,7 @@ import com.example.zhilu.ai.AiRefManager
 import com.example.zhilu.ai.AiTaskManager
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.data.local.file.MediaFileManager
+import com.example.zhilu.domain.ai.AiRefSnapshot
 import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.ai.model.AiRefKind
 import com.example.zhilu.domain.ai.model.AiTask
@@ -912,7 +913,10 @@ class NoteViewModel @Inject constructor(
             AiRef(
                 kind = AiRefKind.NOTE,
                 noteId = state.noteId,
-                title = state.title
+                title = state.title,
+                // 快照在引用这一刻冻结：编辑器 id 是内存坐标（未保存笔记 noteId=0、
+                // 新建块 id 为负），AI 侧按 id 回查必然落空，内容只能从这里带走。
+                snapshot = AiRefSnapshot.forNote(state.title, state.toNote().contentBlocks)
             )
         )
     }
@@ -925,7 +929,8 @@ class NoteViewModel @Inject constructor(
                 kind = AiRefKind.CARD,
                 noteId = state.noteId,
                 cardId = card.id,
-                title = cardLabel(card, state.title)
+                title = cardLabel(card, state.title),
+                snapshot = AiRefSnapshot.forCard(state.title, card.title, card.blocks)
             )
         )
     }
@@ -953,7 +958,8 @@ class NoteViewModel @Inject constructor(
                 noteId = state.noteId,
                 cardId = block.cardId ?: card?.id,
                 blockId = block.id,
-                title = blockTitleSnippet(block)
+                title = blockTitleSnippet(block),
+                snapshot = AiRefSnapshot.forBlock(state.title, block)
             )
         )
     }

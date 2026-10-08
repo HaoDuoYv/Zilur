@@ -87,8 +87,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun AssistantScreen(
     navController: NavHostController,
-    /** 底栏 ＋ 的「AI 创建」带进来的开场白；空串表示从底栏正常切换过来。 */
-    prefill: String = "",
     viewModel: AssistantViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -96,11 +94,6 @@ fun AssistantScreen(
     val snackbar = LocalAppSnackbar.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-
-    // 预填只在**这次路由**上生效一次：键是 prefill 本身，用户随后编辑输入框不会把它冲掉。
-    LaunchedEffect(prefill) {
-        if (prefill.isNotBlank()) viewModel.updateInput(prefill)
-    }
 
     // 一次性提示（如"已经在最新对话中"）：先消费再弹 —— 但不能让 `showSnackbar`（会挂起到
     // 提示消失）留在这个 effect 里：`consumeNotice()` 会把 key 变成 null，Compose 随即
@@ -281,7 +274,9 @@ fun AssistantScreen(
     }
     // 末尾锚点项的下标：消息数 + 可选的流式气泡。滚到它即等于滚到列表底部，
     // 而 animateScrollToItem(最后一条) 只会把该条的「顶部」对齐视口，长回答的末尾会被推到屏幕外。
-    val bottomAnchorIndex = state.messages.size + if (state.isGenerating) 1 else 0
+    // 用 isStreamingVisible（本会话）而不是 isGenerating（全局）：气泡只在本会话渲染，
+    // 锚点下标必须与列表项数一致，否则会滚到一个不存在的 index（列表没布局时直接抛）。
+    val bottomAnchorIndex = state.messages.size + if (state.isStreamingVisible) 1 else 0
     val atBottom by remember {
         derivedStateOf { !listState.canScrollForward }
     }
@@ -293,7 +288,7 @@ fun AssistantScreen(
     }
 
     // 新消息或开始生成时，平滑滚到底部
-    LaunchedEffect(state.messages.size, state.isGenerating) {
+    LaunchedEffect(state.messages.size, state.isStreamingVisible) {
         if (bottomAnchorIndex > 0) listState.animateScrollToItem(bottomAnchorIndex)
     }
     // 流式输出期间持续跟随，保证最新内容始终可见（用户上翻历史时不打扰）
@@ -302,6 +297,24 @@ fun AssistantScreen(
             listState.scrollToItem(bottomAnchorIndex)
         }
     }
+
+    // 消息 id → 消息：渲染「引用块」时按 quotedMessageId 反查被引用的那条。
+    // 一次会话消息数有限，整表建索引比每条气泡各自 firstOrNull 扫描更划算。
+    val messagesById = remember(state.messages) { state.messages.associateBy { it.id } }
+
+    /**
+     * 底部状态条文案。
+     *
+     * 三档：本会话正在调工具 / 本会话正在生成 / **别的会话在生成**。
+     * 最后一档是全局互斥的说明：输入栏此时显示「停止」，说明白为什么发不出去，
+     * 好过让用户以为发送键坏了。
+     */
+    val statusLabel = state.toolStatus?.let { "正在调用 ${toolNameLabel(it)}…" }
+        ?: when {
+            state.isStreamingVisible -> "AI 正在生成…"
+            state.isGenerating -> "其他对话正在生成…"
+            else -> null
+        }
 
     // 历史对话抽屉：左侧推入、原界面被推开并压暗，点右侧灰区返回（见 PushDrawer）。
     PushDrawer(
@@ -333,12 +346,13 @@ fun AssistantScreen(
         },
         bottomBar = {
             Column {
-                ToolStatusBar(toolStatus = state.toolStatus, isGenerating = state.isGenerating)
+                ToolStatusBar(label = statusLabel)
                 AssistantInputBar(
                     text = state.inputText,
                     attachedImages = state.attachedImages,
                     attachedFile = state.attachedFile,
                     attachedRefs = state.attachedRefs,
+                    quotedMessage = state.quotedMessage,
                     isGenerating = state.isGenerating,
                     focusRequester = focusRequester,
                     attachPanelOpen = attachPanelVisible,
@@ -351,6 +365,7 @@ fun AssistantScreen(
                     onRemoveImage = viewModel::removeImage,
                     onRemoveFile = viewModel::removeFile,
                     onRemoveRef = viewModel::removeRef,
+                    onClearQuoted = viewModel::clearQuotedMessage,
                     onSend = viewModel::sendMessage,
                     onStop = viewModel::stopGeneration
                 )
@@ -408,7 +423,7 @@ fun AssistantScreen(
             onSwitch = viewModel::switchActiveService,
             onManage = { navController.navigate(Destination.AiConfig.path) }
         )
-        if (state.messages.isEmpty() && !state.isGenerating) {
+        if (state.messages.isEmpty() && !state.isStreamingVisible) {
             AssistantEmptyState(
                 configured = state.aiSettings.hasUsable,
                 // 这条模型栏之外的内容不再需要额外留白，padding 已提到外层
@@ -429,11 +444,13 @@ fun AssistantScreen(
                         message = message,
                         isStreaming = false,
                         isActiveTool = message.id == lastToolId &&
-                            state.isGenerating &&
-                            state.toolStatus != null
+                            state.isStreamingVisible &&
+                            state.toolStatus != null,
+                        quotedMessage = message.quotedMessageId?.let { messagesById[it] },
+                        onQuote = viewModel::quoteMessage
                     )
                 }
-                if (state.isGenerating) {
+                if (state.isStreamingVisible) {
                     item(key = "streaming") {
                         AiMessageBubble(
                             message = AiMessage(
@@ -443,6 +460,7 @@ fun AssistantScreen(
                                 content = state.streamingText.orEmpty()
                             ),
                             isStreaming = true
+                            // 合成气泡还没落库，引用它没有意义（也查不到 id）——不给引用入口。
                         )
                     }
                 }
@@ -595,8 +613,8 @@ private fun RefNotePickerSheet(
 }
 
 @Composable
-private fun ToolStatusBar(toolStatus: String?, isGenerating: Boolean) {
-    if (toolStatus == null && !isGenerating) return
+private fun ToolStatusBar(label: String?) {
+    if (label == null) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -606,11 +624,7 @@ private fun ToolStatusBar(toolStatus: String?, isGenerating: Boolean) {
     ) {
         LinearProgressIndicator(modifier = Modifier.weight(1f))
         Text(
-            text = if (toolStatus != null) {
-                "正在调用 ${toolNameLabel(toolStatus)}…"
-            } else {
-                "AI 正在生成…"
-            },
+            text = label,
             style = ZhiLuType.meta,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

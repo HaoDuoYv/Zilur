@@ -41,7 +41,7 @@ import com.example.zhilu.data.local.entity.TodoItemEntity
         AiConversationEntity::class,
         AiMessageEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

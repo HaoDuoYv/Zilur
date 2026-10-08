@@ -131,6 +131,8 @@ class AiAssistantRepositoryImpl @Inject constructor(
     ): List<ChatMessageDto> {
         val messages = mutableListOf<ChatMessageDto>()
         // 每个服务可以带自己的系统提示词；留空就用应用内置那份。
+        // 注意：contextText 现在只承载「本次附带图片」的 URI 说明 —— 引用与引用消息
+        // 一律进 user 消息本体（AiUserMessageText），不再往 system prompt 里塞。
         val basePrompt = service.systemPrompt.ifBlank { SYSTEM_PROMPT }
         val systemPrompt = if (contextText.isBlank()) {
             basePrompt
@@ -138,13 +140,20 @@ class AiAssistantRepositoryImpl @Inject constructor(
             "$basePrompt\n\n$contextText"
         }
         messages.add(ChatMessageDto(role = "system", content = textContent(systemPrompt)))
+        // 引用的消息按 id 在历史里解析：引用随消息落库后，这里能重放出同一条上下文。
+        val byId = history.associateBy { it.id }
         history.forEach { message ->
             when (message.role) {
                 AiRole.USER -> {
                     val dataUrls = message.images.mapNotNull { uriString ->
                         mediaFileManager.uriToBase64DataUrl(Uri.parse(uriString)).getOrNull()
                     }
-                    val text = buildUserText(message)
+                    val text = AiUserMessageText.build(
+                        base = message.content,
+                        fileText = message.fileText,
+                        refs = message.refs,
+                        quotedText = message.quotedMessageId?.let { byId[it]?.content }
+                    )
                     messages.add(
                         ChatMessageDto(
                             role = "user",
@@ -162,18 +171,6 @@ class AiAssistantRepositoryImpl @Inject constructor(
             }
         }
         return messages
-    }
-
-    private fun buildUserText(message: AiMessage): String {
-        val base = message.content
-        val file = message.fileText
-        if (file.isNullOrBlank()) return base
-        return buildString {
-            append(base)
-            if (base.isNotBlank()) append("\n\n")
-            append("【附件内容】\n")
-            append(file)
-        }
     }
 
     private fun AiToolDefinition.toToolDto(): ToolDto = ToolDto(
@@ -206,6 +203,10 @@ class AiAssistantRepositoryImpl @Inject constructor(
 4. 删除笔记用 delete_note（软删除，进回收站）。用户没有明确要求删除时不要删。
 5. 用户附上图片并要求识别文字时，逐字识别图中文字并保留原始排版，可直接作为 create_note 的内容来源。
 6. 回答简洁精炼，除非用户要求展开。
+
+【用户引用】
+- 用户消息里可能出现「【用户引用的知识内容】」段落：那是用户主动引用的本地笔记原文（可能是整篇 / 卡片 / 块），回答应优先依据那段内容，不要声称看不到引用内容；
+- 「【引用的消息】」是用户对你此前某条回复的引用，用于指向该条内容。
 
 【笔记的结构】
 笔记 = 若干「小节」(cards)，小节 = 若干「内容块」(blocks)。

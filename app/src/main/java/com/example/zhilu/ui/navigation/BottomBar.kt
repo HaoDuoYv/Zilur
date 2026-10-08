@@ -166,8 +166,7 @@ fun BottomBar(
  * 是否停在某个平级页上。
  *
  * 比的是 [Destination.route]（去掉路由模板的那一份），并按 `?` 之前的部分比：
- * 助手页带可选参数（`assistant?prefill=…`），拿整串或模板去比都会读不出选中态
- * —— 表现是"人在助手页，助手 tab 却是灰的"。
+ * 带参数的页面（如笔记编辑 `note/{noteId}`）拿整串或模板去比都会读不出选中态。
  */
 private fun NavDestination?.isOn(destination: Destination): Boolean =
     this?.hierarchy?.any {
@@ -176,7 +175,7 @@ private fun NavDestination?.isOn(destination: Destination): Boolean =
 
 /** 以与底栏一致的选项切到某个平级页（避免返回栈膨胀）。 */
 private fun NavHostController.switchTopLevel(destination: Destination) {
-    // 必须用 route（去掉模板的那一份）：用 path 会把 `{prefill}` 当字面值传进助手页
+    // 必须用 route（去掉模板的那一份）：用 path 会把 `{noteId}` 这类占位符当字面值传进去。
     navigate(destination.route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true

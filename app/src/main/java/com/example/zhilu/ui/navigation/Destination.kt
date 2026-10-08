@@ -1,17 +1,19 @@
 package com.example.zhilu.ui.navigation
 
-import android.net.Uri
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 
 /**
  * 一个导航目的地。
  *
- * 头两个属性刻意分开，别再合并：
- * - [path]：**在 NavHost 里注册的路由模板**（可带 `{arg}` 占位），也是选中态比较的来源；
- * - [route]：**真正拿去 navigate 的路由**。带可选参数的页面（助手页）在这里去掉 `?…` 模板，
- *   否则 `navigate(path)` 会把 `{prefill}` 当成字面值传进去 —— 输入框里就会出现 `{prefill}`
- *   这行字（真机踩过）。其余页面两者相同。
+ * 之所以有 [path] 与 [route] 两套：
+ * - [path]：**在 NavHost 里注册的路由模板**（可带 `{arg}` 占位）；
+ * - [route]：**真正拿去 navigate 的路由**，带占位参数的页面在这里去掉 `?…`。
+ *
+ * 带参数的路由绝不能出现在「跨页交接」的场景里（助手页曾经用 `?prefill=` 收开场白）：
+ * 每次拼参数都是一次**新的导航 entry**，会造出第二个 ViewModel、把页面状态全部重置。
+ * 助手页的开场白因此改走进程级的 `AiPromptHandoff`，[Assistant] 现在与 [route] 相同；
+ * 还剩 [NoteEdit] 一个带参数的页面（noteId 是它真正的身份，绕不开）。
  */
 sealed class Destination(val path: String) {
     open val route: String get() = path
@@ -22,16 +24,10 @@ sealed class Destination(val path: String) {
     /**
      * 助手页。
      *
-     * [createRoute] 是"带着一句预填去问 AI"的入口，底栏 ＋ 的「AI 创建」用它。
+     * 刻意保持无参数：任务状态 / 当前会话 / 输入草稿全靠**同一个 entry 上的 ViewModel**
+     * 活着，任何带参数的路由都会把它换成一份新状态。开场白见 `AiPromptHandoff`。
      */
-    data object Assistant : Destination("assistant?prefill={prefill}") {
-        const val ARG_PREFILL = "prefill"
-
-        override val route: String = "assistant"
-
-        fun createRoute(prefill: String): String =
-            "$route?$ARG_PREFILL=${Uri.encode(prefill)}"
-    }
+    data object Assistant : Destination("assistant")
 
     data object Settings : Destination("settings")
     data object Camera : Destination("camera")
@@ -80,23 +76,11 @@ val TopLevelRoutes = setOf(
 val Destination.isTopLevel: Boolean
     get() = route.substringBefore('?') in TopLevelRoutes
 
-/** 以与底栏一致的选项切到「助手」平级页（避免返回栈膨胀）。 */
+/** 以与底栏一致的选项切到「助手」平级页（避免返回栈膨胀，并复用该页的 ViewModel）。 */
 fun NavHostController.navigateToAssistant() {
     navigate(Destination.Assistant.route) {
         popUpTo(graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
         restoreState = true
-    }
-}
-
-/**
- * 切到助手页并**预填**输入框（底栏 ＋ 的「AI 创建」）。
- *
- * 不走 `restoreState`：要的是"带着新的一句去问"，恢复上次的会话状态反而会让预填落空。
- */
-fun NavHostController.navigateToAssistant(prefill: String) {
-    navigate(Destination.Assistant.createRoute(prefill)) {
-        popUpTo(graph.findStartDestination().id) { saveState = true }
-        launchSingleTop = false
     }
 }

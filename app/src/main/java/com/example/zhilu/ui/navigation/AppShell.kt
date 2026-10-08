@@ -31,6 +31,7 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.zhilu.ai.AiPromptHandoff
 import com.example.zhilu.ai.AiTaskManager
 import com.example.zhilu.ui.create.CreateSheet
 import com.example.zhilu.ui.create.CreateSheetViewModel
@@ -70,6 +71,7 @@ fun AppShell(
     navController: NavHostController,
     startDestination: String = Destination.Home.path,
     aiTaskManager: AiTaskManager,
+    promptHandoff: AiPromptHandoff,
     createSheetViewModel: CreateSheetViewModel = hiltViewModel()
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -184,8 +186,11 @@ fun AppShell(
             },
             onAiCreate = {
                 showCreateSheet = false
-                // 预填一句「帮我创建：」——用户接着补主题就能发，省掉"我该怎么说"的一步
-                navController.navigateToAssistant(AI_CREATE_PREFILL)
+                // 预填一句「帮我创建：」——用户接着补主题就能发，省掉"我该怎么说"的一步。
+                // 话术走进程级交接而不是路由参数：带参数的路由会新建助手页 entry，
+                // 把正在跑的任务状态 / 当前会话 / 输入草稿一起重置（真机 bug）。
+                promptHandoff.handoff(AI_CREATE_PREFILL)
+                navController.navigateToAssistant()
             }
         )
     }

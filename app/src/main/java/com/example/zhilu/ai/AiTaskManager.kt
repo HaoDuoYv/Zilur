@@ -2,6 +2,7 @@ package com.example.zhilu.ai
 
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.data.datastore.UserPreferences
+import com.example.zhilu.domain.ai.AiRefSnapshot
 import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.ai.model.AiRefKind
 import com.example.zhilu.domain.ai.model.AiTask
@@ -11,9 +12,6 @@ import com.example.zhilu.domain.ai.repository.AiAssistantRepository
 import com.example.zhilu.domain.ai.repository.AiAttempt
 import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.domain.model.AiRole
-import com.example.zhilu.domain.model.BlockType
-import com.example.zhilu.domain.model.ImageBlockContent
-import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.repository.AiConversationRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import java.util.UUID
@@ -41,8 +39,31 @@ data class AiSubmitRequest(
     val fileName: String? = null,
     val fileContent: String? = null,
     val refs: List<AiRef> = emptyList(),
+    /** 本条消息「引用（回复）」的同会话消息 id；null = 不是引用消息。 */
+    val quotedMessageId: Long? = null,
     val conversationId: Long? = null
 )
+
+/**
+ * [AiTaskManager.submit] 的结果。
+ *
+ * 为什么不是直接返回 taskId：全局单任务互斥下，「提交」是一个**可能被拒的裁决**。
+ * 调用方（输入栏）必须知道是「已受理」还是「请先停下当前回答」——否则拿到一个 id
+ * 却永远等不到自己的流，用户只会以为消息发丢了。
+ */
+sealed interface AiSubmitResult {
+
+    /** 已受理并入队，生成在后台 scope 执行。 */
+    data class Accepted(val taskId: String) : AiSubmitResult
+
+    /**
+     * 被全局互斥拒绝：已有任务在跑。
+     *
+     * @param reason 可直接展示给用户的文案
+     * @param running 正在跑的那条任务（同一时刻至多一条），UI 可据此定位/提示
+     */
+    data class Rejected(val reason: String, val running: AiTask?) : AiSubmitResult
+}
 
 /**
  * 进程级 AI 任务管理器：承载生成协程的唯一事实源。
@@ -69,6 +90,15 @@ class AiTaskManager @Inject constructor(
     /** 正在跑的生成协程，按任务 id 索引——「停止」要能精确掐掉其中一条。 */
     private val jobs = ConcurrentHashMap<String, Job>()
 
+    /**
+     * 提交闸门。判定「有没有活跃任务」与「入队新任务」必须在同一把锁里完成。
+     *
+     * 不能靠 UI 侧 `isGenerating` 做门控：那是异步回填的派生状态，页面切换、会话切换
+     * 造成的空窗期里它可能是 false，而任务其实在跑（真机 bug：任务还在生成却允许再发）。
+     * 任务表只有 [submit] 一个「新增」写入口，锁在这里就闭死了。
+     */
+    private val submitLock = Any()
+
     init {
         // 任务是唯一事实源，前台服务与通知只是它的投影。统一在这里同步，
         // 免得每处 _state.update 都得记得手动通知一次（漏一处就会出现「进度不动了」）。
@@ -77,18 +107,36 @@ class AiTaskManager @Inject constructor(
         }
     }
 
-    /** 提交任务（非挂起）：立即入队并返回任务 id，生成在后台 scope 执行。 */
-    fun submit(request: AiSubmitRequest): String {
+    /**
+     * 提交任务（非挂起）：受理则立即入队并返回任务 id，生成在后台 scope 执行。
+     *
+     * **全局互斥的裁决点**（见 [submitLock]）：同一时刻只允许一条活跃任务，
+     * 已有任务在跑时返回 [AiSubmitResult.Rejected] 且**不产生任何副作用**——
+     * 调用方据此保留用户输入并提示，而不是让消息凭空消失。
+     *
+     * 已完成的任务会留在 [state] 表里（通知、笔记页的「刚生成完」都要读它），
+     * 但它们不占锁：只有 [AiTask.isActive] 的才算「正在跑」。
+     */
+    fun submit(request: AiSubmitRequest): AiSubmitResult {
         val taskId = UUID.randomUUID().toString()
-        _state.update { s ->
-            s.copy(
-                tasks = s.tasks + AiTask(
-                    id = taskId,
-                    conversationId = request.conversationId ?: 0L,
-                    phase = AiTaskPhase.QUEUED,
-                    refs = request.refs
+        synchronized(submitLock) {
+            val running = _state.value.tasks.lastOrNull { it.isActive }
+            if (running != null) {
+                return AiSubmitResult.Rejected(
+                    reason = "正在生成中，先停一下或等它回答完",
+                    running = running
                 )
-            )
+            }
+            _state.update { s ->
+                s.copy(
+                    tasks = s.tasks + AiTask(
+                        id = taskId,
+                        conversationId = request.conversationId ?: 0L,
+                        phase = AiTaskPhase.QUEUED,
+                        refs = request.refs
+                    )
+                )
+            }
         }
         jobs[taskId] = scope.launch {
             try {
@@ -103,7 +151,7 @@ class AiTaskManager @Inject constructor(
                 jobs.remove(taskId)
             }
         }
-        return taskId
+        return AiSubmitResult.Accepted(taskId)
     }
 
     /**
@@ -133,7 +181,10 @@ class AiTaskManager @Inject constructor(
             fallbacks = settings.fallbackChain(),
             fallbackEnabled = settings.fallbackOnFailure
         )
-        val contextText = resolveRefContext(request.refs) + resolveImageContext(request.images)
+        val refsWithSnapshots = ensureRefSnapshots(request.refs)
+        // contextText 只承载「本次附带图片」的 URI 说明；引用内容随 user 消息走
+        // （refs 落库后由 AiUserMessageText 注入），不再往 system prompt 里拼。
+        val contextText = resolveImageContext(request.images)
 
         // 1. 会话解析 + 用户消息落库。
         val conversationId = resolveConversation(request.conversationId, request.text, request.fileName)
@@ -148,7 +199,13 @@ class AiTaskManager @Inject constructor(
             role = AiRole.USER,
             content = request.text,
             images = request.images,
-            fileText = request.fileContent
+            fileText = request.fileContent,
+            // 引用随消息落库（含内容快照）：历史回看时 chip 仍可展示，
+            // 请求组装时也由它决定「这条消息引用了什么」。
+            refs = refsWithSnapshots,
+            // 引用回复：只存 id（同会话内自洽），正文由请求组装时按 id 现取——
+            // 引用的消息本来就在历史里，抄一份正文只会多一份可能过期的副本。
+            quotedMessageId = request.quotedMessageId
         )
         val savedUser = when (val result = conversationRepository.addMessage(userMessage)) {
             is RepositoryResult.Success -> result.data
@@ -243,24 +300,37 @@ class AiTaskManager @Inject constructor(
         }
     }
 
-    private suspend fun resolveRefContext(refs: List<AiRef>): String {
-        if (refs.isEmpty()) return ""
-        val sb = StringBuilder("【用户引用的知识内容】\n")
-        refs.forEach { ref ->
-            when (val result = noteRepository.getNoteById(ref.noteId)) {
-                is RepositoryResult.Success -> {
-                    val note = result.data
-                    if (note == null) {
-                        sb.append("- 笔记 ${ref.noteId} 不存在\n")
-                    } else {
-                        sb.append(formatRef(ref, note)).append("\n")
-                    }
-                }
-                is RepositoryResult.Error ->
-                    sb.append("- 读取笔记 ${ref.noteId} 失败：${result.message}\n")
+    /**
+     * 保证每个引用都带内容快照。
+     *
+     * 正常路径什么都不做：快照在**引用那一刻**就由 `AiRefSnapshot` 冻结好了
+     * （编辑器 id 是内存坐标，按 id 回查必然落空，见 `AiRef` 的类注释）。
+     * 这里只兜防御路径：快照为空（老数据 / 异常入口）时按 id 回查一次补上；
+     * 补不到就写明「不可用」——好过把一句空话丢给模型。
+     */
+    private suspend fun ensureRefSnapshots(refs: List<AiRef>): List<AiRef> =
+        refs.map { ref ->
+            if (ref.snapshot.isNotBlank()) ref else ref.copy(snapshot = resolveRefSnapshot(ref))
+        }
+
+    private suspend fun resolveRefSnapshot(ref: AiRef): String {
+        val note = when (val result = noteRepository.getNoteById(ref.noteId)) {
+            is RepositoryResult.Success -> result.data ?: return "（引用的内容已不可用）"
+            is RepositoryResult.Error -> return "（读取引用内容失败：${result.message}）"
+        }
+        return when (ref.kind) {
+            AiRefKind.NOTE -> AiRefSnapshot.forNote(note.title, note.contentBlocks)
+            AiRefKind.CARD -> {
+                val card = note.cards.firstOrNull { it.id == ref.cardId }
+                if (card == null) "（引用的卡片已不可用）"
+                else AiRefSnapshot.forCard(note.title, card.title, card.blocks)
+            }
+            AiRefKind.BLOCK -> {
+                val block = note.contentBlocks.firstOrNull { it.id == ref.blockId }
+                if (block == null) "（引用的块已不可用）"
+                else AiRefSnapshot.forBlock(note.title, block)
             }
         }
-        return sb.toString()
     }
 
     /**
@@ -276,36 +346,6 @@ class AiTaskManager @Inject constructor(
             }
             append("需要把图片写进笔记时，调用 create_note / update_note 并用 type=image、content 填上面的 URI（原样复制，不要改写）。")
         }
-    }
-
-    private fun formatRef(ref: AiRef, note: Note): String = when (ref.kind) {
-        // 统一走 contentBlocks：有知识卡片的笔记，块挂在卡片下，note.blocks 是空的，
-        // 直接读会把引用内容变成空白，模型据此以为笔记没内容。
-        AiRefKind.NOTE -> "笔记(id=${note.id})《${note.title}》\n${formatBlocks(note.contentBlocks)}"
-        AiRefKind.CARD -> {
-            val card = note.cards.firstOrNull { it.id == ref.cardId }
-            if (card == null) "笔记(id=${note.id})的卡片 ${ref.cardId} 不存在"
-            else "笔记(id=${note.id})卡片(id=${card.id})《${card.title}》\n${formatBlocks(card.blocks)}"
-        }
-        AiRefKind.BLOCK -> {
-            val block = note.contentBlocks.firstOrNull { it.id == ref.blockId }
-            if (block == null) "笔记(id=${note.id})的块 ${ref.blockId} 不存在"
-            else "笔记(id=${note.id})的块(id=${block.id})：\n${formatBlock(block)}"
-        }
-    }
-
-    private fun formatBlocks(blocks: List<com.example.zhilu.domain.model.Block>): String =
-        blocks.joinToString("\n\n") { formatBlock(it) }
-
-    private fun formatBlock(block: com.example.zhilu.domain.model.Block): String = when (block.type) {
-        BlockType.CODE -> "```${block.language.ifBlank { "text" }}\n${block.content}\n```"
-        BlockType.LATEX -> "\$\$${block.content}\$\$"
-        BlockType.LINK -> block.content
-        BlockType.TODO -> "- [ ] ${block.content}"
-        BlockType.DIVIDER -> "---"
-        BlockType.BRANCH -> "【分支】${block.content}"
-        BlockType.IMAGE -> "【图片】${ImageBlockContent.displayUri(block.content)}"
-        else -> block.content
     }
 
     private fun update(taskId: String, transform: (AiTask) -> AiTask) {

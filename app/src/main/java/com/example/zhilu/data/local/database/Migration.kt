@@ -96,5 +96,22 @@ object Migration {
         }
     }
 
-    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+    /**
+     * v7：AI 消息支持引用与消息引用。
+     *
+     * - `refsJson`：用户消息附带的引用列表（JSON 数组，**含引用时刻冻结的内容快照**）。
+     * - `quotedMessageId`：本条消息引用（回复）的同会话消息 id。
+     *
+     * 两列都可空且不给 DEFAULT，与既有的 `imagesJson TEXT` 同一约定：
+     * 既有行拿 NULL（本来就没有引用），语义正好一致，也避开 `defaultValue`
+     * 与 DDL 逐字对齐的坑（对照 v6 `emphasis` 的教训）。
+     */
+    internal val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE ai_messages ADD COLUMN refsJson TEXT")
+            db.execSQL("ALTER TABLE ai_messages ADD COLUMN quotedMessageId INTEGER")
+        }
+    }
+
+    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
 }

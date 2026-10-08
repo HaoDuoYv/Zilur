@@ -74,22 +74,12 @@ fun AppNavHost(
         }
         composable(
             route = Destination.Assistant.path,
-            arguments = listOf(
-                navArgument(Destination.Assistant.ARG_PREFILL) {
-                    type = NavType.StringType
-                    defaultValue = ""
-                }
-            ),
             enterTransition = { bottomNavEnter(motion) },
             exitTransition = { bottomNavExit(motion) },
             popEnterTransition = { bottomNavPopEnter(motion) },
             popExitTransition = { bottomNavPopExit(motion) }
-        ) { entry ->
-            AssistantScreen(
-                navController = navController,
-                // 底栏 ＋ 的「AI 创建」带着一句预填进来；空串表示从底栏正常切换
-                prefill = entry.arguments?.getString(Destination.Assistant.ARG_PREFILL).orEmpty()
-            )
+        ) {
+            AssistantScreen(navController = navController)
         }
         composable(
             route = Destination.Camera.path,
