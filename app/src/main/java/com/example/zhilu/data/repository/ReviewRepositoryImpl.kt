@@ -1,6 +1,7 @@
 package com.example.zhilu.data.repository
 
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.entity.ReviewDailyCountRow
 import com.example.zhilu.data.local.entity.ReviewRatingCountRow
@@ -15,13 +16,24 @@ import com.example.zhilu.domain.repository.ReviewRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class ReviewRepositoryImpl(
     private val reviewDao: ReviewDao,
-    private val schedulePolicy: ReviewSchedulePolicy,
+    private val userPreferences: UserPreferences,
     private val transactionRunner: RepositoryTransactionRunner
 ) : ReviewRepository {
+    /**
+     * 按**当前**用户阶梯构建排期策略。
+     *
+     * 不再在 DI 里注入一个构造期固定的 policy：用户改完间隔后，
+     * 下一个「开始复习 / 记录评级」就应立即按新阶梯走。
+     * 每次写操作多读一次 DataStore 的代价可忽略（写路径本来就是挂起的）。
+     */
+    private suspend fun currentPolicy(): ReviewSchedulePolicy =
+        ReviewSchedulePolicy.fromDays(userPreferences.reviewIntervals.first())
+
     override fun observePlans(): Flow<RepositoryResult<List<ReviewPlanWithNote>>> =
         reviewDao.observePlansWithNote()
             .map { rows ->
@@ -41,7 +53,7 @@ class ReviewRepositoryImpl(
     }.toRepositoryResult("Failed to load review plan")
 
     override suspend fun startPlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan> = runCatching {
-        val schedule = schedulePolicy.start(now)
+        val schedule = currentPolicy().start(now)
         transactionRunner.runInTransaction {
             val existing = reviewDao.getPlanByNoteId(noteId)?.let(ReviewMapper::toDomain)
             if (existing != null) {
@@ -102,7 +114,7 @@ class ReviewRepositoryImpl(
         rating: ReviewRating,
         reviewedAt: Long
     ): RepositoryResult<ReviewPlan> = runCatching {
-        val schedule = schedulePolicy.advance(plan.currentStep, rating, reviewedAt)
+        val schedule = currentPolicy().advance(plan.currentStep, rating, reviewedAt)
         transactionRunner.runInTransaction {
             reviewDao.insertEvent(
                 ReviewMapper.toEntity(

@@ -4,6 +4,7 @@ import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.data.local.dao.TodoDao
 import com.example.zhilu.data.local.mapper.TodoMapper
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.model.TodoWithContext
 import com.example.zhilu.domain.repository.TodoRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -15,6 +16,14 @@ class TodoRepositoryImpl(
     override fun observeByNoteId(noteId: Long): Flow<RepositoryResult<List<TodoItem>>> =
         todoDao.observeByNoteId(noteId)
             .map { entities -> RepositoryResult.Success(entities.map(TodoMapper::toDomain)) as RepositoryResult<List<TodoItem>> }
+            .catch { e -> emit(RepositoryResult.Error("Failed to load todos", e)) }
+
+    override fun observeAllWithContext(): Flow<RepositoryResult<List<TodoWithContext>>> =
+        todoDao.observeAllWithContext()
+            .map { rows ->
+                RepositoryResult.Success(rows.map(TodoMapper::toDomainWithContext))
+                    as RepositoryResult<List<TodoWithContext>>
+            }
             .catch { e -> emit(RepositoryResult.Error("Failed to load todos", e)) }
 
     override suspend fun addTodo(todo: TodoItem): RepositoryResult<Long> = runCatching {
@@ -45,4 +54,8 @@ class TodoRepositoryImpl(
         val todo = todoDao.getById(id)?.let(TodoMapper::toDomain) ?: return@runCatching
         todoDao.update(TodoMapper.toEntity(todo.copy(remindAt = remindAt, updatedAt = updatedAt)))
     }.toRepositoryResult("Failed to update todo reminder")
+
+    override suspend fun deleteTodo(id: Long): RepositoryResult<Unit> = runCatching {
+        todoDao.delete(id)
+    }.toRepositoryResult("Failed to delete todo")
 }

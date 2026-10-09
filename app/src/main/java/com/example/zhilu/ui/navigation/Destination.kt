@@ -60,6 +60,14 @@ sealed class Destination(val path: String) {
      */
     data object AiConfig : Destination("ai_config")
 
+    /**
+     * 复习间隔（自定义复习阶梯）。
+     *
+     * 独立成页：除了输入，还要放预设、逐档预览与"改了之后已有计划怎么走"的说明，
+     * 塞成设置里的一行放不下。入口在「我的 → 复习」。
+     */
+    data object ReviewInterval : Destination("review_interval")
+
     data object NoteEdit : Destination("note/{noteId}") {
         const val ARG_NOTE_ID = "noteId"
 

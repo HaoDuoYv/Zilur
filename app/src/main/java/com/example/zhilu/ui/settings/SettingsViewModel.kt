@@ -14,6 +14,7 @@ import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.domain.reminder.ReviewIntervals
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
@@ -84,6 +85,11 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            userPreferences.reviewIntervals.collect { intervals ->
+                _uiState.update { it.copy(reviewIntervals = intervals) }
+            }
+        }
+        viewModelScope.launch {
             userPreferences.aiSettings.collect { settings ->
                 _uiState.update { it.copy(aiSettings = settings) }
             }
@@ -118,6 +124,20 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.setRemindersEnabled(enabled)
             reminderScheduler.setEnabled(enabled)
+        }
+    }
+
+    /**
+     * 保存自定义复习间隔。
+     *
+     * 写入前再校验一次（界面已做即时校验，这里是最后一道闸）：非法值直接忽略，
+     * 免得把脏数据写进 DataStore —— 虽然读回时会回落默认，但"看起来保存了、
+     * 下次打开又变回去"对用户是更糟的谜题。
+     */
+    fun setReviewIntervals(days: List<Long>) {
+        if (ReviewIntervals.validate(days) != null) return
+        viewModelScope.launch {
+            userPreferences.setReviewIntervals(days)
         }
     }
 

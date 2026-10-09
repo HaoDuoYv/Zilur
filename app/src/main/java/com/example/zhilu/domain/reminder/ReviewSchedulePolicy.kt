@@ -11,6 +11,9 @@ class ReviewSchedulePolicy(
         require(intervalsMillis.all { it > 0 }) { "intervalsMillis values must be positive" }
     }
 
+    /** 当前阶梯的档位总数（进度点个数 / 「第 N/M 次」里的 M）。 */
+    val stepCount: Int get() = intervalsMillis.size
+
     fun start(now: Long): ReviewScheduleResult =
         ReviewScheduleResult(
             nextStep = 0,
@@ -38,13 +41,20 @@ class ReviewSchedulePolicy(
 
     companion object {
         private const val DAY = 86_400_000L
-        val defaultIntervalsMillis: List<Long> = listOf(1, 3, 7, 15, 30).map { it * DAY }
+
+        /** 出厂阶梯（毫秒形态）—— 「天」的唯一来源是 [ReviewIntervals.DEFAULT]。 */
+        val defaultIntervalsMillis: List<Long> = ReviewIntervals.DEFAULT.map { it * DAY }
+
+        /** 从「天」构建（用户自定义阶梯的入口）。 */
+        fun fromDays(days: List<Long>): ReviewSchedulePolicy =
+            ReviewSchedulePolicy(days.map { it * DAY })
 
         /**
          * 默认阶梯的档位总数（`intervalsMillis.size`）。
          *
-         * 界面上的「第 N/总次」与进度点个数都从这里取 —— 别在界面里写死数字，
-         * 否则改阶梯长度时文案会悄悄说谎。
+         * 用户改过阶梯后，界面上的「第 N/总次」与进度点个数应以**当前**阶梯为准
+         * （读取方拿 `ReviewSchedulePolicy.stepCount` 或界面状态里的 stepCount）；
+         * 这里只是"没读到自定义值"时的兜底，别再往界面里写死数字。
          */
         val defaultStepCount: Int = defaultIntervalsMillis.size
     }

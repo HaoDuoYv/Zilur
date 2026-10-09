@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,6 +38,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
+import com.example.zhilu.domain.reminder.ReviewIntervals
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
@@ -133,6 +135,24 @@ fun SettingsScreen(
                 },
                 onToggleReminders = viewModel::setRemindersEnabled
             )
+
+            // 「复习」不再只是提醒的附庸：自定义阶梯独立成页（预设 + 校验 + 预览），
+            // 这里只留一行入口，行尾写出当前阶梯。
+            SettingsGroup(title = "复习") {
+                SettingsRow(
+                    title = "复习间隔",
+                    description = ReviewIntervals.summary(state.reviewIntervals),
+                    leadingIcon = Icons.Outlined.Schedule,
+                    onClick = { navController.navigate(Destination.ReviewInterval.path) },
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
 
             // 外观不再是内联的三组控件，而是一行**独立入口**：进去之后有配色缩略卡
             // 和一句话说明，选起来比在长列表里翻开关清楚得多。行尾直接写出当前外观，

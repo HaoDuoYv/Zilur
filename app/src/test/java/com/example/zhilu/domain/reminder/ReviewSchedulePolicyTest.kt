@@ -88,4 +88,55 @@ class ReviewSchedulePolicyTest {
         assertEquals(null, result.nextReviewAt)
         assertTrue(result.completed)
     }
+
+    // ---------- 自定义阶梯（fromDays / stepCount） ----------
+
+    @Test
+    fun fromDaysScalesIntervalsByDay() {
+        val custom = ReviewSchedulePolicy.fromDays(listOf(2, 5))
+
+        assertEquals(now + 2 * day, custom.start(now).nextReviewAt)
+    }
+
+    @Test
+    fun customLadderAdvancesAlongItsOwnIntervals() {
+        val custom = ReviewSchedulePolicy.fromDays(listOf(2, 5))
+
+        val result = custom.advance(currentStep = 0, rating = ReviewRating.NORMAL, reviewedAt = now)
+
+        assertEquals(1, result.nextStep)
+        assertEquals(now + 5 * day, result.nextReviewAt)
+        assertFalse(result.completed)
+    }
+
+    @Test
+    fun customLadderCompletesAfterItsLastStep() {
+        val custom = ReviewSchedulePolicy.fromDays(listOf(2, 5))
+
+        val result = custom.advance(currentStep = 1, rating = ReviewRating.NORMAL, reviewedAt = now)
+
+        assertTrue(result.completed)
+        assertEquals(null, result.nextReviewAt)
+    }
+
+    @Test
+    fun stepCountMatchesIntervalCount() {
+        assertEquals(5, policy.stepCount)
+        assertEquals(2, ReviewSchedulePolicy.fromDays(listOf(2, 5)).stepCount)
+    }
+
+    @Test
+    fun defaultStepCountFollowsDefaultLadder() {
+        assertEquals(ReviewIntervals.DEFAULT.size, ReviewSchedulePolicy.defaultStepCount)
+    }
+
+    @Test
+    fun singleStepLadderCompletesOnFirstAdvance() {
+        val custom = ReviewSchedulePolicy.fromDays(listOf(7))
+
+        val result = custom.advance(currentStep = 0, rating = ReviewRating.NORMAL, reviewedAt = now)
+
+        assertEquals(1, custom.stepCount)
+        assertTrue(result.completed)
+    }
 }

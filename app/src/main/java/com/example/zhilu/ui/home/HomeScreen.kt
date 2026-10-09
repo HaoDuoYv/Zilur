@@ -288,6 +288,7 @@ fun HomeScreen(
             onRename = { renamingTag = it },
             onDelete = { deletingTag = it },
             onCreate = viewModel::createTag,
+            onMerge = { sourceIds, targetId -> viewModel.mergeTags(sourceIds, targetId) },
             onDismiss = { showTagManage = false }
         )
     }

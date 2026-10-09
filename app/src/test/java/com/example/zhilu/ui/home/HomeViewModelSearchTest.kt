@@ -399,6 +399,39 @@ class HomeViewModelSearchTest {
         assertTrue(viewModel.uiState.value.selectedTagIds.isEmpty())
     }
 
+    @Test
+    fun `merging tags re-points an active filter to the target`() = runTest(dispatcher) {
+        val tagRepository = SearchTestTagRepository(
+            tags = listOf(Tag(id = 1, name = "论文"), Tag(id = 2, name = "论文资料"))
+        )
+        val viewModel = createViewModel(SearchTestNoteRepository(), tagRepository)
+        advanceUntilIdle()
+
+        viewModel.toggleTagFilter(1)
+        viewModel.toggleTagFilter(2)
+        advanceUntilIdle()
+
+        viewModel.mergeTags(listOf(1, 2), targetId = 2)
+        advanceUntilIdle()
+
+        // 下发的源里不含目标本身（目标不能被自己合并掉）
+        assertEquals(listOf(1L) to 2L, tagRepository.mergedCalls.single())
+        // 被合并掉的 1 若还留在筛选里会悬空 —— 改挂到目标 2
+        assertEquals(setOf(2L), viewModel.uiState.value.selectedTagIds)
+    }
+
+    @Test
+    fun `merging with the target excluded from sources is a no-op`() = runTest(dispatcher) {
+        val tagRepository = SearchTestTagRepository()
+        val viewModel = createViewModel(SearchTestNoteRepository(), tagRepository)
+        advanceUntilIdle()
+
+        viewModel.mergeTags(listOf(2, 2), targetId = 2)
+        advanceUntilIdle()
+
+        assertTrue(tagRepository.mergedCalls.isEmpty())
+    }
+
     private fun createViewModel(
         noteRepository: NoteRepository,
         tagRepository: TagRepository = SearchTestTagRepository(),
@@ -481,6 +514,7 @@ private class SearchTestTagRepository(
     val insertedTags = mutableListOf<Tag>()
     val updatedTags = mutableListOf<Tag>()
     val deletedTags = mutableListOf<Tag>()
+    val mergedCalls = mutableListOf<Pair<List<Long>, Long>>()
 
     override fun getAllTags(): Flow<RepositoryResult<List<Tag>>> =
         flowOf(RepositoryResult.Success(tags))
@@ -515,6 +549,11 @@ private class SearchTestTagRepository(
 
     override suspend fun deleteTag(tag: Tag): RepositoryResult<Unit> {
         deletedTags += tag
+        return RepositoryResult.Success(Unit)
+    }
+
+    override suspend fun mergeTags(sourceIds: List<Long>, targetId: Long): RepositoryResult<Unit> {
+        mergedCalls += sourceIds to targetId
         return RepositoryResult.Success(Unit)
     }
 

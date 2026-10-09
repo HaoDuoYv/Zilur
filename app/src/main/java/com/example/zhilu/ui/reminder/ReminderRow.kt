@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderType
 import com.example.zhilu.domain.model.ReminderWithContext
-import com.example.zhilu.domain.reminder.ReviewSchedulePolicy
 import com.example.zhilu.ui.component.DocumentRow
 import com.example.zhilu.ui.component.MetaLine
 import com.example.zhilu.ui.component.QuietAction
@@ -39,9 +38,6 @@ import java.util.Locale
 
 private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
-/** 阶梯档位总数，与复习中心同一来源（`ReviewSchedulePolicy`），别写死数字。 */
-private val StepTotal = ReviewSchedulePolicy.defaultStepCount
-
 /**
  * 提醒行：左侧状态色通高书脊 + "要做什么" + 上下文 + 状态胶囊 + 操作区。
  *
@@ -52,6 +48,8 @@ private val StepTotal = ReviewSchedulePolicy.defaultStepCount
  * 操作按类型分叉（单一事实来源）：
  * - **待办提醒**：完成（回写 `todo_items.completedAt`）/ 取消（清 `remindAt`）/ 延后；
  * - **复习提醒**：只读 —— 计划自己管提醒的生灭，这里只给去「待复习」的引导。
+ *
+ * @param stepTotal 复习阶梯档位总数（「第 N/M 次」的 M）；跟用户自定义间隔走，由调用方从状态传入。
  */
 @Composable
 fun ReminderRow(
@@ -59,6 +57,7 @@ fun ReminderRow(
     style: ReminderStatusStyle,
     statusLabel: String,
     context: ReminderWithContext?,
+    stepTotal: Int,
     actionsEnabled: Boolean,
     onClick: () -> Unit,
     onDone: () -> Unit,
@@ -78,7 +77,7 @@ fun ReminderRow(
     val metaParts = buildList {
         // REVIEW 行的标题已经是笔记标题，档位单独成一段
         if (isReview) {
-            context?.reviewStep?.let { add("第 ${it + 1}/$StepTotal 次复习") }
+            context?.reviewStep?.let { add("第 ${it + 1}/$stepTotal 次复习") }
         }
         // 标题已经吃掉笔记标题时不再重复一遍（复习行、待办文本为空的待办行都会走到这里）
         noteTitle?.takeIf { it != title }?.let { add(it) }

@@ -1,9 +1,17 @@
 package com.example.zhilu.data.local.mapper
 
 import com.example.zhilu.data.local.entity.TodoItemEntity
+import com.example.zhilu.data.local.entity.TodoWithContextRow
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.model.TodoWithContext
 
 object TodoMapper {
+    fun toDomainWithContext(row: TodoWithContextRow): TodoWithContext = TodoWithContext(
+        todo = toDomain(row.todo),
+        noteTitle = row.noteTitle,
+        noteAlive = row.noteAlive
+    )
+
     fun toDomain(entity: TodoItemEntity): TodoItem = TodoItem(
         id = entity.id,
         noteId = entity.noteId,

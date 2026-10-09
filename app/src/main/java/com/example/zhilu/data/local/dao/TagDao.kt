@@ -55,6 +55,27 @@ interface TagDao {
     )
     fun countNotesPerTag(): Flow<List<TagNoteCount>>
 
+    /**
+     * 「标签体系」变化心跳：`note_tags` 或 `tags` 任一写入都会重发（值本身无意义）。
+     *
+     * 笔记列表的标签是 `NoteRepositoryImpl.hydrate` 逐条**一次性查询**出来的，
+     * 而列表 Flow 只观察 `notes` 表 —— 合并 / 删除 / 重命名标签后，卡片上的标签胶囊
+     * 会一直陈旧到冷启动（真机复现：合并后卡片仍显示被合并掉的标签）。
+     * 这个心跳给列表补上对关联表的感知。
+     *
+     * 与 [countNotesPerTag] 同理：查询同时引用两张表，Room 对两张表都注册观察，
+     * 重命名这种行数不变的 UPDATE 同样会触发。
+     */
+    @Query(
+        """
+        SELECT COUNT(*)
+        FROM note_tags nt
+        JOIN tags t ON t.id = nt.tagId
+        """
+    )
+    fun observeTagChanges(): Flow<Int>
+
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(tag: TagEntity): Long
 
@@ -69,6 +90,28 @@ interface TagDao {
 
     @Query("DELETE FROM note_tags WHERE noteId = :noteId")
     suspend fun deleteNoteTagsByNoteId(noteId: Long)
+
+    /**
+     * 合并标签第一步：把源标签下**全部笔记关联**改挂到目标。
+     *
+     * `INSERT OR IGNORE` 跳过"该笔记本来就同时挂着源与目标"的情况 ——
+     * `note_tags` 是 `(noteId, tagId)` 联合主键，直接 INSERT 会撞唯一约束。
+     */
+    @Query(
+        """
+        INSERT OR IGNORE INTO note_tags (noteId, tagId)
+        SELECT noteId, :targetId FROM note_tags WHERE tagId IN (:sourceTagIds)
+        """
+    )
+    suspend fun repointNoteTags(sourceTagIds: List<Long>, targetId: Long)
+
+    /** 合并标签第二步：清掉源标签的关联（不依赖外键级联，语义显式）。 */
+    @Query("DELETE FROM note_tags WHERE tagId IN (:tagIds)")
+    suspend fun deleteNoteTagsByTagIds(tagIds: List<Long>)
+
+    /** 合并标签第三步：删除源标签本体。 */
+    @Query("DELETE FROM tags WHERE id IN (:ids)")
+    suspend fun deleteTagsByIds(ids: List<Long>)
 
     @Query("SELECT COUNT(*) FROM tags")
     suspend fun count(): Int

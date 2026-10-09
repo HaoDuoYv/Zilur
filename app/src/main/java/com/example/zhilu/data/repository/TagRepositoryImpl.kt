@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
 class TagRepositoryImpl(
-    private val tagDao: TagDao
+    private val tagDao: TagDao,
+    private val transactionRunner: RepositoryTransactionRunner = NoOpRepositoryTransactionRunner
 ) : TagRepository {
     override fun getAllTags(): Flow<RepositoryResult<List<Tag>>> = tagDao.getAll()
         .map { entities -> RepositoryResult.Success(entities.map(TagMapper::toDomain)) as RepositoryResult<List<Tag>> }
@@ -40,6 +41,19 @@ class TagRepositoryImpl(
     override suspend fun deleteTag(tag: Tag): RepositoryResult<Unit> = runCatching {
         tagDao.delete(TagMapper.toEntity(tag))
     }.toRepositoryResult("Failed to delete tag")
+
+    override suspend fun mergeTags(sourceIds: List<Long>, targetId: Long): RepositoryResult<Unit> =
+        runCatching {
+            val sources = sourceIds.filter { it != targetId }
+            if (sources.isEmpty()) return@runCatching
+            transactionRunner.runInTransaction {
+                // 顺序固定：先改挂关联、再清源关联、最后删源标签。
+                // 任何一步失败都会整体回滚，不会留下"关联丢了、标签还在"的半截状态。
+                tagDao.repointNoteTags(sourceTagIds = sources, targetId = targetId)
+                tagDao.deleteNoteTagsByTagIds(sources)
+                tagDao.deleteTagsByIds(sources)
+            }
+        }.toRepositoryResult("Failed to merge tags")
 
     override fun getTagCount(): Flow<RepositoryResult<Int>> = tagDao.countFlow()
         .map<Int, RepositoryResult<Int>> { RepositoryResult.Success(it) }

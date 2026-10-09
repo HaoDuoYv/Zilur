@@ -6,6 +6,7 @@ import com.example.zhilu.domain.model.ReminderStatus
 import com.example.zhilu.domain.model.ReminderType
 import com.example.zhilu.domain.model.ReminderWithContext
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.model.TodoWithContext
 import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.TodoRepository
 import kotlinx.coroutines.flow.Flow
@@ -168,6 +169,13 @@ private class RecordingReminderRepository(
 }
 
 private class RecordingTodoRepository : TodoRepository {
+
+    override fun observeAllWithContext(): Flow<RepositoryResult<List<TodoWithContext>>> =
+        flowOf(RepositoryResult.Success(emptyList()))
+
+    override suspend fun deleteTodo(id: Long): RepositoryResult<Unit> =
+        RepositoryResult.Success(Unit)
+
     val completedCalls = mutableListOf<Pair<Long, Long>>()
     val remindAtCalls = mutableListOf<Triple<Long, Long?, Long>>()
 

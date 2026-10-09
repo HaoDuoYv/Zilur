@@ -19,6 +19,7 @@ import com.example.zhilu.domain.repository.NoteRepository
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 class NoteRepositoryImpl(
@@ -110,12 +111,21 @@ class NoteRepositoryImpl(
         noteDao.count()
     }.toRepositoryResult("Failed to count notes")
 
+    /**
+     * 列表类 Flow 的统一组装。
+     *
+     * `combine(observeTagChanges)` 补一层「标签体系变化」的感知：`hydrate` 里的标签
+     * 是一次性查询（`tagDao.getByNoteId`），`notes` 表自身的变更推不出
+     * `note_tags` / `tags` 的写入 —— 不 combine 的话，合并 / 删除 / 重命名标签后
+     * 卡片上的标签胶囊会陈旧到冷启动（真机复现过）。
+     */
     private fun Flow<List<NoteEntity>>.asNoteResultFlow(message: String): Flow<RepositoryResult<List<Note>>> =
-        map<List<NoteEntity>, RepositoryResult<List<Note>>> { entities ->
-            RepositoryResult.Success(entities.map { hydrate(it) })
-        }.catch { e ->
-            emit(RepositoryResult.Error(message, e))
-        }
+        combine(tagDao.observeTagChanges()) { entities, _ -> entities }
+            .map<List<NoteEntity>, RepositoryResult<List<Note>>> { entities ->
+                RepositoryResult.Success(entities.map { hydrate(it) })
+            }.catch { e ->
+                emit(RepositoryResult.Error(message, e))
+            }
 
     private suspend fun hydrate(entity: NoteEntity): Note {
         val cards = noteCardDao.getByNoteIdOnce(entity.id)

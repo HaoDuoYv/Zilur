@@ -1,6 +1,7 @@
 package com.example.zhilu.ui.review
 
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderStatus
 import com.example.zhilu.domain.model.ReminderType
@@ -10,7 +11,10 @@ import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.model.TodoWithContext
+import com.example.zhilu.domain.reminder.ReviewIntervals
 import com.example.zhilu.domain.reminder.ReviewReminderSync
+import com.example.zhilu.domain.reminder.TodoReminderSync
 import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TodoRepository
@@ -29,6 +33,8 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import io.mockk.every
+import io.mockk.mockk
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -37,7 +43,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * 复习中心的两档：待复习队列（计划）与提醒列表（提醒实例）。
+ * 复习中心的三档：待复习队列（计划）、待办（跨笔记）与提醒列表（提醒实例）。
  *
  * 断言口径遵循"写库不乐观更新"：动作只看**下发给仓库的调用**（参数对不对），
  * 界面状态只断言由 Flow 回流的那部分。
@@ -283,6 +289,102 @@ class ReviewCenterViewModelTest {
         assertEquals(startOfToday + day + 9 * 3_600_000L, reminderRepository.scheduledCalls.single().dueAt)
     }
 
+    // ---- 待办档 ----
+
+    @Test
+    fun todosAreSplitIntoPendingAndCompletedWithCompletedNewestFirst() = runTest(dispatcher) {
+        // 模拟 DAO 出货顺序：未完成在前（带提醒的在前），已完成殿后
+        val repository = FakeTodoRepository(
+            listOf(
+                todo(id = 1, remindAt = now + 1000),
+                todo(id = 3),
+                todo(id = 2, completedAt = now - 500),
+                todo(id = 4, completedAt = now - 100)
+            )
+        )
+
+        val viewModel = viewModel(FakeReviewRepository(), todoRepository = repository)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(listOf(1L, 3L), state.pendingTodos.map { it.todo.id })
+        // 「已完成」区按完成时间倒序：最近完成的在前（DAO 的排序键对两区不同，这里补上）
+        assertEquals(listOf(4L, 2L), state.completedTodos.map { it.todo.id })
+        assertEquals(2, state.pendingTodoCount)
+    }
+
+    @Test
+    fun completeTodoWritesSourceThenMarksReminderDone() = runTest(dispatcher) {
+        val item = todo(id = 7, remindAt = now - 1)
+        val reminderRepository = FakeReminderRepository()
+        val todoRepository = FakeTodoRepository(listOf(item))
+
+        val viewModel = viewModel(FakeReviewRepository(), reminderRepository, todoRepository)
+        advanceUntilIdle()
+
+        viewModel.completeTodo(item.todo)
+        advanceUntilIdle()
+
+        // 先写源头（completedAt = now），再让 TODO 提醒结束 —— 顺序与笔记页勾选一致
+        assertEquals(7L to now, todoRepository.completedCalls.single())
+        assertEquals(ReminderType.TODO to 7L, reminderRepository.doneCalls.single())
+    }
+
+    @Test
+    fun reopenTodoClearsCompletedAtAndReschedulesReminder() = runTest(dispatcher) {
+        val item = todo(id = 8, remindAt = now + 1000, completedAt = now - 1)
+        val reminderRepository = FakeReminderRepository()
+        val todoRepository = FakeTodoRepository(listOf(item))
+
+        val viewModel = viewModel(FakeReviewRepository(), reminderRepository, todoRepository)
+        advanceUntilIdle()
+
+        viewModel.reopenTodo(item.todo)
+        advanceUntilIdle()
+
+        assertNull(todoRepository.updatedCalls.single().completedAt)
+        // 重新配平：有 remindAt → 重建 TODO 提醒（sourceId = 待办 id，dueAt 保持原时间）
+        val scheduled = reminderRepository.scheduledCalls.single()
+        assertEquals(ReminderType.TODO, scheduled.type)
+        assertEquals(8L, scheduled.sourceId)
+        assertEquals(now + 1000, scheduled.dueAt)
+    }
+
+    @Test
+    fun deleteTodoCancelsReminderBeforeDeletingRow() = runTest(dispatcher) {
+        val item = todo(id = 9)
+        val reminderRepository = FakeReminderRepository()
+        val todoRepository = FakeTodoRepository(listOf(item))
+
+        val viewModel = viewModel(FakeReviewRepository(), reminderRepository, todoRepository)
+        advanceUntilIdle()
+
+        viewModel.deleteTodo(item.todo)
+        advanceUntilIdle()
+
+        assertEquals(ReminderType.TODO to 9L, reminderRepository.cancelCalls.single())
+        assertEquals(9L, todoRepository.deletedIds.single())
+    }
+
+    @Test
+    fun deleteTodoStopsWhenReminderCancelFails() = runTest(dispatcher) {
+        val item = todo(id = 10)
+        val reminderRepository = FakeReminderRepository(
+            cancelResult = RepositoryResult.Error("取消失败")
+        )
+        val todoRepository = FakeTodoRepository(listOf(item))
+
+        val viewModel = viewModel(FakeReviewRepository(), reminderRepository, todoRepository)
+        advanceUntilIdle()
+
+        viewModel.deleteTodo(item.todo)
+        advanceUntilIdle()
+
+        // 提醒没取消掉就绝不能删本体 —— 反序会留下"提醒指向已删待办"的孤儿
+        assertTrue(todoRepository.deletedIds.isEmpty())
+        assertEquals("取消失败", viewModel.uiState.value.error)
+    }
+
     // ---- 意图与错误 ----
 
     @Test
@@ -329,16 +431,29 @@ class ReviewCenterViewModelTest {
         reviewRepository: ReviewRepository,
         reminderRepository: ReminderRepository = FakeReminderRepository(),
         todoRepository: TodoRepository = FakeTodoRepository(),
-        appIntents: AppIntents = AppIntents()
+        appIntents: AppIntents = AppIntents(),
+        userPreferences: UserPreferences = fakeUserPreferences()
     ) = ReviewCenterViewModel(
         reviewRepository = reviewRepository,
         reminderRepository = reminderRepository,
+        todoRepository = todoRepository,
+        todoReminderSync = TodoReminderSync(reminderRepository),
         manageReviewPlan = ManageReviewPlanUseCase(reviewRepository, ReviewReminderSync(reminderRepository)),
         resolveReminder = ResolveReminderUseCase(reminderRepository, todoRepository),
         appIntents = appIntents,
+        userPreferences = userPreferences,
         nowProvider = { now },
         startOfTodayProvider = { startOfToday }
     )
+
+    /**
+     * 只有 [UserPreferences.reviewIntervals] 被收集，其余属性的替身没有意义 ——
+     * 用假 StateFlow 而不是 relaxed mock（松弛 mock 的 Flow 永远不发射，收集会抛异常）。
+     */
+    private fun fakeUserPreferences(intervals: List<Long> = ReviewIntervals.DEFAULT): UserPreferences =
+        mockk {
+            every { reviewIntervals } returns MutableStateFlow(intervals)
+        }
 
     private fun plan(
         noteId: Long,
@@ -375,6 +490,26 @@ class ReviewCenterViewModelTest {
         status = status,
         notificationId = id.toInt(),
         updatedAt = id
+    )
+
+    private fun todo(
+        id: Long,
+        content: String = "待办 $id",
+        noteId: Long? = id,
+        remindAt: Long? = null,
+        completedAt: Long? = null
+    ) = TodoWithContext(
+        todo = TodoItem(
+            id = id,
+            noteId = noteId,
+            content = content,
+            remindAt = remindAt,
+            completedAt = completedAt,
+            createdAt = id,
+            updatedAt = id
+        ),
+        noteTitle = "笔记 $id",
+        noteAlive = true
     )
 }
 
@@ -435,7 +570,8 @@ private class FakeReviewRepository(
 
 private class FakeReminderRepository(
     private val contexts: List<ReminderWithContext> = emptyList(),
-    private val markDoneResult: RepositoryResult<Unit> = RepositoryResult.Success(Unit)
+    private val markDoneResult: RepositoryResult<Unit> = RepositoryResult.Success(Unit),
+    private val cancelResult: RepositoryResult<Unit> = RepositoryResult.Success(Unit)
 ) : ReminderRepository {
     private val contextFlow =
         MutableStateFlow<RepositoryResult<List<ReminderWithContext>>>(RepositoryResult.Success(contexts))
@@ -474,13 +610,22 @@ private class FakeReminderRepository(
 
     override suspend fun cancel(type: ReminderType, sourceId: Long): RepositoryResult<Unit> {
         cancelCalls += type to sourceId
-        return RepositoryResult.Success(Unit)
+        return cancelResult
     }
 }
 
-private class FakeTodoRepository : TodoRepository {
+private class FakeTodoRepository(
+    initialTodos: List<TodoWithContext> = emptyList()
+) : TodoRepository {
+    private val todosFlow =
+        MutableStateFlow<RepositoryResult<List<TodoWithContext>>>(RepositoryResult.Success(initialTodos))
+
     val completedCalls = mutableListOf<Pair<Long, Long>>()
     val remindAtCalls = mutableListOf<Triple<Long, Long?, Long>>()
+    val updatedCalls = mutableListOf<TodoItem>()
+    val deletedIds = mutableListOf<Long>()
+
+    override fun observeAllWithContext(): Flow<RepositoryResult<List<TodoWithContext>>> = todosFlow
 
     override fun observeByNoteId(noteId: Long): Flow<RepositoryResult<List<TodoItem>>> =
         flowOf(RepositoryResult.Success(emptyList()))
@@ -488,8 +633,10 @@ private class FakeTodoRepository : TodoRepository {
     override suspend fun addTodo(todo: TodoItem): RepositoryResult<Long> =
         RepositoryResult.Success(1L)
 
-    override suspend fun updateTodo(todo: TodoItem): RepositoryResult<Unit> =
-        RepositoryResult.Success(Unit)
+    override suspend fun updateTodo(todo: TodoItem): RepositoryResult<Unit> {
+        updatedCalls += todo
+        return RepositoryResult.Success(Unit)
+    }
 
     override suspend fun completeTodo(id: Long, completedAt: Long): RepositoryResult<Unit> {
         completedCalls += id to completedAt
@@ -502,6 +649,11 @@ private class FakeTodoRepository : TodoRepository {
         updatedAt: Long
     ): RepositoryResult<Unit> {
         remindAtCalls += Triple(id, remindAt, updatedAt)
+        return RepositoryResult.Success(Unit)
+    }
+
+    override suspend fun deleteTodo(id: Long): RepositoryResult<Unit> {
+        deletedIds += id
         return RepositoryResult.Success(Unit)
     }
 }

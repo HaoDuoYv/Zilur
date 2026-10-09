@@ -5,11 +5,14 @@ import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderWithContext
 import com.example.zhilu.domain.model.ReviewQueue
 import com.example.zhilu.domain.model.ReviewStats
+import com.example.zhilu.domain.model.TodoWithContext
+import com.example.zhilu.domain.reminder.ReviewSchedulePolicy
 import com.example.zhilu.ui.reminder.ReminderFilter
 
-/** 复习中心的两个档位。 */
+/** 复习中心的三个档位。 */
 enum class ReviewTab(val label: String) {
     Pending("待复习"),
+    Todos("待办"),
     Reminders("提醒")
 }
 
@@ -26,6 +29,12 @@ data class ReviewCenterUiState(
     val error: String? = null,
     /** 今天 0 点（复习是天粒度，行内「逾期 N 天 / N 天后」按它算）。 */
     val startOfToday: Long = 0L,
+    /**
+     * 当前用户阶梯的档位总数 —— 「第 N/M 次」与进度点个数都用它。
+     *
+     * 跟设置里的自定义间隔走（见 `ReviewIntervals`）；界面别再写死 `/5`。
+     */
+    val stepCount: Int = ReviewSchedulePolicy.defaultStepCount,
     // ---- 「待复习」档 ----
     val queue: ReviewQueue = ReviewQueue(),
     /**
@@ -35,11 +44,31 @@ data class ReviewCenterUiState(
      * 所以这里不再单存一个今日计数 —— 同一个数字打两条查询迟早会在跨零点时对不上。
      */
     val stats: ReviewStats = ReviewStats(),
+    // ---- 「待办」档 ----
+    /**
+     * 跨笔记的全部待办（含已完成）。
+     *
+     * 排序来自 DAO（未完成 → 带提醒 → 时间）；「已完成」小组在 [completedTodos]
+     * 里按完成时间倒序 —— 与 DAO 的排序键不同，不硬塞进同一条 SQL。
+     */
+    val todos: List<TodoWithContext> = emptyList(),
     // ---- 「提醒」档 ----
     val reminderFilter: ReminderFilter = ReminderFilter.Pending,
     val reminderBucket: ReminderBucket = ReminderBucket(),
     val reminderContextById: Map<Long, ReminderWithContext> = emptyMap()
 ) {
+    /** 待办档的「待处理」区（DAO 已把带提醒的排在前面）。 */
+    val pendingTodos: List<TodoWithContext>
+        get() = todos.filterNot { it.todo.isCompleted }
+
+    /** 待办档的「已完成」区：最近完成的在前。 */
+    val completedTodos: List<TodoWithContext>
+        get() = todos.filter { it.todo.isCompleted }.sortedByDescending { it.todo.completedAt }
+
+    /** 待办档计数（分段标题上的「待办 N」）：未完成的条数。 */
+    val pendingTodoCount: Int
+        get() = pendingTodos.size
+
     /** 提醒档三档筛选下的当前列表（待处理 = 今天 + 未来，与老提醒中心同口径）。 */
     val filteredReminders: List<ReminderInstance>
         get() = when (reminderFilter) {

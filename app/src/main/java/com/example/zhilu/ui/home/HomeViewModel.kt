@@ -250,6 +250,31 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 合并标签：源标签的关联改挂到目标后删除源标签。
+     *
+     * 被合并掉的标签若正被筛选，**改挂到目标**而不是移除 ——
+     * 与删除同理（不让筛选悬空），且合并语义下笔记并没有丢标签，只是换了名字。
+     */
+    fun mergeTags(sourceIds: List<Long>, targetId: Long) {
+        val sources = sourceIds.filter { it != targetId }
+        if (sources.isEmpty()) return
+        viewModelScope.launch {
+            when (val result = tagRepository.mergeTags(sources, targetId)) {
+                is RepositoryResult.Success -> {
+                    val selected = _uiState.value.selectedTagIds
+                    if (selected.any { it in sources }) {
+                        _uiState.update {
+                            it.copy(selectedTagIds = (selected - sources.toSet()) + targetId)
+                        }
+                        refreshSearch()
+                    }
+                }
+                is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
+            }
+        }
+    }
+
     private suspend fun search(rawQuery: String) {
         val trimmed = rawQuery.trim()
 

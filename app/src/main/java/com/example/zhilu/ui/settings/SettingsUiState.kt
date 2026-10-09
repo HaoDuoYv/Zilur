@@ -4,6 +4,7 @@ import com.example.zhilu.domain.model.AiSettings
 import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.ThemePalette
+import com.example.zhilu.domain.reminder.ReviewIntervals
 
 data class SettingsUiState(
     val noteCount: Int = 0,
@@ -21,6 +22,8 @@ data class SettingsUiState(
     /** 无障碍语义色板（§3.9）。 */
     val accessibleEmphasis: Boolean = false,
     val remindersEnabled: Boolean = true,
+    /** 自定义复习间隔（天），见 `ReviewIntervals`。 */
+    val reviewIntervals: List<Long> = ReviewIntervals.DEFAULT,
     val aiSettings: AiSettings = AiSettings.EMPTY,
     val aiTestInProgress: Boolean = false,
     val aiTestResult: String? = null,

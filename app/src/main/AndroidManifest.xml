@@ -45,6 +45,14 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!--
+            提醒通知上的动作按钮（完成 / 延后 1 小时）：接收通知栏 PendingIntent 广播，
+            走与提醒列表相同的 ResolveReminderUseCase。只收本应用发出的显式广播。
+        -->
+        <receiver
+            android:name=".reminder.ReminderActionReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"

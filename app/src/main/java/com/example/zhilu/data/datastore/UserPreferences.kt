@@ -10,6 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.example.zhilu.domain.model.AiService
 import com.example.zhilu.domain.model.AiSettings
 import com.example.zhilu.domain.model.AiVendorPreset
+import com.example.zhilu.domain.reminder.ReviewIntervals
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -118,6 +119,7 @@ class UserPreferences @Inject constructor(
     private val accentColorKey = stringPreferencesKey("accent_color")
     private val accessibleEmphasisKey = booleanPreferencesKey("accessible_emphasis")
     private val remindersEnabledKey = booleanPreferencesKey("reminders_enabled")
+    private val reviewIntervalsKey = stringPreferencesKey("review_intervals")
     private val aiSettingsKey = stringPreferencesKey("ai_settings")
 
     // 旧的单配置键。只在迁移时读一次，之后不再写。
@@ -140,6 +142,20 @@ class UserPreferences @Inject constructor(
 
     val remindersEnabled: Flow<Boolean> = context.userPreferencesStore.data.map { prefs ->
         prefs[remindersEnabledKey] ?: true
+    }
+
+    /**
+     * 自定义复习间隔（单位：天，如 `[1, 3, 7, 15, 30]`）。
+     *
+     * 存成逗号分隔的一行字符串；读取时**校验后回落默认阶梯** ——
+     * 存储里出现脏数据（手改 / 旧版本 / 极端情况）时宁可回到出厂设置，
+     * 也不能把非法阶梯喂给 `ReviewSchedulePolicy`（它的 require 会直接抛异常）。
+     */
+    val reviewIntervals: Flow<List<Long>> = context.userPreferencesStore.data.map { prefs ->
+        prefs[reviewIntervalsKey]
+            ?.let(ReviewIntervals::parse)
+            ?.takeIf { ReviewIntervals.validate(it) == null }
+            ?: ReviewIntervals.DEFAULT
     }
 
     /** 无障碍语义色板（设计文档 §3.9）。默认关闭。 */
@@ -215,6 +231,13 @@ class UserPreferences @Inject constructor(
     suspend fun setRemindersEnabled(enabled: Boolean) {
         context.userPreferencesStore.edit { prefs ->
             prefs[remindersEnabledKey] = enabled
+        }
+    }
+
+    /** 写入前请先经 [ReviewIntervals.validate]（设置页已做）；非法值读回时会回落默认阶梯。 */
+    suspend fun setReviewIntervals(days: List<Long>) {
+        context.userPreferencesStore.edit { prefs ->
+            prefs[reviewIntervalsKey] = ReviewIntervals.format(days)
         }
     }
 

@@ -11,8 +11,14 @@ import com.example.zhilu.data.local.entity.NoteCardEntity
 import com.example.zhilu.data.local.entity.NoteEntity
 import com.example.zhilu.data.local.entity.TagEntity
 import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.Note
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -160,6 +166,37 @@ class NoteRepositoryImplTest {
         assertEquals(0, note.cards[1].blocks.size)
         assertEquals(2, note.cards[0].blocks.size)
         assertEquals(listOf("B", "A"), note.cards[0].blocks.map { it.content })
+    }
+
+    @Test
+    fun `getAllNotes re-emits when the tag hierarchy changes`() = runTest {
+        val noteId = 1L
+        val tagChanges = MutableStateFlow(0)
+        val cardEntity = NoteCardEntity(id = 10L, noteId = noteId, title = "卡片", sortOrder = 0)
+        val block = textBlock(id = 100L, cardId = 10L, content = "内容", sortOrder = 0)
+
+        every { noteDao.getAll() } returns flowOf(listOf(noteEntity(noteId)))
+        every { tagDao.observeTagChanges() } returns tagChanges
+        coEvery { noteCardDao.getByNoteIdOnce(noteId) } returns listOf(cardEntity)
+        coEvery { noteBlockDao.getByNoteIdOnce(noteId) } returns listOf(block)
+        // 第一次 hydrate 时还没有标签；心跳变化后重查拿到合并/重命名后的新标签。
+        coEvery { tagDao.getByNoteId(noteId) } returnsMany listOf(
+            emptyList(),
+            listOf(TagEntity(id = 1L, name = "线性代数", color = 1))
+        )
+
+        val emissions = mutableListOf<RepositoryResult<List<Note>>>()
+        val job = launch { repository.getAllNotes().collect { emissions += it } }
+        runCurrent()
+        assertEquals(1, emissions.size)
+
+        tagChanges.value = 1
+        runCurrent()
+        job.cancel()
+
+        assertEquals(2, emissions.size)
+        val notes = assertSuccess(emissions.last()).orEmpty()
+        assertEquals(listOf("线性代数"), notes.single().tags.map { it.name })
     }
 
     private fun noteEntity(id: Long): NoteEntity = NoteEntity(

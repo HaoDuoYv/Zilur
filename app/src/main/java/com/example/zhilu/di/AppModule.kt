@@ -30,7 +30,6 @@ import com.example.zhilu.data.repository.TagRepositoryImpl
 import com.example.zhilu.data.repository.TodoRepositoryImpl
 import com.example.zhilu.domain.ai.repository.AiAssistantRepository
 import com.example.zhilu.domain.ai.usecase.AiToolExecutor
-import com.example.zhilu.domain.reminder.ReviewSchedulePolicy
 import com.example.zhilu.domain.repository.AiConversationRepository
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
@@ -98,7 +97,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTagRepository(tagDao: TagDao): TagRepository = TagRepositoryImpl(tagDao)
+    fun provideTagRepository(
+        database: AppDatabase,
+        tagDao: TagDao
+    ): TagRepository = TagRepositoryImpl(
+        tagDao = tagDao,
+        transactionRunner = RoomRepositoryTransactionRunner(database)
+    )
 
     @Provides
     @Singleton
@@ -108,10 +113,12 @@ object AppModule {
     @Singleton
     fun provideReviewRepository(
         database: AppDatabase,
-        reviewDao: ReviewDao
+        reviewDao: ReviewDao,
+        userPreferences: UserPreferences
     ): ReviewRepository = ReviewRepositoryImpl(
         reviewDao = reviewDao,
-        schedulePolicy = ReviewSchedulePolicy(),
+        // 阶梯不再在构造期固定：仓库每次写操作读**当前**用户配置（见 currentPolicy）
+        userPreferences = userPreferences,
         transactionRunner = RoomRepositoryTransactionRunner(database)
     )
 

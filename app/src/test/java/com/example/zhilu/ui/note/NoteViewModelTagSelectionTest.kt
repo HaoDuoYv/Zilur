@@ -12,6 +12,7 @@ import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.model.TodoWithContext
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
@@ -149,6 +150,10 @@ class NoteViewModelTagSelectionTest {
 private class FakeTagRepository(
     private val tags: List<Tag>
 ) : TagRepository {
+
+    override suspend fun mergeTags(sourceIds: List<Long>, targetId: Long): RepositoryResult<Unit> =
+        RepositoryResult.Success(Unit)
+
     override fun getAllTags(): Flow<RepositoryResult<List<Tag>>> =
         flowOf(RepositoryResult.Success(tags))
 
@@ -276,6 +281,13 @@ private class EmptyReminderRepository : ReminderRepository {
 }
 
 private class EmptyTodoRepository : TodoRepository {
+
+    override fun observeAllWithContext(): Flow<RepositoryResult<List<TodoWithContext>>> =
+        flowOf(RepositoryResult.Success(emptyList()))
+
+    override suspend fun deleteTodo(id: Long): RepositoryResult<Unit> =
+        RepositoryResult.Success(Unit)
+
     override fun observeByNoteId(noteId: Long): Flow<RepositoryResult<List<TodoItem>>> =
         flowOf(RepositoryResult.Success(emptyList()))
 

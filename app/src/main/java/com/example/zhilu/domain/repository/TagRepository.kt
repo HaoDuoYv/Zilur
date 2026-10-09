@@ -12,6 +12,17 @@ interface TagRepository {
     suspend fun insertTag(tag: Tag): RepositoryResult<Long>
     suspend fun updateTag(tag: Tag): RepositoryResult<Unit>
     suspend fun deleteTag(tag: Tag): RepositoryResult<Unit>
+
+    /**
+     * 合并标签：把 [sourceIds] 的笔记关联全部改挂到 [targetId]，然后删除源标签。
+     *
+     * 合并是"改名"之外的另一种收束方式：目标标签**保留自己的名字与颜色**，
+     * 源标签消失、关联不断、正文文本不动（标签不是从正文解析出来的）。
+     * 在单个事务里先改关联（`INSERT OR IGNORE` 避开唯一约束）再删源标签 ——
+     * 中途失败不会留下"关联丢了、标签还在"的半截状态。
+     */
+    suspend fun mergeTags(sourceIds: List<Long>, targetId: Long): RepositoryResult<Unit>
+
     fun getTagCount(): Flow<RepositoryResult<Int>>
 
     /**
