@@ -7,6 +7,19 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+// release 签名：临时复用 debug keystore。凭据从 local.properties 读取（已被 .gitignore 忽略）。
+val keystoreProps = mutableMapOf<String, String>()
+val keystorePropFile = rootProject.file("local.properties")
+if (keystorePropFile.exists()) {
+    keystorePropFile.readLines().forEach { line ->
+        val t = line.trim()
+        if (t.isNotEmpty() && !t.startsWith("#") && t.contains("=")) {
+            val eq = t.indexOf("=")
+            keystoreProps[t.substring(0, eq).trim()] = t.substring(eq + 1).trim()
+        }
+    }
+}
+
 android {
     namespace = "com.example.zhilu"
     compileSdk = 35
@@ -53,6 +66,26 @@ android {
         // 之后所有渲染都抛 `NoClassDefFoundError` 并被导出器降级成 `<code>`。
         // 表现极具迷惑性：`HtmlExporterFormulaTest` **单独跑绿、跟别的类一起跑红**。
         unitTests.all { it.forkEvery = 1 }
+    }
+
+    signingConfigs {
+        create("release") {
+            val storeFilePath = keystoreProps["RELEASE_STORE_FILE"]
+            if (!storeFilePath.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+                storePassword = keystoreProps["RELEASE_STORE_PASSWORD"]
+                keyAlias = keystoreProps["RELEASE_KEY_ALIAS"]
+                keyPassword = keystoreProps["RELEASE_KEY_PASSWORD"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            isShrinkResources = false
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 }
 
