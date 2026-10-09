@@ -516,3 +516,101 @@ Destination.Tags / Destination.Reminders
 
 - 「待办」不单独开档（按 **P5** 拍板，留到阶段二），待办提醒仍在提醒档里处置；
 - 复习中心的「复习会话」入口复用笔记内的复习面板，不新建独立会话页。
+
+---
+
+## 十一、实施记录（阶段二 · 批次 A）
+
+> 范围：「七、分期」阶段二六条中的三条 —— **复习统计与历史**、**`#` 自动补全**、
+> **AI 工具扩展（`schedule_review` / `list_due_reviews` / `add_todos.remindAt`）**。
+> 其余三条（全局待办档、通知动作按钮、自定义间隔 / SM-2）仍待排期。
+
+### 11.1 落地范围
+
+| 层 | 新增 | 改动 |
+|---|---|---|
+| 数据 | `ReviewStatsRows`（`ReviewDailyCountRow` / `ReviewRatingCountRow`） | `ReviewDao`（删 `countEventsSince`；加按天分桶的 `observeDailyCountsSince` 与 `observeRatingCountsSince`）、`ReviewRepositoryImpl.observeStats` + 文件级 `buildReviewStats` |
+| 领域 | `TodoReminderSync`（与 `ReviewReminderSync` 对称的待办提醒唯一写者）、`ReviewStats`（`WINDOW_DAYS` / `windowStart` / `todayCount` / `maxDailyCount` / `countOf`） | `AiToolExecutor`（`add_todos` 加 `remindAt`；新增 `schedule_review` —— 四态纯函数 `reviewScheduleAction`；新增 `list_due_reviews` —— 纯函数 `formatDueReviews`）、`ReviewSchedulePolicy.defaultStepCount` |
+| 界面 | `ui/review/ReviewStatsSection.kt`（7 天曲线 + 评价分布 + 毕业率）、`ui/search/TagSuggestionRow.kt`、`ui/search/TagQueryParser.kt` | `HomeViewModel` / `HomeUiState`（`tagSuggestions` 现算 + `applyTagSuggestion`）、`HomeSearchField`（placeholder 改「搜索笔记，打 # 选标签」）、`ReviewCenterViewModel` / `ReviewCenterUiState`（`stats`）、`ReviewCenterScreen`、`NoteViewModel`（手写提醒逻辑收口到两个同步点） |
+
+### 11.2 三条设计要点
+
+**复习统计**
+
+- 天粒度分桶**下推 SQLite**（`(reviewedAt - :windowStart) / 86400000 AS dayIndex` + `GROUP BY dayIndex`）；
+  缺席的天在 Kotlin 补 0、越界格子丢弃（`IndexOutOfBounds` 会断掉整个 Flow）。
+- 窗口 = 今天 0 点往前推满 7 天，**末格是今天**；`todayCount` 取 `dailyCounts.last()`，
+  **不单设"今日计数"查询** —— 同一数字两个来源会在跨零点对不上。
+- 毕业率从队列现算（不加聚合查询）；没有计划时不显示这一项（没有分母，「0%」是句假话）。
+
+**`#` 自动补全**
+
+- `TagQueryParser` 是补全与归一的**唯一语法来源**：以空白分隔的**最后一个词**、以 `#` 开头才算
+  （`C#` / `foo#bar` 都不认）；末尾空白先跳掉 —— 输入法常在词后补空格，
+  不跳的话候选会在用户按下空格的一瞬间消失（这条是单测先逼出来的）。
+- 候选条与筛选条**同高同起止、互斥挂载**（`showTagSuggestions`）；点候选 = 摘 token + 落 chip + 立即重查。
+
+**AI 工具扩展**
+
+- `schedule_review` 的动作判定是纯函数 `reviewScheduleAction(existing)`：没有 → 新建 /
+  进行中 → 只回话不写库 / 暂停 → 原地继续（**保档位**）/ 毕业 → 重新开始。
+  判据顺序**先 `enabled` 再看 `completedAt`** —— 毕业是 `enabled=false && completedAt != null`，
+  反过来会把「重新开始」做成「继续」、在第 5 档原地打转。
+- 写路径一律走 `ManageReviewPlanUseCase`；`list_due_reviews` 与复习中心**共用 `ReviewQueueClassifier`**。
+- `add_todos` 的 `remindAt` 只表达"用户想要的提醒时刻"，建提醒经 `TodoReminderSync`。
+- 提示词（`SYSTEM_PROMPT` 第 5 条）同步写了三条规范：先读真实数据、不重置进度、说不清就不填。
+
+### 11.3 顺带收口的一处架构债
+
+`NoteViewModel` 里发现「唯一写者」并不成立：为 REVIEW 提醒**手写了一份 `ReviewReminderSync`
+的等价逻辑**（连 `"review-${plan.id}".hashCode()` 都复制了）。改动：两个同步点改为构造器注入
+（带默认参数，约 30 处测试构造点零改动），`scheduleReviewReminder` / `scheduleTodoReminder` /
+`reconcileTodoReminder` 三个手写主体删除，统一改调同步点。
+
+### 11.4 验收结论
+
+| 项 | 结果 |
+|---|---|
+| `:app:assembleDebug` | ✅ |
+| `:app:lintDebug` | ✅ 0 errors / 71 warnings（新增的 `ConstantLocale` 通过"到期格式不缓存成常量"消除） |
+| `:app:testDebugUnitTest` | ✅ **624 例 / 83 个测试类全绿**（新增 `TagQueryParserTest` 9、`ReviewStatsBuildTest` 6、`ReviewStatsSectionTest` 9、`TodoReminderSyncTest` 7、`AiReviewToolsTest` 9；`HomeViewModelSearchTest` +7、`AiToolExecutorDefinitionsTest` +3） |
+| 真机 | ✅ 见 11.5 |
+
+### 11.5 真机验收（MuMu Android 12，1440×2560 @ 640dpi）
+
+截图存档：`docs/review/verify-stage3-*.png`（15 张）。
+
+| 验收点 | 证据 |
+|---|---|
+| 输入 `#` 弹出全部未选中标签的候选条（「按 # 选标签」前缀 + 横滑） | `01-hash-suggest` |
+| 点候选 → token 摘除、落成筛选 chip、候选条切回筛选条、立即重查（2 条结果） | `02-hash-to-chip` |
+| 复习统计：曲线柱落今天、近 7 天/今天计数、评价分布、档位进度 | `03-stats-before-axis-fix` → `08-stats-axis-fixed` |
+| AI `list_due_reviews`：分档计数（逾期 0 / 今天 0 / 未来 7 天 0 / 更远 1） | `04-ai-list-due` |
+| AI `schedule_review`：先 `搜索笔记` 再 `schedule_review`，新计划 + REVIEW 提醒同源落库 | `05-ai-schedule-new` |
+| AI 重复排期：「已经在进行中了…不会重置进度」；DB 复核 `step` / `nextReviewAt` 一字未变 | `06-ai-schedule-no-reset` |
+| AI `add_todos` + `remindAt`：待办落库 + TODO 提醒，「明天下午 3:00」与 DB `remindAt` 精确到点 | `07-ai-add-todo-remind` |
+| AI「更远」区给出笔记名（对应 11.6 的修复 2） | `15-ai-later-detail` |
+| 两套外观 × 明暗四象限（统计区 + 候选条） | 动森深 `09` / `10`、纸墨深 `11` / `12`、纸墨浅 `13` / `14` |
+
+复习链路顺带复验（阶段一已验项）：暂停 → REVIEW 提醒 `CANCELED`、`nextReviewAt=NULL`；
+「继续」→ 保留档位、立即到期（提醒重建并触发）；评级「掌握」→ 事件落库（`prev=0 next=2`）、
+计划推进到第 3/5 次、7 天后。设备外观验毕已还原（动森 · 浅色 · 青绿）。
+
+### 11.6 真机暴露并修复的两处缺陷
+
+1. **统计轴标与数据窗口错位**（`ReviewStatsSection.dailyAxisLabels`）
+   10 月 9 日打开复习中心，横轴写着 `9 10 11 12 13 14 15`、高亮的"今天"落在 15 上。
+   根因：轴标自己从 `startOfToday` **往后**数 7 天，而数据窗口是**往前** 7 天 —— 方向相反；
+   轴标不参与分桶、分桶不画轴，单测只覆盖了分桶，错位一直没人管。
+   修复：轴标改走 `ReviewStats.windowStart`，与分桶**共用同一个起点计算**；
+   `ReviewStatsSectionTest` 6 例钉住（含跨月回绕、以及"起点与分桶同日"的不变式）。
+   护栏：`03-stats-before-axis-fix`（修复前）↔ `08-stats-axis-fixed`（修复后）。
+
+2. **`list_due_reviews` 的「更远」只有计数没有明细**
+   模型知道"更远 1 个"却答不出是哪篇（真机原话：「更远：1 个（稍后到期）」）。
+   修复：`formatDueReviews` 补 `appendSection("更远", queue.later)`；测试 +1。
+
+### 11.7 未纳入本次改动
+
+- 阶段二其余三条（全局待办档、通知动作按钮、自定义间隔 / SM-2）仍待排期；
+- 曲线只做 7 天窗口 + 评价分布 + 毕业率；更长周期（30 天 / 年）与周聚合未做。

@@ -216,9 +216,10 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
 
 ## AI 工具（`domain/ai/usecase/AiToolExecutor.kt`）
 
-- 10 个工具：`list_notes` / `search_notes` / `get_note` / `create_note` / `update_note` / `add_blocks` / `set_block_emphasis` / `add_tags` / `add_todos` / `delete_note`。加工具时同步更新 `definitions`、`execute` 的分发，以及系统提示词（`data/ai/AiAssistantRepositoryImpl.kt` 的 `SYSTEM_PROMPT`）——**提示词和 schema 是两份真相，改一份不改另一份模型就会用错**。
+- 12 个工具：`list_notes` / `search_notes` / `get_note` / `create_note` / `update_note` / `add_blocks` / `set_block_emphasis` / `add_tags` / `add_todos` / `delete_note` / `schedule_review` / `list_due_reviews`。加工具时同步更新 `definitions`、`execute` 的分发，以及系统提示词（`data/ai/AiAssistantRepositoryImpl.kt` 的 `SYSTEM_PROMPT`）——**提示词和 schema 是两份真相，改一份不改另一份模型就会用错**。
 - **分支子块**靠 `branch` 块的 `children` 数组：`parseBlocks` 递归解析，并给每个新块发**唯一的负临时 id** 当 `parentBranchId`，由 `NoteRepositoryImpl.replaceBlocks` 的 `idMapping` 重映射成真实 id。**绝不能都留默认的 0**，那样多个分支的子块会全挂到同一个父块下。
-- **待办项挂在笔记上，不是挂在块上**（`todo_items.noteId`）：所以 `add_todos` 只要 noteId，不需要 blockId。待办块只是"这篇笔记的待办清单"的显示位。
+- **待办项挂在笔记上，不是挂在块上**（`todo_items.noteId`）：所以 `add_todos` 只要 noteId，不需要 blockId。待办块只是"这篇笔记的待办清单"的显示位。`remindAt` 是"用户想要提醒的时刻"，**建/改提醒一律经 `TodoReminderSync`**（`domain/reminder/`，与 `ReviewReminderSync` 对称）：别自己 `insert`/`upsert` 提醒行、别自己拼 `notificationId`（`"todo-$id".hashCode()` 是同步点内部约定）。`NoteViewModel` 里原有的一份手写等价逻辑已收口，别再复制第二份。
+- **`schedule_review` 的动作判定是纯函数 `reviewScheduleAction(existing)`，四态**：「没有 → 新建 / 进行中 → 只回话不写库 / 暂停 → 原地继续 / 毕业 → 重新开始」。判据顺序 **先看 `enabled` 再看 `completedAt`**（毕业 = `enabled=false && completedAt != null`）；写反了会把毕业当暂停，"重新开始"变成继续、在第 5 档原地打转。写路径一律走 `ManageReviewPlanUseCase`；`list_due_reviews` 与复习中心**共用 `ReviewQueueClassifier`**，别另写一套分区口径。
 - 任何写入都会**重建块 id**，工具描述里已写明"先用 get_note 取最新 id"。
 - 标题（笔记标题、小节标题）是纯文本，**必须过 `stripMarkup`**；正文才走 `normalize` 保留标记。
 
@@ -249,6 +250,12 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
 - **引用消息**（IM 式引用回复）：只存 `quotedMessageId`（同会话内自洽），正文在请求组装时按 id 从历史里现取——抄一份副本只会多一份可能过期的内容。
 - 两条链路都注入 **user 消息本体**（`data/ai/AiUserMessageText.kt`），顺序固定：引用内容 → 引用的消息 → 用户问题 → 附件。**不要再往 system prompt 里塞引用**：超长提示词末尾的上下文会被模型当背景噪音（真机表现是「引用了，但它当没看见」）。`SYSTEM_PROMPT` 里的【用户引用】规则段是配套说明，别删。
 - 请求组装时**所有带 refs 的历史消息都会注入**（不只最新一条），否则「把它整理成卡片」这类追问轮会丢源材料。
+
+## 复习、提醒与搜索标签
+
+- **提醒只认两个同步点**：REVIEW 提醒由 `ReviewReminderSync` 驱动（`sourceId` = 计划 id），TODO 提醒由 `TodoReminderSync` 驱动（`sourceId` = 待办 id）；提醒页只读，计划三动作（pause / resume / restart）统一走 `ManageReviewPlanUseCase`。想"顺手改一下提醒"前先问：这是不是第二个写者？（历史教训：`NoteViewModel` 曾手抄过一份 `ReviewReminderSync` 的等价逻辑。）
+- **复习统计窗口口径**：`ReviewStats.WINDOW_DAYS = 7`，**末格是今天**；`todayCount` 取自 `dailyCounts.last()`，别再单设"今日计数"查询（同一数字两个来源会在跨零点对不上）。天粒度分桶下推 SQLite（`GROUP BY dayIndex`），缺席的天在 Kotlin 补 0、越界格子丢弃（`IndexOutOfBounds` 会断掉整个 Flow）。
+- **`#` 标签引用的语法唯一来源是 `TagQueryParser`**：以空白分隔的**最后一个词**、以 `#` 开头才算（`C#` / `foo#bar` 都不认）；末尾空白要先跳掉（输入法补空格不该让候选消失）。补全候选与查询归一必须调同一套解析，别再写第二份 `startsWith("#")`。
 
 ## 约定（与默认不同或容易踩坑）
 
