@@ -805,3 +805,53 @@ Destination.Tags / Destination.Reminders
 | 固定绿四象限一致（零档灰底融入卡片，与主题色彻底解耦） | 四组 `*-cell-selected.png` 对照 |
 
 验收后设备已还原（动森 · 浅色）。
+
+## 十四、实施记录（提醒档卡片化）
+
+> 用户指令：「提醒界面的任务列表也要改为药丸状」（经澄清 = 提醒档的知识点列表行）。
+> 十三节统一了三档位的**壳**（`AppCard`），但提醒档的行还是旧的通铺 `DocumentRow`
+> （纯文字 + 发丝分隔线）——本批补齐，三档的行壳形态终于完全一致。
+
+### 14.1 落地范围
+
+| 层 | 新增 | 改动 |
+|---|---|---|
+| 领域 | — | `ReminderBucket.pendingCount`（派生：今天 + 未来，**不含 overdue**） |
+| 界面 | `ui/component/DescBlock.kt`（从 `TodoTaskCard.SourceNoteBlock` 提升共用） | `ReminderRow.kt` 重写（行壳 `DocumentRow` → `AppCard`）；`ReviewCenterScreen` 提醒列表去掉 `Column` + `ZhiLuDivider` 包裹、子标签计数换 `pendingCount`；`TodoTaskCard` 改调 `DescBlock` 并删私有源块 |
+| 测试 | — | `ReviewCenterViewModelTest` 加 `pendingCount` 断言钉口径 |
+
+### 14.2 设计要点
+
+**三档行壳统一为卡片**：待复习 = `ReviewPlanCard`、待办 = `TodoTaskCard`、提醒 = `ReminderRow`，
+均走 `AppCard`（外边距 / 内容 padding / 双主题材质自动处理，见十三节）。提醒档原
+`DocumentRow` 通铺行 + 发丝分隔线已删，`ReviewCenterScreen` 里列表外的 `Column` +
+`ZhiLuDivider` 包裹同步移除（卡片自带间距）。REVIEW 行挂引导语（desc 块）；TODO 行保留
+卡片体内的 完成 / 取消 / 延后 动作区。
+
+**`DescBlock` 共享组件**：从 `TodoTaskCard.SourceNoteBlock` 提升为 `ui/component/DescBlock.kt`
+（浅底 `surfaceVariant` + 左侧 3dp `outlineVariant` 色条 + 8dp 圆角 + `IntrinsicSize.Min`，
+内边距 8dp），待办来源笔记行与提醒引导语共用一份，别再各写一个。
+
+**两个提醒计数口径互斥**（本批修的真实缺陷）：子标签「待处理」原取未完成总数（含逾期），
+可与「已逾期」子标签并列相加超过总数（真机：待处理 3 + 已逾期 1 + 已完成 2 = 6 > 总数 5）。
+修正：`ReminderBucket.pendingCount = today.size + future.size`（**不含 overdue**）供子标签；
+顶部大档位「提醒 N」（`pendingReminderCount`）保持**未完成总数（含逾期）**口径 ——
+两者服务不同位置，别互换。
+
+### 14.3 验收结论
+
+| 项 | 结果 |
+|---|---|
+| `:app:assembleDebug` | ✅ |
+| `:app:lintDebug` | ✅ 0 errors / 71 warnings（无新增，本批文件零告警） |
+| `:app:testDebugUnitTest` | ✅（`ReviewCenterViewModelTest` +`pendingCount` 断言） |
+| 真机 | ✅ 6 张（见 14.4） |
+
+### 14.4 真机验收（MuMu）
+
+截图存档：`docs/review/review-center-*-reminder-cards-*.png` +
+`review-center-animal-light-todos-desc-block-check.png`（6 张）。
+关键点：① 提醒档三子标签下卡片流形态与另两档一致；② 引导语「由复习计划驱动，点这里去
+「待复习」处理」单行放下（内边距 12dp → 8dp；12dp 时 27 字需 266dp > 可用 261dp 会断行）；
+③ 双主题材质正确（纸墨 = 白卡 + 阴影无描边；动森 = 描边 + 暖褐投影 + 大圆角）。
+验收后设备已还原（动森 · 浅色 · 青绿）。
