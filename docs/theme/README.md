@@ -16,6 +16,7 @@
 | `device-animal-light-appearance.png` | 真机 | 动森浅色 · 外观设置页 |
 | `device-animal-dark-appearance.png` | 真机 | 动森深色 · 外观设置页 |
 | `device-animal-ui-*.png` | 真机 | 首页 / 搜索框 / 助手 / ＋ 面板 / 我的 各页适配 |
+| `animal-island-component-audit.md` | 审计 | 对照 `AnimalIslandUI` 组件库的组件化替换清单、实施判据与执行顺序 |
 
 ## 重新生成
 
