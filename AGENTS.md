@@ -135,6 +135,7 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
   - 已知边界：中等明度填充两种字色都到不了 4.5（最多 3.0~3.4），是物理天花板；那两处是短标签，按 3.0 卡。要更高只能改填充色。
 - **`on*` 角色要用数值定，不能凭"浅色配白字"的直觉**。动森浅色的 `onSecondary`（桃粉上）白字只有 **2.62**、`onTertiary`（天蓝上）3.50、`onError` 4.45 —— 前两个换深墨后是 6.64 / 4.98，第三个把填充压深一档后白字 5.36。`AccentPaletteTest.printRecommendedOnColors` 会把每个填充的"当前值 vs 最佳值"打出来，调色时直接抄。
 - **标签颜色不跟外观走**：`tag.color` 是**落库数据**（建标签时从 `TagColors` 抽的），按外观重映射等于悄悄改用户数据。`AnimalIslandTagColors` 只给**新建**标签用。
+- **复习热力图的一至四档是固定绿阶梯**（`ui/theme/Color.kt` 的 `HeatmapLevelPalette`：`#D1FAE5` / `#6EE7B7` / `#10B981` / `#047857`，对齐产品原型的 `--heatmap-l1..l4`）——刻意**不跟随主题色**：纸墨 / 动森 × 浅深四个象限同一组绿。零档仍取 `surfaceVariant`（空底融进卡片底）。这是「配色全走 md3 语义 token」的**唯一固定色例外**（用户拍板的产品决策，别改回 `surfaceVariant → primary` 的 lerp）；固定色板跟 `TagColors` 一样放 `Color.kt`，别散在屏级组件文件里。
 - **动森的「组件外观」不只是配色**（只改色值等于没换 UI —— 用户这么反馈过）。它有一套材质语言，统一落在 `PalettePaint.componentBorder`：**纸墨 = `Color.Unspecified`（无描边，靠阴影分层）；动森 = 有描边，靠描边立形状**。各组件读**这一个值**决定走"纸"还是走"塑料"，**不要各自去比 `ThemePalette.ANIMAL_ISLAND`**。
   - `ui/component/ToySurface.kt` — **「玩具按钮」**：底下一层同色实心当"厚度"、上面那层抬起来当面，按下时面落到厚度上。参考仓库里 Button / Switch 手柄 / Checkbox **全都**用这个手法，是那套 UI"像玩具"的主要来源。**普通 `shadow()` 给不出这个效果** —— 阴影是虚的，厚度是实的。厚度色用 `shade(面色)`（同色相压暗，对应参考仓库 `ShadowBtn` 与面色 `BgColor` 的关系）。
   - `AppCard` — 动森下加 2dp 描边 + `Modifier.shadow`（**暖褐** `spotColor`，不是中性黑；中性黑压米白底会发脏）+ 20dp 圆角；`irregular = true` 时换成**四角半径不等**的手作圆角。
@@ -260,6 +261,7 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
 - **标签合并的顺序也固定**：`repointNoteTags`（`INSERT OR IGNORE`，避开 `(noteId,tagId)` 联合主键冲突——两个待合并的标签经常同时挂在一篇笔记上）→ `deleteNoteTagsByTagIds` → `deleteTagsByIds`，三步在**同一事务**（`TagRepositoryImpl` 的 `transactionRunner` 可注入）。被合并掉的标签若正在筛选，`selectedTagIds` 要改挂到目标并重查。
 - **列表 Flow 的标签刷新靠 `TagDao.observeTagChanges()` 心跳**（`note_tags JOIN tags`）`combine` 进 `NoteRepositoryImpl.asNoteResultFlow`：`hydrate` 里的标签是**一次性查询**，`notes` 表自己的 Flow 推不出 `note_tags` / `tags` 的写入——删掉这层 combine 的话，合并/删除/重命名标签后卡片标签会陈旧到冷启动（真机复现过，`NoteRepositoryImplTest` 有回归用例）。
 - **复习统计窗口口径**：`ReviewStats.WINDOW_DAYS = 7`，**末格是今天**；`todayCount` 取自 `dailyCounts.last()`，别再单设"今日计数"查询（同一数字两个来源会在跨零点对不上）。天粒度分桶下推 SQLite（`GROUP BY dayIndex`），缺席的天在 Kotlin 补 0、越界格子丢弃（`IndexOutOfBounds` 会断掉整个 Flow）。
+- **复习中心是三段式卡片流**：热力图（`ReviewHeatmapCard`）→ 统计格（`ReviewStatsGrid`）→ 档位列表，壳一律 `AppCard`。三档位 = 待复习 / 待办 / 提醒；待办与提醒共用 `ReviewSubTabs` 子标签（待办 = `TodoSubTab` 三态带计数，提醒沿用 `ReminderFilter`）。**热力图的「窗口起点 + 今天格位」由 `ReviewHeatmap.window()` 一次算好**（`HeatmapWindow` 成对下发，喂 `observeHeatmap`）——月份轴标、查询起点、未来格判定都只从它取，别在界面里第二次推算日期。待办逾期判定用天粒度的 `isOverdue(startOfToday)`：当天内刚过点的提醒不算逾期，留在「待处理」。
 - **`#` 标签引用的语法唯一来源是 `TagQueryParser`**：以空白分隔的**最后一个词**、以 `#` 开头才算（`C#` / `foo#bar` 都不认）；末尾空白要先跳掉（输入法补空格不该让候选消失）。补全候选与查询归一必须调同一套解析，别再写第二份 `startsWith("#")`。
 
 ## 约定（与默认不同或容易踩坑）

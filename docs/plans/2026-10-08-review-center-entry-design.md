@@ -732,3 +732,76 @@ Destination.Tags / Destination.Reminders
   与当前单机笔记的复习周期（默认 30 天毕业）不匹配。
 
 结论：以「自定义阶梯」作为该条的落地形态，SM-2 不做。
+
+---
+
+## 十三、实施记录（复习中心 UI 重构）
+
+> 本批不在「七、分期」表内 —— 原型对齐的新一轮工作。范围：复习中心整页布局重构
+> （参照原型 `deepseek_html_20261009_d44bbd.html`）、纸墨 / 动森 × 浅深四象限适配、
+> 对照 `AnimalIslandUI` 组件库的应用侧盘点（另文：
+> `docs/theme/animal-island-component-audit.md`），以及用户拍板的「热力档固定绿」。
+
+### 13.1 落地范围
+
+| 层 | 新增 | 改动 |
+|---|---|---|
+| 数据 | — | `ReviewDao.observeDailyCountsSince`（**复用统计的同一条分桶 SQL**，只换窗口，不为热力图另建同形查询）、`ReviewRepositoryImpl.observeHeatmap` + `buildReviewHeatmap`（纯函数，单独可测） |
+| 领域 | `ReviewHeatmap` + `HeatmapWindow`（`window()` 把窗口起点与今天格位**一次算好**）、`TodoSubTab` | `ReviewRepository.observeHeatmap(windowStart, todayIndex)` |
+| 界面 | `ui/review/` 下 `ReviewHeatmapCard.kt`、`ReviewStatsGrid.kt`、`SubTabs.kt`、`ReviewPlanCard.kt`、`TodoTaskCard.kt` | `ReviewCenterScreen` 重排为三段式；`ReviewCenterUiState`（+`heatmap` / `todoSubTab` / 派生列表 + 天粒度 `isOverdue`）；`ReviewCenterViewModel`；`Color.kt`（+`HeatmapLevelPalette`） |
+| 删除 | — | `ReviewPlanRow.kt`、`ReviewStatsSection.kt`、`TodoRow.kt`（被新组件替换，`ReviewPlanRow → ReviewPlanCard` 是改名 + 重写） |
+
+### 13.2 设计要点
+
+**三段式卡片流**：热力图卡 → 统计格 → 档位列表。统计区从「7 天曲线 + 评价分布整块」
+改为原型式 **2×2 统计格**（近 7 天 / 今日 / 已掌握 / 毕业率）+ 一行评价分布小字；
+毕业率在**无分母**时显示 `—` 而不是 `0%`（沿用旧口径：0/1 这类假精度不写）。
+
+**15 周热力图**：`ReviewHeatmap.WEEKS = 15`（**列 = 周、行 = 星期**、列优先）。
+窗口起点是「本周一往前推满 15 周」——**不按"今天往前 105 天"取**：那样今天会落在任意一行、
+与行标（一 / 三 / 五 / 日）对不上，同一列还会混进两个星期。`window()` 把
+`start` 与 `todayIndex` **成对算好**，查询窗口、月份轴标、未来格（空心）判定都只从这一对取。
+点格 = 提示条换成「日期：复习了 N 次」+ 双层选中环（外 2dp `primary`、内 2dp `surface`）
++ 轻震动；`selectedIndex` 走 `rememberSaveable`（纯展示态，旋转保留）。
+
+**待办与提醒档的子标签**：两档共用 `ReviewSubTabs`（下划线标签 + 计数）。
+待办 = `TodoSubTab`（待处理 / 已逾期 / 已完成），**逾期按天粒度**
+（`isOverdue(startOfToday)`：当天内刚过点的提醒不算逾期，留在「待处理」且 DAO 已排最前）；
+已完成项收进第三个子标签。提醒档沿用老的 `ReminderFilter` 三态。
+
+**热力档固定绿（用户拍板）**：一至四档 = `HeatmapLevelPalette`
+（`#D1FAE5` / `#6EE7B7` / `#10B981` / `#047857`，原型 `--heatmap-l1..l4`），
+**四个主题象限同一组绿**（原先 `surfaceVariant → primary` 的 lerp 已删）；
+零档仍取 `surfaceVariant`，保证空底融进卡片底。这是「配色全走 md3 语义 token」的
+唯一固定色例外（决策记录，别再改回动态色）。
+
+### 13.3 组件库对照审计（另文）
+
+对照 `E:\study\gitproject\ui\AnimalIslandUI` 盘点：应用侧已有 15 个自研双主题组件
+（`AppCard` / `AppSwitch` / `TagChip` / `ToySurface` 系列等），未收口的原生 M3 用法
+按 8 类列出（**弹窗 / 按钮 / 输入框**为三大缺口），替换建议与执行顺序见
+`docs/theme/animal-island-component-audit.md`。**实施判据**：库组件是动森单主题硬编码色，
+不能直接 import —— 沿 `palettePaint()` / `componentBorder` 范式重做成双主题 wrapper。
+
+### 13.4 验收结论
+
+| 项 | 结果 |
+|---|---|
+| `:app:assembleDebug` | ✅ APK 24.2 MB |
+| `:app:lintDebug` | ✅ 0 errors / 71 warnings（与批次 B 持平，无新增） |
+| `:app:testDebugUnitTest` | ✅ 全绿（新增 `ReviewHeatmapTest`、`ReviewStatsGridTest` 规格；`ReviewCenterViewModelTest` 适配子标签模型） |
+| 真机 | ✅ 见 13.5 |
+
+### 13.5 真机验收（MuMu，1440×2560 @ 640dpi）
+
+截图存档：`docs/review/review-center-*.png`（**30 张，四象限**）。
+
+| 验收点 | 证据 |
+|---|---|
+| 纸墨浅色：热力图 + 选中格、待复习档 + 选中态、待办三子标签、提醒两子标签 | `review-center-paper-light-*`（8 张） |
+| 纸墨深色：同上覆盖面 | `review-center-paper-dark-*`（7 张） |
+| 动森浅色：含**网格放大**核对（列 = 周、行 = 星期对齐；固定绿在奶油底上的观感）、计划 chips | `review-center-animal-light-*`（9 张） |
+| 动森深色：固定绿四档在夜色底上的对比、选中格双层环 | `review-center-animal-dark-*`（6 张） |
+| 固定绿四象限一致（零档灰底融入卡片，与主题色彻底解耦） | 四组 `*-cell-selected.png` 对照 |
+
+验收后设备已还原（动森 · 浅色）。
