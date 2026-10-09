@@ -201,18 +201,27 @@ class NoteViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 笔记标题**独立于任何卡片标题**。
+     *
+     * 曾经这里会把新值同步进「当前卡片」的标题，想让单卡笔记少维护一个字段；
+     * 但「新增知识点 → 改笔记标题」时 currentCardId 正好指向新卡，新卡还没起名
+     * 就被覆盖成笔记标题（用户报告：「新增知识点时，标题取的是笔记标题」）。
+     * 标题一律各归各：改笔记标题只改笔记标题。
+     */
     fun onTitleChange(value: String) {
         _uiState.update { state ->
-            state.copy(
-                title = value,
-                cards = state.cards.map { card ->
-                    if (card.id == currentCardId) card.copy(title = value) else card
-                }
-            )
+            state.copy(title = value)
         }
         scheduleSave()
     }
 
+    /**
+     * 卡片标题同样独立：改小节标题**不回写**笔记标题。
+     *
+     * 这是与 [onTitleChange] 旧行为对称的另一半（原先是一套双向同步）。多卡场景下
+     * 回写是数据损坏级别的意外——改第三个小节的标题，整篇笔记的标题被替掉。
+     */
     fun onCardTitleChange(cardId: Long, value: String) {
         _uiState.update { state ->
             state.copy(
@@ -220,9 +229,6 @@ class NoteViewModel @Inject constructor(
                     if (card.id == cardId) card.copy(title = value) else card
                 }
             )
-        }
-        if (cardId == currentCardId) {
-            _uiState.update { it.copy(title = value) }
         }
         scheduleSave()
     }
@@ -296,7 +302,10 @@ class NoteViewModel @Inject constructor(
         if (state.cards.any { it.id == currentCardId }) return
         val fallbackCard = KnowledgeCard(
             id = currentCardId,
-            title = state.title,
+            // 兜底卡必须是「无名」的：曾经填 state.title，于是任何一次 currentCardId
+            // 与卡片列表脱节（旧 startEditing 的误判就是这样）都会兜出一张
+            // 「标题同笔记标题」的卡——这正是「新卡片标题继承笔记标题」的另一个来源。
+            title = "",
             blocks = currentBlocks,
             isExpanded = true,
             isFocused = false

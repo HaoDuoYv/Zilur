@@ -244,6 +244,79 @@ class NoteViewModelKnowledgeCardTest {
         )
     }
 
+    /**
+     * 回归：改笔记标题**不能**把标题写进任何卡片。
+     *
+     * 历史 bug（2026-10-02 文档「留作后续」）：`onTitleChange` 会把笔记标题同步进
+     * 「当前卡片」的标题。「新增知识点 → 改笔记标题」这条常见操作流里 currentCardId
+     * 正好指向新卡，于是新卡还没起名就被覆盖成笔记标题——用户报告的原话是
+     * 「新增知识点时，标题取的是笔记标题」。
+     */
+    @Test
+    fun noteTitleChangeDoesNotLeakIntoAnyCard() = runTest(dispatcher) {
+        val note = noteWithSingleCard()
+        val viewModel = createViewModel(note)
+        advanceUntilIdle()
+        viewModel.startEditing()
+        advanceUntilIdle()
+
+        // 添加知识点：currentCardId 随之指向新卡（bug 的关键前置条件）
+        viewModel.addKnowledgeCard()
+        advanceUntilIdle()
+
+        val titlesBefore = viewModel.uiState.value.cards.map { it.id to it.title }
+        val newCardId = viewModel.uiState.value.activeCardId
+
+        viewModel.onTitleChange("板书标题")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("笔记标题应正常更新", "板书标题", state.title)
+        assertEquals(
+            "改笔记标题不应触碰任何卡片的标题",
+            titlesBefore,
+            state.cards.map { it.id to it.title }
+        )
+        assertEquals(
+            "新卡的标题必须保持空（不得继承笔记标题）",
+            "",
+            state.cards.first { it.id == newCardId }.title
+        )
+    }
+
+    /**
+     * 回归：改某张卡片的标题**不能**回写笔记标题。
+     *
+     * 与上一条同属「双向同步」的另一半：当前卡标题一变，整篇笔记的标题也被换掉。
+     * 多卡场景下这是数据损坏级别的意外——用户在第三个小节里改标题，
+     * 顶部精心起的笔记标题就没了。
+     */
+    @Test
+    fun cardTitleChangeDoesNotOverwriteNoteTitle() = runTest(dispatcher) {
+        val note = noteWithTwoCards()
+        val viewModel = createViewModel(note)
+        advanceUntilIdle()
+        viewModel.startEditing()
+        advanceUntilIdle()
+
+        val firstCardId = viewModel.uiState.value.cards[0].id
+
+        viewModel.onCardTitleChange(firstCardId, "改过的卡片标题")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            "卡片标题应正常更新",
+            "改过的卡片标题",
+            state.cards.first { it.id == firstCardId }.title
+        )
+        assertEquals(
+            "笔记标题不应被卡片标题覆盖",
+            "双卡片笔记",
+            state.title
+        )
+    }
+
     @Test
     fun saveKeepsLocalCardAndBlockIdsStable() = runTest(dispatcher) {
         val noteRepository = IdAssigningNoteRepository(note = null)
