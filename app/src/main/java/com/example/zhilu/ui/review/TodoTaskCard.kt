@@ -3,15 +3,12 @@ package com.example.zhilu.ui.review
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -42,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.TodoWithContext
 import com.example.zhilu.ui.component.AppCard
+import com.example.zhilu.ui.component.DescBlock
 import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.Radius
@@ -155,8 +153,8 @@ private fun ColumnScope.TodoCardBody(
 
     // 附带色条的说明块（原型 task-card-desc）：说明这条待办的来源。
     when {
-        item.noteAlive -> SourceNoteBlock(item.noteTitle?.ifBlank { "未命名知识" } ?: "未命名知识")
-        todo.noteId != null -> SourceNoteBlock("笔记已删除")
+        item.noteAlive -> DescBlock(item.noteTitle?.ifBlank { "未命名知识" } ?: "未命名知识")
+        todo.noteId != null -> DescBlock("笔记已删除")
         else -> Unit // 独立待办（无来源笔记），不添噪
     }
 
@@ -240,39 +238,6 @@ private fun StatusTag(status: TodoStatus) {
             color = foreground,
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-        )
-    }
-}
-
-/** 来源说明块：浅底 + 左侧 3dp 色条（原型 desc 块的「左缘竖线」写法）。 */
-@Composable
-private fun SourceNoteBlock(text: String) {
-    val scheme = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 10.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(scheme.surfaceVariant)
-            // 行高取「最小固有高度」：左缘色条用 fillMaxHeight 就能与文本块同高，
-            // 不必手算一个假高度（文本样式改了也会自动跟上）。
-            .height(IntrinsicSize.Min)
-    ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .fillMaxHeight()
-                .background(scheme.outlineVariant)
-        )
-        Text(
-            text = text,
-            style = ZhiLuType.bodySmall,
-            color = scheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
         )
     }
 }

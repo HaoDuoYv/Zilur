@@ -2,10 +2,11 @@ package com.example.zhilu.ui.reminder
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -26,7 +27,8 @@ import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderType
 import com.example.zhilu.domain.model.ReminderWithContext
-import com.example.zhilu.ui.component.DocumentRow
+import com.example.zhilu.ui.component.AppCard
+import com.example.zhilu.ui.component.DescBlock
 import com.example.zhilu.ui.component.MetaLine
 import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.theme.ShapeTokens
@@ -39,15 +41,20 @@ import java.util.Locale
 private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
 /**
- * 提醒行：左侧状态色通高书脊 + "要做什么" + 上下文 + 状态胶囊 + 操作区。
+ * 提醒卡：知识点标题 + 状态标记 + 信息行 +（复习）引导块 /（待办）操作行。
+ *
+ * 形态与其他两档（待复习 [com.example.zhilu.ui.review.ReviewPlanCard]、
+ * 待办 [com.example.zhilu.ui.review.TodoTaskCard]）一致 —— [AppCard] 卡片壳，
+ * 外侧间距与双主题材质（纸墨阴影 / 动森描边 + 暖褐投影 + 大圆角）由它统一处理，
+ * 不再走通铺的 `DocumentRow`（那会让提醒档成为三档里唯一的"另一套形状"）。
  *
  * 信息层级：主标题回答"这件事是什么"（待办 → 待办文本；复习 → 笔记标题），
- * meta 行回答"哪篇笔记 · 什么时候"（老版本只有到期时间与"关联笔记"四个字，
- * 看不出是哪篇、要干什么）。
+ * meta 行回答"哪篇笔记 · 什么时候"。
  *
  * 操作按类型分叉（单一事实来源）：
  * - **待办提醒**：完成（回写 `todo_items.completedAt`）/ 取消（清 `remindAt`）/ 延后；
- * - **复习提醒**：只读 —— 计划自己管提醒的生灭，这里只给去「待复习」的引导。
+ * - **复习提醒**：只读 —— 计划自己管提醒的生灭，引导语收进
+ *   [DescBlock]（原型 `task-card-desc` 的形态，与待办卡的来源块同一实现）。
  *
  * @param stepTotal 复习阶梯档位总数（「第 N/M 次」的 M）；跟用户自定义间隔走，由调用方从状态传入。
  */
@@ -84,47 +91,37 @@ fun ReminderRow(
         add(formatDueTime(reminder.dueAt))
     }
 
-    DocumentRow(
-        accent = style.accent,
+    AppCard(
         onClick = when {
             isReview -> onReviewQueue
             reminder.noteId != null -> onClick
             else -> null
         }
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = ZhiLuType.rowTitle,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                MetaLine(
-                    parts = metaParts,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
+        Row(verticalAlignment = Alignment.Top) {
+            Text(
+                text = title,
+                style = ZhiLuType.rowTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
             StatusCapsule(text = statusLabel, container = style.container, content = style.onContainer)
         }
+        MetaLine(
+            parts = metaParts,
+            modifier = Modifier.padding(top = 8.dp)
+        )
         if (actionsEnabled) {
             if (isReview) {
-                Text(
-                    text = "由复习计划驱动，点这里去「待复习」处理",
-                    style = ZhiLuType.meta,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = Spacing.Sm)
-                )
+                DescBlock("由复习计划驱动，点这里去「待复习」处理")
             } else {
                 Row(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = Spacing.Sm),
+                        .padding(top = 12.dp)
+                        .height(32.dp),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.Sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

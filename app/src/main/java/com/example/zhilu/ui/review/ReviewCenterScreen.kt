@@ -37,7 +37,6 @@ import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.SectionHeader
 import com.example.zhilu.ui.component.SegmentedToggle
-import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppIntents
@@ -445,7 +444,7 @@ private fun RemindersPane(
     Column(modifier = Modifier.fillMaxSize()) {
         ReviewSubTabs(
             options = listOf(
-                ReminderFilter.Pending to "${ReminderFilter.Pending.label} ${state.pendingReminderCount}",
+                ReminderFilter.Pending to "${ReminderFilter.Pending.label} ${state.reminderBucket.pendingCount}",
                 ReminderFilter.Overdue to "${ReminderFilter.Overdue.label} ${state.reminderBucket.overdue.size}",
                 ReminderFilter.Completed to "${ReminderFilter.Completed.label} ${state.reminderBucket.completed.size}"
             ),
@@ -473,24 +472,19 @@ private fun RemindersPane(
                 key = { _, reminder -> "reminder-${filter.name}-${reminder.id}" }
             ) { index, reminder ->
                 AnimatedListItem(index = index) {
-                    Column {
-                        ReminderRow(
-                            reminder = reminder,
-                            style = style,
-                            statusLabel = filter.label,
-                            context = state.reminderContextById[reminder.id],
-                            stepTotal = state.stepCount,
-                            actionsEnabled = filter != ReminderFilter.Completed,
-                            onClick = { reminder.noteId?.let(onOpenNote) },
-                            onDone = { viewModel.completeReminder(reminder) },
-                            onCancel = { viewModel.cancelReminder(reminder) },
-                            onSnooze = { option -> viewModel.snoozeReminder(reminder, option) },
-                            onReviewQueue = onGoReviewQueue
-                        )
-                        if (index < items.lastIndex) {
-                            ZhiLuDivider(modifier = Modifier.padding(start = Spacing.PageGutter))
-                        }
-                    }
+                    ReminderRow(
+                        reminder = reminder,
+                        style = style,
+                        statusLabel = filter.label,
+                        context = state.reminderContextById[reminder.id],
+                        stepTotal = state.stepCount,
+                        actionsEnabled = filter != ReminderFilter.Completed,
+                        onClick = { reminder.noteId?.let(onOpenNote) },
+                        onDone = { viewModel.completeReminder(reminder) },
+                        onCancel = { viewModel.cancelReminder(reminder) },
+                        onSnooze = { option -> viewModel.snoozeReminder(reminder, option) },
+                        onReviewQueue = onGoReviewQueue
+                    )
                 }
             }
         }

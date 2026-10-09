@@ -40,7 +40,16 @@ data class ReminderBucket(
     val overdue: List<ReminderInstance> = emptyList(),
     val future: List<ReminderInstance> = emptyList(),
     val completed: List<ReminderInstance> = emptyList()
-)
+) {
+    /**
+     * 「待处理」子标签的口径：今天 + 未来。
+     *
+     * **不含 [overdue]** —— 它与「已逾期」子标签并列展示，重复计入会让三档数字
+     * 相加超过总数（踩过：待处理 3 + 已逾期 1 + 已完成 2 = 6，而总数只有 5）。
+     * 顶部大档位的「提醒 N」另用「未完成总数（含逾期）」口径，不共用此值。
+     */
+    val pendingCount: Int get() = today.size + future.size
+}
 
 /** 提醒 + 展示上下文：笔记标题、待办文本（TODO）、当前档位（REVIEW）。 */
 data class ReminderWithContext(

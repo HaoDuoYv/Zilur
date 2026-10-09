@@ -219,6 +219,9 @@ class ReviewCenterViewModelTest {
         assertEquals(listOf(completed), state.reminderBucket.completed)
         assertEquals("红黑树", state.reminderContextById.getValue(1L).noteTitle)
         assertEquals(3, state.pendingReminderCount)
+        // 子标签口径与「已逾期」互斥：今天 1 + 未来 1 = 2（不含逾期的 1），
+        // 否则「待处理 + 已逾期 + 已完成」会超过提醒总数
+        assertEquals(2, state.reminderBucket.pendingCount)
         assertTrue(state.hasAnyReminder)
     }
 
