@@ -111,6 +111,19 @@ private fun brighten(color: Color, factor: Float): Color {
     return Color(r, g, b, color.alpha)
 }
 
+/**
+ * 复习热力档的固定绿色阶梯（对齐产品原型 `--heatmap-l1..l4`）。
+ *
+ * 刻意**不跟随主题色**：纸墨 / 动森 × 浅色 / 深色四个象限都用同一组绿。
+ * 零档（无记录）不在其中 —— 界面用 `surfaceVariant`，保证空底能融进卡片底。
+ */
+val HeatmapLevelPalette = listOf(
+    Color(0xFFD1FAE5),
+    Color(0xFF6EE7B7),
+    Color(0xFF10B981),
+    Color(0xFF047857)
+)
+
 // 搜索命中的高亮字色不再在这里落死——它就是当前强调色（`colorScheme.primary`），
 // 由 [NoteRow] 在组合里取出后传给不可组合的 `highlightMatches`。
 // 此前写死成主色 hex，导致换了强调色之后搜索结果里的命中词还是原来的墨蓝。

@@ -3,15 +3,19 @@ package com.example.zhilu.ui.review
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,31 +25,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReviewPlanWithNote
-import com.example.zhilu.ui.component.DocumentRow
-import com.example.zhilu.ui.component.MetaLine
+import com.example.zhilu.ui.component.AppCard
 import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 
-/** 计划所处的分区（决定书脊色、行内时间文案与可用操作）。 */
+/** 计划所处的分区（决定强调色、行内时间文案与可用操作）。 */
 enum class ReviewPlanZone {
     Overdue, Today, Upcoming, Later, Paused, Completed
 }
 
 private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
+/** 进度点直径（原型 ring-dot 是 8px）。 */
+private val StepDotSize = 8.dp
+
 /**
- * 复习计划行：左侧状态色书脊 + 笔记标题 + 阶梯进度点 + 到期描述 + 主操作。
+ * 复习计划卡（对齐产品原型的 upcoming-item 形态）：标题 + 到期 chip +
+ * 阶梯进度点 + 「第 N/M 次」+ 分区对应的操作。
  *
- * 行壳沿用 [DocumentRow]（与笔记/提醒列表同一套结构）：无卡片、无背景，
- * 书脊色走 md3 语义色，两套外观（纸墨 / 动森）下都自适应。
+ * 从「书脊数据行」升级为「卡片」是这次重构的形态级变更（原型就是白卡 + 阴影）；
+ * 卡片外壳走 [AppCard]，动森外观自动换成描边 + 暖褐投影 + 大圆角，**不用分主题写两套**。
  *
  * @param stepTotal 阶梯总档数（进度点的圆点数，由调用方从 `ReviewSchedulePolicy` 取）。
  * @param startOfToday 今天 0 点，「逾期 N 天 / N 天后」按它计算（天粒度）。
  */
 @Composable
-fun ReviewPlanRow(
+fun ReviewPlanCard(
     item: ReviewPlanWithNote,
     zone: ReviewPlanZone,
     stepTotal: Int,
@@ -59,21 +66,31 @@ fun ReviewPlanRow(
 ) {
     val plan = item.plan
     val accent = zoneAccent(zone)
+    val scheme = MaterialTheme.colorScheme
 
-    DocumentRow(
-        accent = accent,
+    AppCard(
         modifier = modifier,
-        onClick = onOpen
+        onClick = onOpen,
+        contentPadding = PaddingValues(Spacing.CardPadding)
     ) {
-        Text(
-            text = item.noteTitle,
-            style = ZhiLuType.rowTitle,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        Row(verticalAlignment = Alignment.Top) {
+            Text(
+                text = item.noteTitle,
+                style = ZhiLuType.rowTitle,
+                color = scheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            PlanTimeChip(
+                label = zoneTimeLabel(zone, plan.nextReviewAt, startOfToday),
+                zone = zone
+            )
+        }
+
         Row(
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier.padding(top = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             StepDots(
@@ -81,43 +98,81 @@ fun ReviewPlanRow(
                 total = stepTotal,
                 activeColor = accent
             )
-            MetaLine(
-                parts = listOf(
-                    "第 ${plan.currentStep.coerceAtMost(stepTotal - 1) + 1}/$stepTotal 次",
-                    zoneTimeLabel(zone, plan.nextReviewAt, startOfToday)
-                ),
+            Text(
+                text = "第 ${plan.currentStep.coerceAtMost(stepTotal - 1) + 1}/$stepTotal 次",
+                style = ZhiLuType.meta,
+                color = scheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 8.dp)
             )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = Spacing.Sm),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.Sm),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            when (zone) {
-                ReviewPlanZone.Overdue, ReviewPlanZone.Today -> {
+
+        when (zone) {
+            ReviewPlanZone.Overdue, ReviewPlanZone.Today -> {
+                ActionRow {
                     OutlinedButton(onClick = onStart, shape = PillShape) {
                         Text("开始复习", style = ZhiLuType.chip)
                     }
                     QuietAction(label = "暂停", onClick = onPause)
                 }
-                ReviewPlanZone.Paused -> {
+            }
+            ReviewPlanZone.Paused -> {
+                ActionRow {
                     OutlinedButton(onClick = onResume, shape = PillShape) {
                         Text("继续", style = ZhiLuType.chip)
                     }
                     QuietAction(label = "重新开始", onClick = onRestart)
                 }
-                ReviewPlanZone.Completed -> {
+            }
+            ReviewPlanZone.Completed -> {
+                ActionRow {
                     OutlinedButton(onClick = onRestart, shape = PillShape) {
                         Text("重新开始", style = ZhiLuType.chip)
                     }
                 }
-                // 未到期（接下来 / 之后）：仅展示，点整行进笔记看内容。
-                ReviewPlanZone.Upcoming, ReviewPlanZone.Later -> Unit
             }
+            // 未到期（接下来 / 之后）：仅展示，点整卡进笔记看内容。
+            ReviewPlanZone.Upcoming, ReviewPlanZone.Later -> Unit
         }
+    }
+}
+
+/** 卡片底部的操作行（统一样式；未到期时整行不渲染，不做留白占位）。 */
+@Composable
+private fun ActionRow(content: @Composable RowScope.() -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(top = 12.dp)
+            .height(32.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.Sm),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content
+    )
+}
+
+/**
+ * 到期时间 chip：分区语义色的浅底小胶囊。
+ *
+ * 逾期用 error 系表达"需要立刻处理"，今天用 primary 系，其余走中性 ——
+ * 色值全部是 md3 语义角色的透明变体，不写死 hex。
+ */
+@Composable
+private fun PlanTimeChip(label: String, zone: ReviewPlanZone) {
+    val scheme = MaterialTheme.colorScheme
+    val (background, foreground) = when (zone) {
+        ReviewPlanZone.Overdue -> scheme.error.copy(alpha = 0.14f) to scheme.error
+        ReviewPlanZone.Today -> scheme.primary.copy(alpha = 0.14f) to scheme.primary
+        ReviewPlanZone.Upcoming, ReviewPlanZone.Later,
+        ReviewPlanZone.Paused, ReviewPlanZone.Completed ->
+            scheme.surfaceVariant to scheme.onSurfaceVariant
+    }
+    Surface(shape = CircleShape, color = background) {
+        Text(
+            text = label,
+            style = ZhiLuType.meta,
+            color = foreground,
+            maxLines = 1,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+        )
     }
 }
 
@@ -133,7 +188,7 @@ private fun StepDots(currentStep: Int, total: Int, activeColor: Color) {
         repeat(total) { index ->
             Box(
                 modifier = Modifier
-                    .size(DotSize)
+                    .size(StepDotSize)
                     .clip(CircleShape)
                     .background(if (index <= currentStep) activeColor else inactive)
             )
@@ -141,9 +196,7 @@ private fun StepDots(currentStep: Int, total: Int, activeColor: Color) {
     }
 }
 
-private val DotSize = 6.dp
-
-/** 分区 → 书脊色（全部 md3 语义色，跟随明暗与两套外观）。 */
+/** 分区 → 强调色（全部 md3 语义色，跟随明暗与两套外观）。 */
 @Composable
 private fun zoneAccent(zone: ReviewPlanZone): Color = when (zone) {
     ReviewPlanZone.Overdue -> MaterialTheme.colorScheme.error

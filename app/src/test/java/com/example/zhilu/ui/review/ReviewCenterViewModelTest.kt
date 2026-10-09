@@ -6,6 +6,7 @@ import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderStatus
 import com.example.zhilu.domain.model.ReminderType
 import com.example.zhilu.domain.model.ReminderWithContext
+import com.example.zhilu.domain.model.ReviewHeatmap
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
@@ -23,6 +24,7 @@ import com.example.zhilu.domain.usecase.ResolveReminderUseCase
 import com.example.zhilu.ui.navigation.AppIntents
 import com.example.zhilu.ui.reminder.ReminderFilter
 import com.example.zhilu.ui.reminder.SnoozeOption
+import java.time.ZoneId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -122,6 +124,21 @@ class ReviewCenterViewModelTest {
         // 曲线的最后一格就是今天 —— 不再有一条单独的"今日计数"查询
         assertEquals(3, viewModel.uiState.value.stats.todayCount)
         assertEquals(6, viewModel.uiState.value.stats.windowTotal)
+    }
+
+    @Test
+    fun heatmapWindowIsSentFromTheSameCalculationAsTheGrid() = runTest(dispatcher) {
+        val repository = FakeReviewRepository()
+
+        val viewModel = viewModel(repository)
+        advanceUntilIdle()
+
+        // 下发的一对参数必须与 ReviewHeatmap.window 一次算出的结果完全一致 ——
+        // 网格起点与「今天格位」分开各算一次，跨零点就会让未来格与数据分桶错位
+        val expected = ReviewHeatmap.window(startOfToday, ZoneId.systemDefault())
+        assertEquals(listOf(expected.start to expected.todayIndex), repository.heatmapWindowCalls)
+        // 状态里保留整网格长度（105 格），由界面按 todayIndex 区分历史/未来
+        assertEquals(ReviewHeatmap.DAYS, viewModel.uiState.value.heatmap.counts.size)
     }
 
     @Test
@@ -385,6 +402,46 @@ class ReviewCenterViewModelTest {
         assertEquals("取消失败", viewModel.uiState.value.error)
     }
 
+    @Test
+    fun todosSplitIntoSubTabsByRemindDay() = runTest(dispatcher) {
+        val overdue = todo(id = 1, remindAt = startOfToday - 1)
+        val todayRemind = todo(id = 2, remindAt = startOfToday + 1000)
+        val noRemind = todo(id = 3)
+        val done = todo(id = 4, completedAt = now)
+
+        val viewModel = viewModel(
+            FakeReviewRepository(),
+            todoRepository = FakeTodoRepository(listOf(overdue, todayRemind, noRemind, done))
+        )
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // 逾期按天判定：提醒时间早于**今天 0 点**才算逾期，今天内刚过点的仍在「待处理」
+        assertEquals(listOf(1L), state.overdueTodos.map { it.todo.id })
+        assertEquals(listOf(2L, 3L), state.onTimeTodos.map { it.todo.id })
+        assertEquals(listOf(4L), state.completedTodos.map { it.todo.id })
+        // 默认子标签是「待处理」，可见列表即其列表
+        assertEquals(TodoSubTab.Pending, state.todoSubTab)
+        assertEquals(listOf(2L, 3L), state.visibleTodos.map { it.todo.id })
+    }
+
+    @Test
+    fun todoSubTabSwitchChangesTheVisibleList() = runTest(dispatcher) {
+        val overdue = todo(id = 1, remindAt = startOfToday - 1)
+        val pending = todo(id = 2)
+        val viewModel = viewModel(
+            FakeReviewRepository(),
+            todoRepository = FakeTodoRepository(listOf(pending, overdue))
+        )
+        advanceUntilIdle()
+
+        viewModel.selectTodoSubTab(TodoSubTab.Overdue)
+        assertEquals(listOf(1L), viewModel.uiState.value.visibleTodos.map { it.todo.id })
+
+        viewModel.selectTodoSubTab(TodoSubTab.Completed)
+        assertTrue(viewModel.uiState.value.visibleTodos.isEmpty())
+    }
+
     // ---- 意图与错误 ----
 
     @Test
@@ -515,7 +572,8 @@ class ReviewCenterViewModelTest {
 
 private class FakeReviewRepository(
     private val plans: List<ReviewPlanWithNote> = emptyList(),
-    private val stats: ReviewStats = ReviewStats()
+    private val stats: ReviewStats = ReviewStats(),
+    private val heatmap: ReviewHeatmap = ReviewHeatmap()
 ) : ReviewRepository {
     private val plansFlow =
         MutableStateFlow<RepositoryResult<List<ReviewPlanWithNote>>>(RepositoryResult.Success(plans))
@@ -525,11 +583,19 @@ private class FakeReviewRepository(
     val disableCalls = mutableListOf<Long>()
     val statsWindowCalls = mutableListOf<Long>()
 
+    /** 热力图窗口的调用参数（起点, 今天格位），断言"同源下发"用。 */
+    val heatmapWindowCalls = mutableListOf<Pair<Long, Int>>()
+
     override fun observePlans(): Flow<RepositoryResult<List<ReviewPlanWithNote>>> = plansFlow
 
     override fun observeStats(windowStart: Long): Flow<ReviewStats> {
         statsWindowCalls += windowStart
         return flowOf(stats)
+    }
+
+    override fun observeHeatmap(windowStart: Long, todayIndex: Int): Flow<ReviewHeatmap> {
+        heatmapWindowCalls += windowStart to todayIndex
+        return flowOf(heatmap)
     }
 
     override suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?> =

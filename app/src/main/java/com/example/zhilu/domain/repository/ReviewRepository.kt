@@ -1,6 +1,7 @@
 package com.example.zhilu.domain.repository
 
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.domain.model.ReviewHeatmap
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
@@ -22,6 +23,16 @@ interface ReviewRepository {
      * 仓库只负责把两条聚合查询拼成一个对象、把缺席的天补成 0。
      */
     fun observeStats(windowStart: Long): Flow<ReviewStats>
+
+    /**
+     * 复习热力图：近 [ReviewHeatmap.WEEKS] 周按天分桶（列 = 周、行 = 星期）。
+     *
+     * [windowStart] 与 [todayIndex] 必须来自**同一次** [ReviewHeatmap.window] 计算：
+     * 前者是 SQL 的分桶基准，后者决定界面把哪些格子画成「未来」，各自算一次
+     * 就有跨零点错位的可能。仓库只负责补 0 与越界保护。
+     */
+    fun observeHeatmap(windowStart: Long, todayIndex: Int): Flow<ReviewHeatmap>
+
     suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?>
     suspend fun startPlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan>
 

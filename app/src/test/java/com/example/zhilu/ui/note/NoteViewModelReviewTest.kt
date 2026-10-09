@@ -7,6 +7,7 @@ import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderStatus
 import com.example.zhilu.domain.model.ReminderType
 import com.example.zhilu.domain.model.ReminderWithContext
+import com.example.zhilu.domain.model.ReviewHeatmap
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
@@ -295,6 +296,9 @@ private class ReviewTestReviewRepository(
         flowOf(RepositoryResult.Success(emptyList()))
 
     override fun observeStats(windowStart: Long): Flow<ReviewStats> = flowOf(ReviewStats())
+
+    override fun observeHeatmap(windowStart: Long, todayIndex: Int): Flow<ReviewHeatmap> =
+        flowOf(ReviewHeatmap())
 
     override suspend fun enablePlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan> =
         RepositoryResult.Success(ReviewPlan(noteId = noteId, nextReviewAt = now))

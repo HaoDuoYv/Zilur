@@ -7,6 +7,7 @@ import com.example.zhilu.data.local.entity.ReviewDailyCountRow
 import com.example.zhilu.data.local.entity.ReviewRatingCountRow
 import com.example.zhilu.data.local.mapper.ReviewMapper
 import com.example.zhilu.domain.model.ReviewEvent
+import com.example.zhilu.domain.model.ReviewHeatmap
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
@@ -47,6 +48,14 @@ class ReviewRepositoryImpl(
             reviewDao.observeDailyCountsSince(windowStart),
             reviewDao.observeRatingCountsSince(windowStart)
         ) { daily, ratings -> buildReviewStats(daily, ratings) }
+
+    /**
+     * 热力图与曲线**共用** `observeDailyCountsSince`：同一条 `GROUP BY` 分桶查询，
+     * 只是窗口更长（105 天）——不为热力图另设一条形状相同的 SQL。
+     */
+    override fun observeHeatmap(windowStart: Long, todayIndex: Int): Flow<ReviewHeatmap> =
+        reviewDao.observeDailyCountsSince(windowStart)
+            .map { rows -> buildReviewHeatmap(rows, todayIndex, windowStart) }
 
     override suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?> = runCatching {
         reviewDao.getPlanByNoteId(noteId)?.let(ReviewMapper::toDomain)
@@ -174,5 +183,28 @@ internal fun buildReviewStats(
     return ReviewStats(
         dailyCounts = counts,
         ratingCounts = ratings.associate { ReviewRating.fromValue(it.rating) to it.eventCount }
+    )
+}
+
+/**
+ * 把按天分桶查询的结果拼成 [ReviewHeatmap]（纯函数，单独可测）。
+ *
+ * 与 [buildReviewStats] 同一套保护：缺席的天补 0、越界格子丢弃。
+ * [todayIndex] 额外做一次收敛 —— 时钟被回拨等极端情况下也不让「今天格位」
+ * 越出网格，界面拿它切历史/未来，越界会直接崩。
+ */
+internal fun buildReviewHeatmap(
+    daily: List<ReviewDailyCountRow>,
+    todayIndex: Int,
+    windowStart: Long
+): ReviewHeatmap {
+    val counts = MutableList(ReviewHeatmap.DAYS) { 0 }
+    daily.forEach { row ->
+        if (row.dayIndex in counts.indices) counts[row.dayIndex] = row.eventCount
+    }
+    return ReviewHeatmap(
+        counts = counts,
+        todayIndex = todayIndex.coerceIn(counts.indices),
+        windowStart = windowStart
     )
 }

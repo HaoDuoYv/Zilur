@@ -2,6 +2,7 @@ package com.example.zhilu.data.repository
 
 import com.example.zhilu.data.local.entity.ReviewDailyCountRow
 import com.example.zhilu.data.local.entity.ReviewRatingCountRow
+import com.example.zhilu.domain.model.ReviewHeatmap
 import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.model.ReviewStats
 import org.junit.Assert.assertEquals
@@ -93,5 +94,51 @@ class ReviewStatsBuildTest {
         assertEquals(List(ReviewStats.WINDOW_DAYS) { 0 }, stats.dailyCounts)
         assertEquals(0, stats.windowTotal)
         assertEquals(0, stats.maxDailyCount)
+    }
+
+    // ---- 热力图拼装（与曲线同一张表的 105 格投影）----
+
+    @Test
+    fun `heatmap builds a full 105 cell grid with missing days zeroed`() {
+        val heatmap = buildReviewHeatmap(
+            daily = listOf(
+                ReviewDailyCountRow(dayIndex = 104, eventCount = 3),
+                ReviewDailyCountRow(dayIndex = 0, eventCount = 1)
+            ),
+            todayIndex = 104,
+            windowStart = 1_000_000L
+        )
+
+        assertEquals(ReviewHeatmap.DAYS, heatmap.counts.size)
+        assertEquals(1, heatmap.counts.first())
+        assertEquals(3, heatmap.counts.last())
+        assertEquals(0, heatmap.counts[50])
+        assertEquals(1_000_000L, heatmap.windowStart)
+    }
+
+    @Test
+    fun `heatmap drops out of range days instead of crashing`() {
+        // 与曲线同因：时钟回拨会让事件落到网格之外，不挡就 IndexOutOfBounds 断流
+        val heatmap = buildReviewHeatmap(
+            daily = listOf(
+                ReviewDailyCountRow(dayIndex = ReviewHeatmap.DAYS, eventCount = 9),
+                ReviewDailyCountRow(dayIndex = -1, eventCount = 9),
+                ReviewDailyCountRow(dayIndex = 7, eventCount = 2)
+            ),
+            todayIndex = 10,
+            windowStart = 0L
+        )
+
+        assertEquals(List(ReviewHeatmap.DAYS) { if (it == 7) 2 else 0 }, heatmap.counts)
+    }
+
+    @Test
+    fun `heatmap clamps today index into the grid`() {
+        // todayIndex 越界时收敛（界面拿它切历史/未来，越界会直接崩）
+        val tooBig = buildReviewHeatmap(daily = emptyList(), todayIndex = 999, windowStart = 0L)
+        val tooSmall = buildReviewHeatmap(daily = emptyList(), todayIndex = -5, windowStart = 0L)
+
+        assertEquals(ReviewHeatmap.DAYS - 1, tooBig.todayIndex)
+        assertEquals(0, tooSmall.todayIndex)
     }
 }

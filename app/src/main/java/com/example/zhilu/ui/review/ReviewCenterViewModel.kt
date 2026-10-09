@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.ReminderInstance
+import com.example.zhilu.domain.model.ReviewHeatmap
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.domain.model.TodoItem
@@ -84,6 +85,7 @@ class ReviewCenterViewModel(
     init {
         observePlans()
         observeStats()
+        observeHeatmap()
         observeTodos()
         observeReminders()
         observeIntervals()
@@ -92,6 +94,10 @@ class ReviewCenterViewModel(
 
     fun selectTab(tab: ReviewTab) {
         _uiState.update { it.copy(selectedTab = tab) }
+    }
+
+    fun selectTodoSubTab(subTab: TodoSubTab) {
+        _uiState.update { it.copy(todoSubTab = subTab) }
     }
 
     fun selectReminderFilter(filter: ReminderFilter) {
@@ -217,6 +223,21 @@ class ReviewCenterViewModel(
         viewModelScope.launch {
             reviewRepository.observeStats(windowStart).collect { stats ->
                 _uiState.update { it.copy(stats = stats) }
+            }
+        }
+    }
+
+    /**
+     * 热力图（近 [ReviewHeatmap.WEEKS] 周，列 = 周、行 = 星期）。
+     *
+     * 查询起点与「今天格位」从 [ReviewHeatmap.window] **一次**算出 ——
+     * 分开算第二次就可能跨零点让网格的未来格与数据分桶错位。
+     */
+    private fun observeHeatmap() {
+        val window = ReviewHeatmap.window(startOfTodayProvider(), ZoneId.systemDefault())
+        viewModelScope.launch {
+            reviewRepository.observeHeatmap(window.start, window.todayIndex).collect { heatmap ->
+                _uiState.update { it.copy(heatmap = heatmap) }
             }
         }
     }

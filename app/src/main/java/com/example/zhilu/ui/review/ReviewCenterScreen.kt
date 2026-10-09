@@ -1,7 +1,6 @@
 package com.example.zhilu.ui.review
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,7 +18,6 @@ import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,7 +27,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.ReviewPlan
@@ -60,7 +57,11 @@ private val PaneTogglePadding = PaddingValues(
 )
 
 /**
- * 复习中心：底栏第二格的顶层页，两档 —— 「待复习」（计划与队列）/「提醒」（提醒实例）。
+ * 复习中心：底栏第二格的顶层页，三档 —— 「待复习」（计划与队列）/「待办」（跨笔记待办）/「提醒」（提醒实例）。
+ *
+ * 视觉对齐产品原型：一级三档下是卡片化的内容（热力图卡 + 统计格 + 计划卡 /
+ * 任务卡 + 子标签），不再是无卡片的数据行列表。卡片外壳全部走 [com.example.zhilu.ui.component.AppCard]
+ * 或同源的轻量壳，动森外观自动换材质，**不写分主题的两套**。
  *
  * 档位不进路由：铃铛 / 通知 / 设置页入口的一次性意图走 [LocalAppIntents]
  * （带参数的路由每次都是新 entry，会重置本页 ViewModel）。
@@ -167,17 +168,22 @@ private fun PendingPane(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = Spacing.Xl)
     ) {
+        item(key = "review-heatmap") {
+            ReviewHeatmapCard(
+                heatmap = state.heatmap,
+                modifier = Modifier.padding(top = Spacing.Xs)
+            )
+        }
         item(key = "review-stats") {
-            ReviewStatsSection(
+            ReviewStatsGrid(
                 stats = state.stats,
-                startOfToday = state.startOfToday,
                 graduatedPlanCount = state.graduatedPlanCount,
                 totalPlanCount = state.totalPlanCount,
-                modifier = Modifier.padding(top = Spacing.Xs, bottom = Spacing.Sm)
+                modifier = Modifier.padding(top = Spacing.Xs)
             )
         }
 
-        // 逾期置顶（红色书脊），然后今天、接下来（7 天内 + 更远，远期计划不能"消失"）。
+        // 逾期置顶，然后今天、接下来（7 天内 + 更远，远期计划不能"消失"）。
         planSection("已逾期", queue.overdue, ReviewPlanZone.Overdue, state, viewModel, onStartReview, onOpenNote)
         planSection("今天", queue.today, ReviewPlanZone.Today, state, viewModel, onStartReview, onOpenNote)
         planSection(
@@ -271,23 +277,18 @@ private fun LazyListScope.planRows(
         key = { _, item -> "review-plan-${item.plan.id}" }
     ) { index, item ->
         AnimatedListItem(index = index) {
-            Column {
-                ReviewPlanRow(
-                    item = item,
-                    zone = zone,
-                    // 档位总数跟用户阶梯走（自定义间隔后写死的 /5 会说谎）
-                    stepTotal = state.stepCount,
-                    startOfToday = state.startOfToday,
-                    onOpen = { onOpenNote(item.plan.noteId) },
-                    onStart = { onStartReview(item.plan.noteId) },
-                    onPause = { onPause(item.plan) },
-                    onResume = { onResume(item.plan) },
-                    onRestart = { onRestart(item.plan.noteId) }
-                )
-                if (index < items.lastIndex) {
-                    ZhiLuDivider(modifier = Modifier.padding(start = Spacing.PageGutter))
-                }
-            }
+            ReviewPlanCard(
+                item = item,
+                zone = zone,
+                // 档位总数跟用户阶梯走（自定义间隔后写死的 /5 会说谎）
+                stepTotal = state.stepCount,
+                startOfToday = state.startOfToday,
+                onOpen = { onOpenNote(item.plan.noteId) },
+                onStart = { onStartReview(item.plan.noteId) },
+                onPause = { onPause(item.plan) },
+                onResume = { onResume(item.plan) },
+                onRestart = { onRestart(item.plan.noteId) }
+            )
         }
     }
 }
@@ -295,11 +296,14 @@ private fun LazyListScope.planRows(
 // ---- 「待办」档 ----
 
 /**
- * 待办档：跨笔记汇总全部待办，分「待处理 / 已完成」两区。
+ * 待办档：跨笔记汇总全部待办，按「待处理 / 已逾期 / 已完成」三个子标签切换。
  *
  * 与「提醒」档的分工：这里管**待办本身**（完成 / 恢复 / 删除），
  * 提醒档管**提醒实例**（完成提醒会回写到这里同一条待办）——
  * 两边写的是同一份数据，任何一边操作后另一边都会随 Flow 刷新。
+ *
+ * 子标签的列表内容来自 UiState 的派生（`visibleTodos`），逾期口径
+ * （提醒时间早于今天 0 点）也在那里，本层只管排版与动作。
  */
 @Composable
 private fun TodosPane(
@@ -321,46 +325,47 @@ private fun TodosPane(
 
     // 删除不可逆（待办没有回收站），走一次确认；完成 / 恢复都可撤销，不弹窗。
     var pendingDelete by remember { mutableStateOf<TodoWithContext?>(null) }
-    var completedExpanded by rememberSaveable { mutableStateOf(false) }
-    val pending = state.pendingTodos
-    val completed = state.completedTodos
+    val items = state.visibleTodos
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = Spacing.Xl)
-    ) {
-        if (pending.isNotEmpty()) {
-            item(key = "todo-header-pending") {
-                SectionHeader(title = "待处理 · ${pending.size}")
-            }
-            todoRows(
-                items = pending,
-                viewModel = viewModel,
-                onOpenNote = onOpenNote,
-                onRequestDelete = { pendingDelete = it }
+    Column(modifier = Modifier.fillMaxSize()) {
+        ReviewSubTabs(
+            options = listOf(
+                TodoSubTab.Pending to "${TodoSubTab.Pending.label} ${state.onTimeTodos.size}",
+                TodoSubTab.Overdue to "${TodoSubTab.Overdue.label} ${state.overdueTodos.size}",
+                TodoSubTab.Completed to "${TodoSubTab.Completed.label} ${state.completedTodos.size}"
+            ),
+            selected = state.todoSubTab,
+            onSelect = viewModel::selectTodoSubTab,
+            modifier = Modifier.padding(PaneTogglePadding)
+        )
+
+        if (items.isEmpty()) {
+            TodoEmptyState(
+                subTab = state.todoSubTab,
+                onGoNotes = onGoNotes,
+                onBackToPending = { viewModel.selectTodoSubTab(TodoSubTab.Pending) }
             )
+            return@Column
         }
-        if (completed.isNotEmpty()) {
-            item(key = "todo-header-completed") {
-                SectionHeader(
-                    title = "已完成 · ${completed.size}",
-                    modifier = Modifier.clickable { completedExpanded = !completedExpanded },
-                    trailing = {
-                        Icon(
-                            imageVector = if (completedExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (completedExpanded) "收起" else "展开",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
-            }
-            if (completedExpanded) {
-                todoRows(
-                    items = completed,
-                    viewModel = viewModel,
-                    onOpenNote = onOpenNote,
-                    onRequestDelete = { pendingDelete = it }
-                )
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(bottom = Spacing.Xl, top = Spacing.Xs)
+        ) {
+            itemsIndexed(
+                items = items,
+                key = { _, item -> "todo-${item.todo.id}" }
+            ) { index, item ->
+                AnimatedListItem(index = index) {
+                    TodoTaskCard(
+                        item = item,
+                        startOfToday = state.startOfToday,
+                        onClick = { item.todo.noteId?.let(onOpenNote) },
+                        onComplete = { viewModel.completeTodo(item.todo) },
+                        onReopen = { viewModel.reopenTodo(item.todo) },
+                        onDelete = { pendingDelete = item }
+                    )
+                }
             }
         }
     }
@@ -377,30 +382,38 @@ private fun TodosPane(
     }
 }
 
-private fun LazyListScope.todoRows(
-    items: List<TodoWithContext>,
-    viewModel: ReviewCenterViewModel,
-    onOpenNote: (Long) -> Unit,
-    onRequestDelete: (TodoWithContext) -> Unit
+/** 子标签下的局部空态：文案随子标签变，按钮把用户送回「待处理」。 */
+@Composable
+private fun TodoEmptyState(
+    subTab: TodoSubTab,
+    onGoNotes: () -> Unit,
+    onBackToPending: () -> Unit
 ) {
-    itemsIndexed(
-        items = items,
-        key = { _, item -> "todo-${item.todo.id}" }
-    ) { index, item ->
-        AnimatedListItem(index = index) {
-            Column {
-                TodoRow(
-                    item = item,
-                    onClick = { item.todo.noteId?.let(onOpenNote) },
-                    onComplete = { viewModel.completeTodo(item.todo) },
-                    onReopen = { viewModel.reopenTodo(item.todo) },
-                    onDelete = { onRequestDelete(item) }
-                )
-                if (index < items.lastIndex) {
-                    ZhiLuDivider(modifier = Modifier.padding(start = Spacing.PageGutter))
-                }
-            }
-        }
+    when (subTab) {
+        TodoSubTab.Pending -> AppEmptyState(
+            onAction = onGoNotes,
+            icon = Icons.Outlined.Checklist,
+            title = "太棒了，没有待处理的待办",
+            description = "新添加的待办会汇总到这里。",
+            buttonText = "去笔记列表",
+            compact = true
+        )
+        TodoSubTab.Overdue -> AppEmptyState(
+            onAction = onBackToPending,
+            icon = Icons.Outlined.Checklist,
+            title = "没有逾期的待办",
+            description = "昨天及更早的提醒都已处理完。",
+            buttonText = "看待处理",
+            compact = true
+        )
+        TodoSubTab.Completed -> AppEmptyState(
+            onAction = onBackToPending,
+            icon = Icons.Outlined.Checklist,
+            title = "还没有完成的待办",
+            description = "完成一条待办后会回到这里归档。",
+            buttonText = "看待处理",
+            compact = true
+        )
     }
 }
 
@@ -430,7 +443,7 @@ private fun RemindersPane(
     val items = state.filteredReminders
 
     Column(modifier = Modifier.fillMaxSize()) {
-        SegmentedToggle(
+        ReviewSubTabs(
             options = listOf(
                 ReminderFilter.Pending to "${ReminderFilter.Pending.label} ${state.pendingReminderCount}",
                 ReminderFilter.Overdue to "${ReminderFilter.Overdue.label} ${state.reminderBucket.overdue.size}",
@@ -445,7 +458,7 @@ private fun RemindersPane(
                 onAction = { viewModel.selectReminderFilter(ReminderFilter.Pending) },
                 icon = Icons.Outlined.NotificationsNone,
                 title = "暂无${filter.label}提醒",
-                description = "切换上方分段查看其它状态的提醒。",
+                description = "切换上方标签查看其它状态的提醒。",
                 buttonText = "看待处理",
                 compact = true
             )
@@ -453,7 +466,7 @@ private fun RemindersPane(
         }
         LazyColumn(
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(bottom = Spacing.Xl)
+            contentPadding = PaddingValues(bottom = Spacing.Xl, top = Spacing.Xs)
         ) {
             itemsIndexed(
                 items = items,
