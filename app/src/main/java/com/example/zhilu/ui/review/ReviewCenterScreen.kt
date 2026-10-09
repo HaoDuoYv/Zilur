@@ -36,7 +36,6 @@ import com.example.zhilu.domain.reminder.ReviewSchedulePolicy
 import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.AppTopBar
-import com.example.zhilu.ui.component.MetaLine
 import com.example.zhilu.ui.component.SectionHeader
 import com.example.zhilu.ui.component.SegmentedToggle
 import com.example.zhilu.ui.component.ZhiLuDivider
@@ -163,17 +162,12 @@ private fun PendingPane(
         contentPadding = PaddingValues(bottom = Spacing.Xl)
     ) {
         item(key = "review-stats") {
-            MetaLine(
-                parts = listOf(
-                    "今日已复习 ${state.reviewedTodayCount} 篇",
-                    "进行中 ${queue.queuedCount} 个计划"
-                ),
-                modifier = Modifier.padding(
-                    start = Spacing.PageGutter,
-                    end = Spacing.PageGutter,
-                    top = Spacing.Xs,
-                    bottom = Spacing.Sm
-                )
+            ReviewStatsSection(
+                stats = state.stats,
+                startOfToday = state.startOfToday,
+                graduatedPlanCount = state.graduatedPlanCount,
+                totalPlanCount = state.totalPlanCount,
+                modifier = Modifier.padding(top = Spacing.Xs, bottom = Spacing.Sm)
             )
         }
 

@@ -23,7 +23,10 @@ class AiToolExecutorDefinitionsTest {
         tagRepository = mockk(relaxed = true),
         todoRepository = mockk(relaxed = true),
         mediaRepository = mockk(relaxed = true),
-        mediaFileManager = mockk(relaxed = true)
+        mediaFileManager = mockk(relaxed = true),
+        reviewRepository = mockk(relaxed = true),
+        manageReviewPlan = mockk(relaxed = true),
+        todoReminderSync = mockk(relaxed = true)
     )
 
     @Test
@@ -59,6 +62,36 @@ class AiToolExecutorDefinitionsTest {
         assertTrue("add_todos" in names)
         // 删
         assertTrue("delete_note" in names)
+        // 复习
+        assertTrue("schedule_review" in names)
+        assertTrue("list_due_reviews" in names)
+    }
+
+    @Test
+    fun `add_todos 声明了可选的 remindAt`() {
+        val raw = executor.definitions.first { it.name == "add_todos" }.parametersJson
+        // 提醒时间必须是**可选**的：模型说不清时间时应当省略，而不是编一个
+        assertTrue("add_todos 缺少 remindAt", raw.contains("\"remindAt\""))
+        val required = Regex("\"required\":\\[(.*?)\\]").find(raw)?.groupValues?.get(1).orEmpty()
+        assertTrue("remindAt 不该出现在 required 里", required.contains("remindAt").not())
+        assertTrue(required.contains("noteId"))
+        assertTrue(required.contains("todos"))
+    }
+
+    @Test
+    fun `复习排期工具的说明点明了不会重置进度`() {
+        val definition = executor.definitions.first { it.name == "schedule_review" }
+        // 这句话是模型愿不愿意优先调它的关键 —— 用户最怕"AI 一说就把进度清零"
+        assertTrue(definition.description.contains("不会重置进度"))
+        assertTrue(definition.parametersJson.contains("\"noteId\""))
+    }
+
+    @Test
+    fun `到期查询工具不需要参数`() {
+        val schema = json.parseToJsonElement(
+            executor.definitions.first { it.name == "list_due_reviews" }.parametersJson
+        ) as JsonObject
+        assertTrue("list_due_reviews 应当是零参数的", (schema["properties"] as JsonObject).isEmpty())
     }
 
     @Test

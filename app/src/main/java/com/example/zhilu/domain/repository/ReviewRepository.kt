@@ -4,14 +4,24 @@ import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
+import com.example.zhilu.domain.model.ReviewStats
 import kotlinx.coroutines.flow.Flow
 
 interface ReviewRepository {
     /** 全部复习计划（含笔记标题、含暂停/已完成），复习中心列表用。 */
     fun observePlans(): Flow<RepositoryResult<List<ReviewPlanWithNote>>>
 
-    /** 某时刻（今天 0 点）以来的复习次数，供「今日已复习 N 篇」。 */
-    fun observeEventCountSince(since: Long): Flow<Int>
+    /**
+     * 复习统计：近 [ReviewStats.WINDOW_DAYS] 天曲线 + 窗口内评价分布。
+     *
+     * 曲线的最后一格就是今天，所以「今天复习了几篇」取 `ReviewStats.todayCount`，
+     * 不必再单独打一条今日计数 —— 同一张表、同一个口径的数字有两个来源，
+     * 迟早会在跨零点时对不上。
+     *
+     * [windowStart] 由调用方按界面口径算（见 `ReviewStats.windowStart`），
+     * 仓库只负责把两条聚合查询拼成一个对象、把缺席的天补成 0。
+     */
+    fun observeStats(windowStart: Long): Flow<ReviewStats>
     suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?>
     suspend fun startPlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan>
 

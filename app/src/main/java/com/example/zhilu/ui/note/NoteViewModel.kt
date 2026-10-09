@@ -29,6 +29,8 @@ import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewRating
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.reminder.ReviewReminderSync
+import com.example.zhilu.domain.reminder.TodoReminderSync
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.ReminderRepository
@@ -84,6 +86,13 @@ class NoteViewModel @Inject constructor(
     private val reviewRepository: ReviewRepository,
     private val todoRepository: TodoRepository,
     private val reminderRepository: ReminderRepository,
+    /**
+     * 待办 → TODO 提醒的同步点。默认值由 [reminderRepository] 现搭 ——
+     * 测试注入的是替身仓库，同步点自然跟着用替身，不必改几十处构造调用。
+     */
+    private val todoReminderSync: TodoReminderSync = TodoReminderSync(reminderRepository),
+    /** 复习计划 → REVIEW 提醒的同步点，同上。 */
+    private val reviewReminderSync: ReviewReminderSync = ReviewReminderSync(reminderRepository),
     private val mediaRepository: MediaRepository,
     private val blockClipboardManager: BlockClipboardManager,
     private val aiTaskManager: AiTaskManager,
@@ -1148,26 +1157,15 @@ class NoteViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 复习计划变化后重建 REVIEW 提醒。
+     *
+     * 调共用同步点而不是自己 `upsertScheduled` —— 这里原先手写了一份等价逻辑
+     * （连 `"review-${plan.id}".hashCode()` 都复制了一遍），于是"REVIEW 提醒只有一条来源"
+     * 的说法在笔记页并不成立：通知 id 的派生规则一变，两处就会算出不同的 id。
+     */
     private suspend fun scheduleReviewReminder(plan: ReviewPlan) {
-        val nextReviewAt = plan.nextReviewAt
-        if (nextReviewAt == null) {
-            when (val result = reminderRepository.cancel(ReminderType.REVIEW, plan.id)) {
-                is RepositoryResult.Success -> Unit
-                is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
-            }
-            return
-        }
-        val reminder = ReminderInstance(
-            type = ReminderType.REVIEW,
-            sourceId = plan.id,
-            noteId = plan.noteId,
-            dueAt = nextReviewAt,
-            notificationId = "review-${plan.id}".hashCode()
-        )
-        when (val result = reminderRepository.upsertScheduled(reminder)) {
-            is RepositoryResult.Success -> Unit
-            is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
-        }
+        syncReminder { reviewReminderSync.sync(plan) }
     }
 
     private fun observeTags() {
@@ -1354,40 +1352,20 @@ class NoteViewModel @Inject constructor(
     }
 
     private suspend fun scheduleTodoReminder(todoId: Long, noteId: Long, dueAt: Long) {
-        val reminder = ReminderInstance(
-            type = ReminderType.TODO,
-            sourceId = todoId,
-            noteId = noteId,
-            dueAt = dueAt,
-            notificationId = "todo-$todoId".hashCode()
-        )
-        when (val result = reminderRepository.upsertScheduled(reminder)) {
-            is RepositoryResult.Success -> Unit
-            is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
-        }
+        syncReminder { todoReminderSync.schedule(todoId = todoId, noteId = noteId, dueAt = dueAt) }
     }
 
     private suspend fun reconcileTodoReminder(todo: TodoItem) {
-        when {
-            todo.isCompleted -> {
-                when (val result = reminderRepository.markDone(ReminderType.TODO, todo.id)) {
-                    is RepositoryResult.Success -> Unit
-                    is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
-                }
-            }
-            todo.remindAt != null -> {
-                scheduleTodoReminder(
-                    todoId = todo.id,
-                    noteId = todo.noteId ?: _uiState.value.noteId,
-                    dueAt = todo.remindAt
-                )
-            }
-            else -> {
-                when (val result = reminderRepository.cancel(ReminderType.TODO, todo.id)) {
-                    is RepositoryResult.Success -> Unit
-                    is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
-                }
-            }
+        // 走同步点按状态配平，而不是在这里再判一遍"完成 / 有提醒 / 都没"——
+        // 那套判断 AI 的 add_todos 也要用（见 TodoReminderSync）。
+        syncReminder { todoReminderSync.reconcile(todo, fallbackNoteId = _uiState.value.noteId) }
+    }
+
+    /** 两个同步点都只回结果，错误统一浮到界面（笔记页没有别的错误通道）。 */
+    private suspend fun syncReminder(block: suspend () -> RepositoryResult<Unit>) {
+        when (val result = block()) {
+            is RepositoryResult.Success -> Unit
+            is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
         }
     }
 

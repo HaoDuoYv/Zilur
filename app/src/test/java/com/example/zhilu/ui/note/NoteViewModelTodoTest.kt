@@ -10,6 +10,7 @@ import com.example.zhilu.domain.model.ReminderWithContext
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
+import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.domain.repository.NoteRepository
@@ -457,7 +458,7 @@ private class TodoTestReviewRepository : ReviewRepository {
     override fun observePlans(): Flow<RepositoryResult<List<ReviewPlanWithNote>>> =
         flowOf(RepositoryResult.Success(emptyList()))
 
-    override fun observeEventCountSince(since: Long): Flow<Int> = flowOf(0)
+    override fun observeStats(windowStart: Long): Flow<ReviewStats> = flowOf(ReviewStats())
 
     override suspend fun enablePlan(noteId: Long, now: Long): RepositoryResult<ReviewPlan> =
         RepositoryResult.Success(ReviewPlan(noteId = noteId, nextReviewAt = now))

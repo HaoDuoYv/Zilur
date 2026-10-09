@@ -88,7 +88,8 @@ private fun PaperInkSearchField(
         onValueChange = onQueryChange,
         modifier = modifier,
         placeholder = {
-            Text("搜索笔记和标签", style = ZhiLuType.bodySmall)
+            // 提示 `#` 语法：候选条只在打了 `#` 之后才出现，不写在占位符里没人知道有这功能。
+            Text("搜索笔记，打 # 选标签", style = ZhiLuType.bodySmall)
         },
         leadingIcon = {
             Icon(
@@ -183,7 +184,7 @@ private fun AnimalSearchField(
                     Box(modifier = Modifier.weight(1f)) {
                         if (query.isEmpty()) {
                             Text(
-                                text = "搜索笔记和标签",
+                                text = "搜索笔记，打 # 选标签",
                                 style = ZhiLuType.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

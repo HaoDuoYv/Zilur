@@ -14,13 +14,25 @@ import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.model.ReviewPlan
+import com.example.zhilu.domain.model.ReviewPlanWithNote
+import com.example.zhilu.domain.model.ReviewQueue
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.domain.reminder.ReviewQueueClassifier
+import com.example.zhilu.domain.reminder.TodoReminderSync
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
+import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
+import com.example.zhilu.domain.usecase.ManageReviewPlanUseCase
 import java.io.File
+import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -46,8 +58,20 @@ class AiToolExecutor @Inject constructor(
     private val tagRepository: TagRepository,
     private val todoRepository: TodoRepository,
     private val mediaRepository: MediaRepository,
-    private val mediaFileManager: MediaFileManager
+    private val mediaFileManager: MediaFileManager,
+    private val reviewRepository: ReviewRepository,
+    /** 排期一律经它，别自己 `startPlan` + 提醒 —— 见 `ManageReviewPlanUseCase` 的说明。 */
+    private val manageReviewPlan: ManageReviewPlanUseCase,
+    /** 待办带提醒时间时要建 TODO 提醒，同样走单一同步点（见 `TodoReminderSync`）。 */
+    private val todoReminderSync: TodoReminderSync
 ) {
+
+    /**
+     * 分区口径与复习中心共用（同一个无状态纯函数类）—— 模型说「今天要复习 3 篇」
+     * 和界面上看到的必须是同一个数。直接持有而不是注入：它没有依赖，注入只多一层 DI 接线。
+     */
+    private val queueClassifier = ReviewQueueClassifier()
+
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -200,7 +224,18 @@ class AiToolExecutor @Inject constructor(
             name = "add_todos",
             description = "给笔记追加**可勾选**的待办项（会显示在该笔记的待办块里）。注意：待办项挂在笔记上，不是挂在某条块上；追加不会覆盖已有待办。",
             parametersJson =
-                """{"type":"object","properties":{"noteId":{"type":"integer"},"todos":{"type":"array","items":{"type":"string"},"description":"待办事项文本，一条一项，不要带序号或勾选框"}},"required":["noteId","todos"]}"""
+                """{"type":"object","properties":{"noteId":{"type":"integer"},"todos":{"type":"array","items":{"type":"string"},"description":"待办事项文本，一条一项，不要带序号或勾选框"},"remindAt":{"type":"array","items":{"type":"integer"},"description":"可选，与 todos 一一对应的提醒时间（Unix 毫秒时间戳）。用户说了具体时间才填；说不清就先不填，别自己猜时间"}},"required":["noteId","todos"]}"""
+        ),
+        AiToolDefinition(
+            name = "schedule_review",
+            description = "为笔记开启复习计划（艾宾浩斯间隔：1 / 3 / 7 / 15 / 30 天）。用户说「帮我安排复习」「加入复习计划」时调用。已经在进行中的计划**不会重置进度**，会直接告知下次复习时间。",
+            parametersJson =
+                """{"type":"object","properties":{"noteId":{"type":"integer","description":"要安排复习的笔记 id"}},"required":["noteId"]}"""
+        ),
+        AiToolDefinition(
+            name = "list_due_reviews",
+            description = "列出复习计划的状态：哪些已经逾期、今天该复习什么、接下来一周的安排。用户问「今天要复习什么」「有哪些该复习了」「我的复习安排」时调用。",
+            parametersJson = """{"type":"object","properties":{},"required":[]}"""
         ),
 
         AiToolDefinition(
@@ -226,6 +261,8 @@ class AiToolExecutor @Inject constructor(
             "set_block_emphasis" -> setBlockEmphasis(argumentsJson)
             "add_tags" -> addTags(argumentsJson)
             "add_todos" -> addTodos(argumentsJson)
+            "schedule_review" -> scheduleReview(argumentsJson)
+            "list_due_reviews" -> listDueReviews()
             "delete_note" -> deleteNote(argumentsJson)
             else -> "未知工具：$name"
         }
@@ -478,12 +515,17 @@ class AiToolExecutor @Inject constructor(
      * **待办项挂在笔记上，不是挂在块上**（`todo_items.noteId`）—— 待办块只是"这篇笔记的
      * 待办清单"的显示位。所以这里只要 noteId，不需要 blockId，也就绕开了"写入会重建块 id"
      * 那个坑。
+     *
+     * `remindAt` 与 `todos` 按位置一一对应（可省略、可比 todos 短）：给了时间的那些
+     * 会经 [TodoReminderSync] 建出 TODO 提醒 —— 与笔记页新建待办走同一段，
+     * 通知 id 的派生规则只有一份。
      */
     private suspend fun addTodos(argumentsJson: String): String {
         val args = parseArgs(argumentsJson)
         val noteId = args.optLong("noteId") ?: return "缺少 noteId 参数"
         val texts = args.optStringArray("todos").map { it.trim() }.filter { it.isNotEmpty() }
         if (texts.isEmpty()) return "没有可写入的待办项。"
+        val remindAts = args.optLongArray("remindAt")
 
         val note = when (val result = noteRepository.getNoteById(noteId)) {
             is RepositoryResult.Success -> result.data ?: return "笔记 $noteId 不存在。"
@@ -496,18 +538,95 @@ class AiToolExecutor @Inject constructor(
         }
 
         var added = 0
+        var scheduled = 0
         var lastError: String? = null
         texts.forEachIndexed { index, text ->
-            val todo = TodoItem(noteId = noteId, content = text, sortOrder = startOrder + index)
+            val remindAt = remindAts.getOrNull(index)
+            val todo = TodoItem(
+                noteId = noteId,
+                content = text,
+                remindAt = remindAt,
+                sortOrder = startOrder + index
+            )
             when (val result = todoRepository.addTodo(todo)) {
-                is RepositoryResult.Success -> added++
+                is RepositoryResult.Success -> {
+                    added++
+                    if (remindAt != null) {
+                        // 待办已经落库，提醒没建成只该少一条通知，不该把整条待办回滚
+                        when (val sync = todoReminderSync.schedule(result.data, noteId, remindAt)) {
+                            is RepositoryResult.Success -> scheduled++
+                            is RepositoryResult.Error -> lastError = sync.message
+                        }
+                    }
+                }
                 is RepositoryResult.Error -> lastError = result.message
             }
         }
 
         val suffix = if (lastError == null) "" else "（${texts.size - added} 条失败：$lastError）"
-        return "已为「${note.title}」追加 $added 条待办项$suffix。它们显示在该笔记的待办块里，可勾选完成。"
+        val remindHint = if (scheduled > 0) "，其中 $scheduled 条设了提醒" else ""
+        return "已为「${note.title}」追加 $added 条待办项$remindHint$suffix。它们显示在该笔记的待办块里，可勾选完成。"
     }
+
+    /**
+     * 为笔记开启 / 恢复复习计划。
+     *
+     * 三种既有状态各有正确动作，**不能一律 `startPlan`**：
+     * 已完成 → 重头开始；暂停中 → 原地继续（保留档位）；进行中 → 什么都不做，
+     * 只把下次复习时间告诉模型。一律 `startPlan` 会把用户复习了半个月的进度抹回第 1 档。
+     */
+    private suspend fun scheduleReview(argumentsJson: String): String {
+        val noteId = parseArgs(argumentsJson).optLong("noteId") ?: return "缺少 noteId 参数"
+        val note = when (val result = noteRepository.getNoteById(noteId)) {
+            is RepositoryResult.Success -> result.data ?: return "笔记 $noteId 不存在。"
+            is RepositoryResult.Error -> return "读取失败：${result.message}"
+        }
+        val existing = when (val result = reviewRepository.getPlanByNoteId(noteId)) {
+            is RepositoryResult.Success -> result.data
+            is RepositoryResult.Error -> return "读取复习计划失败：${result.message}"
+        }
+
+        return when (reviewScheduleAction(existing)) {
+            ReviewScheduleAction.AlreadyScheduled ->
+                "「${note.title}」的复习计划已在第 ${existing!!.currentStep + 1} 档，" +
+                    "下次复习：${describeDue(existing.nextReviewAt)}。"
+
+            ReviewScheduleAction.Resume -> reportScheduled(note.title, "已恢复", manageReviewPlan.resume(existing!!))
+
+            ReviewScheduleAction.CreateOrRestart ->
+                reportScheduled(note.title, "已开启", manageReviewPlan.restart(noteId))
+        }
+    }
+
+    private suspend fun reportScheduled(
+        title: String,
+        verb: String,
+        scheduled: RepositoryResult<ReviewPlan>
+    ): String = when (scheduled) {
+        is RepositoryResult.Success ->
+            "$verb「$title」的复习计划，下次复习：${describeDue(scheduled.data.nextReviewAt)}。"
+        is RepositoryResult.Error -> "安排复习失败：${scheduled.message}"
+    }
+
+    /**
+     * 复习计划现状：逾期 / 今天 / 接下来一周。
+     *
+     * 分区口径与复习中心完全一致（同一套 [ReviewQueueClassifier]，以今天 0 点为界），
+     * 所以模型说"今天要复习 3 篇"和用户在界面上看到的一定是同一个数。
+     */
+    private suspend fun listDueReviews(): String {
+        val plans = when (val result = reviewRepository.observePlans().first()) {
+            is RepositoryResult.Success -> result.data
+            is RepositoryResult.Error -> return "读取复习计划失败：${result.message}"
+        }
+        return formatDueReviews(plans, queueClassifier.classify(plans, startOfToday()))
+    }
+
+    private fun startOfToday(): Long = LocalDate.now()
+        .atStartOfDay(ZoneId.systemDefault())
+        .toInstant()
+        .toEpochMilli()
+
 
     private suspend fun deleteNote(argumentsJson: String): String {
         val noteId = parseArgs(argumentsJson).optLong("noteId") ?: return "缺少 noteId 参数"
@@ -806,3 +925,88 @@ private fun JsonObject.optArray(key: String): JsonArray? =
 
 private fun JsonObject.optStringArray(key: String): List<String> =
     (this[key] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.content } ?: emptyList()
+
+/**
+ * 回传给模型的到期时间，人类可读优先；`null`（暂停 / 毕业）写成「无」。
+ *
+ * 用可读日期而不是时间戳：模型拿它组织语言（「明天下午」/「10 月 9 日」），
+ * 不解析它；给毫秒数只会让模型把它原样念给用户听。
+ * `SimpleDateFormat` 既非线程安全、又吃当前 locale，所以不缓存成常量而每次
+ * 现建（lint `ConstantLocale` 说的也是这件事）；工具执行是单线程串行的，
+ * 这点开销可以忽略。
+ */
+private fun describeDue(dueAt: Long?): String =
+    dueAt?.let { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(it)) } ?: "无"
+
+/** `schedule_review` 该对既有计划做什么。 */
+internal enum class ReviewScheduleAction {
+    /** 还没有计划，或已毕业 —— 从第 1 档重新开始。 */
+    CreateOrRestart,
+
+    /** 暂停中 —— 原地继续，**保留档位**。 */
+    Resume,
+
+    /** 正在跑 —— 什么都不做，只把下次复习时间告诉模型。 */
+    AlreadyScheduled
+}
+
+/**
+ * 判定 `schedule_review` 的动作（纯函数，单独可测）。
+ *
+ * 这条规则是「AI 不会把用户复习了半个月的进度抹回第 1 档」的唯一保障，
+ * 所以从工具实现里拎出来钉住。
+ *
+ * 注意判定顺序：**先看 `enabled`，再看 `completedAt`**。毕业的计划是
+ * `enabled = false` 且 `completedAt != null`，该走「重新开始」而不是「继续」。
+ */
+internal fun reviewScheduleAction(existing: ReviewPlan?): ReviewScheduleAction = when {
+    existing == null -> ReviewScheduleAction.CreateOrRestart
+    existing.enabled -> ReviewScheduleAction.AlreadyScheduled
+    existing.completedAt != null -> ReviewScheduleAction.CreateOrRestart
+    else -> ReviewScheduleAction.Resume
+}
+
+/**
+ * `list_due_reviews` 的回传文本（纯函数，单独可测）。
+ *
+ * 分区由 [ReviewQueueClassifier] 给出（与复习中心同一套口径），这里只管措辞。
+ * 一个计划都没有时给明确的空态，而不是一行全是 0 的统计。
+ */
+internal fun formatDueReviews(plans: List<ReviewPlanWithNote>, queue: ReviewQueue): String {
+    if (plans.isEmpty()) return "还没有任何复习计划。"
+
+    return buildString {
+        append("复习计划：逾期 ${queue.overdue.size} 个、今天 ${queue.today.size} 个、")
+        append("接下来 ${ReviewQueueClassifier.UPCOMING_DAYS} 天 ${queue.upcoming.size} 个")
+        if (queue.later.isNotEmpty()) append("、更远 ${queue.later.size} 个")
+        if (queue.paused.isNotEmpty()) append("、已暂停 ${queue.paused.size} 个")
+        if (queue.completed.isNotEmpty()) append("、已完成 ${queue.completed.size} 个")
+        append("。")
+        appendSection("已逾期", queue.overdue)
+        appendSection("今天", queue.today)
+        appendSection("接下来", queue.upcoming)
+        // 「更远」也要给明细：只报数量的话，用户问"是哪篇"时模型手里没有名字。
+        // 复习中心的「接下来」是 upcoming + later 的合并区（远期计划不能"消失"），
+        // 所以这里分得更细不是口径冲突，是"界面合并、工具分档"。
+        appendSection("更远", queue.later)
+    }
+}
+
+private fun StringBuilder.appendSection(title: String, items: List<ReviewPlanWithNote>) {
+    if (items.isEmpty()) return
+    append("\n").append(title).append("：")
+    items.forEach { item ->
+        append("\n  - [").append(item.plan.noteId).append("] ").append(item.noteTitle)
+            .append("（第 ").append(item.plan.currentStep + 1).append(" 档，")
+            .append(describeDue(item.plan.nextReviewAt)).append("）")
+    }
+}
+
+/**
+ * 取整数数组（`remindAt` 这种与文本按位置对应的参数）。
+ *
+ * 非数字项丢成 null 而不是整段作废 —— `remindAt` 是可选参数，模型漏填一格
+ * 不该让旁边几条待办的提醒一起消失。
+ */
+private fun JsonObject.optLongArray(key: String): List<Long?> =
+    (this[key] as? JsonArray)?.map { (it as? JsonPrimitive)?.content?.toLongOrNull() } ?: emptyList()

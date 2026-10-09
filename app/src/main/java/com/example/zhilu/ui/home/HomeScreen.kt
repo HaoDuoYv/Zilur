@@ -53,6 +53,7 @@ import com.example.zhilu.ui.review.ReviewTab
 import com.example.zhilu.ui.search.TagDeleteDialog
 import com.example.zhilu.ui.search.TagFilterBar
 import com.example.zhilu.ui.search.TagManageSheet
+import com.example.zhilu.ui.search.TagSuggestionRow
 import com.example.zhilu.ui.search.TagRenameDialog
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
@@ -140,8 +141,16 @@ fun HomeScreen(
                 onFocusChanged = { searchFocused = it }
             )
 
-            // 聚焦或已在搜索态时露出标签筛选条：点选 = 加筛选（空关键词时就是"标签浏览"）。
-            if (searchFocused || uiState.isSearchActive) {
+            // 输入 `#` 时这一段换成候选条：正在挑标签时只该看到候选，
+            // 挑完（token 被摘掉）候选消失、筛选条带着新 chip 回来。两者同位置、同起止。
+            if (uiState.showTagSuggestions) {
+                TagSuggestionRow(
+                    suggestions = uiState.tagSuggestions,
+                    onPick = viewModel::applyTagSuggestion,
+                    modifier = Modifier.padding(vertical = Spacing.Xs)
+                )
+            } else if (searchFocused || uiState.isSearchActive) {
+                // 聚焦或已在搜索态时露出标签筛选条：点选 = 加筛选（空关键词时就是"标签浏览"）。
                 TagFilterBar(
                     items = uiState.tagFilters,
                     selectedTagIds = uiState.selectedTagIds,

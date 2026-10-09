@@ -12,6 +12,7 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.ui.navigation.AppIntents
 import com.example.zhilu.ui.search.TagFilterItem
+import com.example.zhilu.ui.search.TagQueryParser
 import com.example.zhilu.ui.theme.TagCreationPalette
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.LocalDate
@@ -172,6 +173,30 @@ class HomeViewModel @Inject constructor(
         refreshSearch()
     }
 
+    /**
+     * 点候选条上的标签：把输入框末尾的 `#token` 换成选中的筛选 chip，并立即重查。
+     *
+     * 不走防抖 —— 点候选是明确动作，不是打字过程中的中间态。
+     */
+    fun applyTagSuggestion(tagId: Long) {
+        val query = _uiState.value.query
+        val token = TagQueryParser.trailingToken(query)
+        // token 理论上一定在（候选就是它算出来的），但解析失败时也该把标签加上，
+        // 只是留着输入框不动 —— 不能因为"没找到 token"就把用户点的操作吞掉。
+        val rest = if (token != null) TagQueryParser.strip(query, token) else query
+        _uiState.update { it.copy(query = rest, selectedTagIds = it.selectedTagIds + tagId) }
+        refreshSearch()
+    }
+
+    /** 按名字精确找标签；读失败按"没有"处理（调用方会回退全文检索）。 */
+    private suspend fun resolveTagByName(name: String): Tag? {
+        if (name.isEmpty()) return null
+        return when (val result = tagRepository.getTagByName(name)) {
+            is RepositoryResult.Success -> result.data
+            is RepositoryResult.Error -> null
+        }
+    }
+
     /** 筛选变化后立即重查（点 chip 是明确动作，不走输入防抖）。 */
     private fun refreshSearch() {
         searchJob?.cancel()
@@ -228,21 +253,15 @@ class HomeViewModel @Inject constructor(
     private suspend fun search(rawQuery: String) {
         val trimmed = rawQuery.trim()
 
-        // `#标签名` 归一：能匹配到标签 → 转成一个筛选 chip 并清空输入框；匹配不到按普通关键词搜。
-        // 这样"手输 #tag"与"点 chip"最终汇成同一个状态（选中标签集合），只有一套语义。
-        if (trimmed.startsWith(TAG_QUERY_PREFIX)) {
-            val tagName = trimmed.removePrefix(TAG_QUERY_PREFIX).trim()
-            val matched = if (tagName.isEmpty()) {
-                null
-            } else {
-                when (val result = tagRepository.getTagByName(tagName)) {
-                    is RepositoryResult.Success -> result.data
-                    is RepositoryResult.Error -> null
-                }
-            }
+        // `#标签名` 归一：能匹配到标签 → 转成一个筛选 chip 并摘掉这段 token；匹配不到按普通关键词搜。
+        // 这样"手输 #tag"、"点候选"、"点 chip"最终汇成同一个状态（选中标签集合），只有一套语义。
+        // 解析规则见 TagQueryParser —— 与输入补全共用，避免两边各认一套。
+        TagQueryParser.trailingToken(trimmed)?.let { token ->
+            val matched = resolveTagByName(token.name)
             if (matched != null) {
+                val rest = TagQueryParser.strip(trimmed, token)
                 _uiState.update {
-                    it.copy(query = "", selectedTagIds = it.selectedTagIds + matched.id)
+                    it.copy(query = rest, selectedTagIds = it.selectedTagIds + matched.id)
                 }
             }
         }
@@ -333,9 +352,6 @@ class HomeViewModel @Inject constructor(
     companion object {
         const val MAX_RECENT_QUERIES = 6
         const val SEARCH_DEBOUNCE_MILLIS = 300L
-
-        /** 以 `#` 开头时按标签检索，而非全文匹配。 */
-        const val TAG_QUERY_PREFIX = "#"
 
         private fun startOfToday(): Long = LocalDate.now()
             .atStartOfDay(ZoneId.systemDefault())

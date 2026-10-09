@@ -279,6 +279,126 @@ class HomeViewModelSearchTest {
         assertEquals(emptyList<Tag>(), tagRepository.insertedTags)
     }
 
+    // ---- `#` 输入补全 ----
+
+    @Test
+    fun `tag suggestions match the trailing hash token`() = runTest(dispatcher) {
+        val tagRepository = SearchTestTagRepository(
+            tags = listOf(
+                Tag(id = 1, name = "计算机网络"),
+                Tag(id = 2, name = "计算几何"),
+                Tag(id = 3, name = "线性代数")
+            )
+        )
+        val viewModel = createViewModel(SearchTestNoteRepository(), tagRepository)
+        advanceUntilIdle()
+
+        viewModel.onQueryChange("论文 #计算")
+
+        // 候选顺序继承筛选条的排序（笔记数降序、同名按名），这里只钉"命中了哪几个"
+        assertEquals(setOf(1L, 2L), viewModel.uiState.value.tagSuggestions.map { it.tag.id }.toSet())
+    }
+
+    @Test
+    fun `lone hash offers every unselected tag`() = runTest(dispatcher) {
+        val tagRepository = SearchTestTagRepository(
+            tags = listOf(Tag(id = 1, name = "计算机网络"), Tag(id = 2, name = "线性代数"))
+        )
+        val viewModel = createViewModel(SearchTestNoteRepository(), tagRepository)
+        advanceUntilIdle()
+
+        viewModel.onQueryChange("#")
+
+        // 只打一个 `#` 是"我要挑一个标签"的手势，不是打错了
+        assertEquals(setOf(1L, 2L), viewModel.uiState.value.tagSuggestions.map { it.tag.id }.toSet())
+    }
+
+    @Test
+    fun `suggestions never offer a tag that is already filtering`() = runTest(dispatcher) {
+        val tagRepository = SearchTestTagRepository(
+            tags = listOf(Tag(id = 1, name = "计算机网络"), Tag(id = 2, name = "计算几何"))
+        )
+        val viewModel = createViewModel(SearchTestNoteRepository(), tagRepository)
+        advanceUntilIdle()
+
+        viewModel.toggleTagFilter(1)
+        advanceUntilIdle()
+        viewModel.onQueryChange("#计算")
+
+        // 已经在筛选里的标签再点一次只会把它取消掉，所以不列出来
+        assertEquals(listOf(2L), viewModel.uiState.value.tagSuggestions.map { it.tag.id })
+    }
+    @Test
+    fun `picking a suggestion replaces the token with a filter chip`() = runTest(dispatcher) {
+        val noteRepository = SearchTestNoteRepository()
+        val tagRepository = SearchTestTagRepository(tags = listOf(Tag(id = 7, name = "计算机")))
+        val viewModel = createViewModel(noteRepository, tagRepository)
+        advanceUntilIdle()
+
+        viewModel.onQueryChange("论文 #计")
+        viewModel.applyTagSuggestion(7)
+        advanceUntilIdle()
+
+        // token 摘掉、余下的关键词留着；标签落成 chip
+        assertEquals("论文", viewModel.uiState.value.query)
+        assertEquals(setOf(7L), viewModel.uiState.value.selectedTagIds)
+        // 点候选是明确动作，立刻重查而不是等输入防抖
+        assertEquals(listOf(7L), noteRepository.tagCalls.last())
+        assertTrue(viewModel.uiState.value.tagSuggestions.isEmpty())
+    }
+
+    @Test
+    fun `picking a suggestion clears the token even when the query was only a hash`() =
+        runTest(dispatcher) {
+            val tagRepository = SearchTestTagRepository(tags = listOf(Tag(id = 7, name = "计算机")))
+            val viewModel = createViewModel(SearchTestNoteRepository(), tagRepository)
+            advanceUntilIdle()
+
+            viewModel.onQueryChange("#计")
+            viewModel.applyTagSuggestion(7)
+            advanceUntilIdle()
+
+            // 空关键词 + 一个标签 = 纯标签浏览，搜索态仍成立
+            assertEquals("", viewModel.uiState.value.query)
+            assertTrue(viewModel.uiState.value.isSearchActive)
+        }
+
+    @Test
+    fun `plain keyword keeps a trailing hash as text when no tag matches`() =
+        runTest(dispatcher) {
+            val noteRepository = SearchTestNoteRepository()
+            val tagRepository = SearchTestTagRepository(tags = listOf(Tag(id = 7, name = "计算机")))
+            val viewModel = createViewModel(noteRepository, tagRepository)
+            advanceUntilIdle()
+
+            viewModel.onQueryChange("C#")
+            viewModel.submitSearch()
+            advanceUntilIdle()
+
+            // `C#` 不是标签引用（井号不在词首），原样当关键词搜
+            assertTrue(viewModel.uiState.value.selectedTagIds.isEmpty())
+            assertEquals(listOf(emptyList<Long>()), noteRepository.tagCalls)
+        }
+
+    @Test
+    fun `trailing hash whose name matches no tag falls back to full text`() = runTest(dispatcher) {
+        val noteRepository = SearchTestNoteRepository()
+        val tagRepository = SearchTestTagRepository(
+            tags = listOf(Tag(id = 7, name = "计算机")),
+            resolvableNames = setOf("计算机")
+        )
+        val viewModel = createViewModel(noteRepository, tagRepository)
+        advanceUntilIdle()
+
+        viewModel.onQueryChange("论文 #不存在的标签")
+        viewModel.submitSearch()
+        advanceUntilIdle()
+
+        // 匹配不到就不改写查询 —— 保留原文走全文检索（既有语义）
+        assertEquals("论文 #不存在的标签", viewModel.uiState.value.query)
+        assertTrue(viewModel.uiState.value.selectedTagIds.isEmpty())
+    }
+
     private fun createViewModel(
         noteRepository: NoteRepository,
         tagRepository: TagRepository = SearchTestTagRepository(),

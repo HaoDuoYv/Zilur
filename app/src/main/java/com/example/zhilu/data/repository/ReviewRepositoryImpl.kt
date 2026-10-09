@@ -2,15 +2,19 @@ package com.example.zhilu.data.repository
 
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.data.local.dao.ReviewDao
+import com.example.zhilu.data.local.entity.ReviewDailyCountRow
+import com.example.zhilu.data.local.entity.ReviewRatingCountRow
 import com.example.zhilu.data.local.mapper.ReviewMapper
 import com.example.zhilu.domain.model.ReviewEvent
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
+import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.domain.reminder.ReviewSchedulePolicy
 import com.example.zhilu.domain.repository.ReviewRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 
 class ReviewRepositoryImpl(
@@ -26,7 +30,11 @@ class ReviewRepositoryImpl(
             }
             .catch { e -> emit(RepositoryResult.Error("Failed to load review plans", e)) }
 
-    override fun observeEventCountSince(since: Long): Flow<Int> = reviewDao.countEventsSince(since)
+    override fun observeStats(windowStart: Long): Flow<ReviewStats> =
+        combine(
+            reviewDao.observeDailyCountsSince(windowStart),
+            reviewDao.observeRatingCountsSince(windowStart)
+        ) { daily, ratings -> buildReviewStats(daily, ratings) }
 
     override suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?> = runCatching {
         reviewDao.getPlanByNoteId(noteId)?.let(ReviewMapper::toDomain)
@@ -133,4 +141,26 @@ class ReviewRepositoryImpl(
             )
         )
     }.toRepositoryResult("Failed to disable review plan")
+}
+
+/**
+ * 把两条聚合查询的结果拼成 [ReviewStats]（纯函数，单独可测）。
+ *
+ * 两件容易出错的事都在这里：
+ * - **缺席的天补 0** —— SQL 的 `GROUP BY` 只返回有事件的天，直接拿来做柱状图会让柱子错位；
+ * - **越界的格子丢掉** —— 时钟回拨之类会让 `dayIndex` 落到窗口右侧之外，
+ *   不挡的话 `MutableList[indices]` 直接抛异常，整个统计 Flow 断掉。
+ */
+internal fun buildReviewStats(
+    daily: List<ReviewDailyCountRow>,
+    ratings: List<ReviewRatingCountRow>
+): ReviewStats {
+    val counts = MutableList(ReviewStats.WINDOW_DAYS) { 0 }
+    daily.forEach { row ->
+        if (row.dayIndex in counts.indices) counts[row.dayIndex] = row.eventCount
+    }
+    return ReviewStats(
+        dailyCounts = counts,
+        ratingCounts = ratings.associate { ReviewRating.fromValue(it.rating) to it.eventCount }
+    )
 }

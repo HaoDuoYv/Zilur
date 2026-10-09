@@ -5,9 +5,11 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import com.example.zhilu.data.local.entity.ReviewDailyCountRow
 import com.example.zhilu.data.local.entity.ReviewEventEntity
 import com.example.zhilu.data.local.entity.ReviewPlanEntity
 import com.example.zhilu.data.local.entity.ReviewPlanRow
+import com.example.zhilu.data.local.entity.ReviewRatingCountRow
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -24,9 +26,33 @@ interface ReviewDao {
     )
     fun observePlansWithNote(): Flow<List<ReviewPlanRow>>
 
-    /** 统计某时刻（今天 0 点）之后的复习次数，供「今日已复习 N 篇」——下推 DAO，不在内存聚合。 */
-    @Query("SELECT COUNT(*) FROM review_events WHERE reviewedAt >= :since")
-    fun countEventsSince(since: Long): Flow<Int>
+    /**
+     * 窗口内每日复习次数，按天分桶（单条 `GROUP BY`）。
+     *
+     * 分桶基准是调用方给的 `windowStart`，用整数除法落格：`(reviewedAt - windowStart) / 一天`。
+     * 这样"哪一天"由界面口径（今天 0 点）决定，SQL 里不出现时区换算。
+     * 「今天复习了几篇」就是最后一格，不再另设一条计数查询。
+     */
+    @Query(
+        """
+        SELECT (reviewedAt - :windowStart) / 86400000 AS dayIndex, COUNT(*) AS eventCount
+        FROM review_events
+        WHERE reviewedAt >= :windowStart
+        GROUP BY dayIndex
+        """
+    )
+    fun observeDailyCountsSince(windowStart: Long): Flow<List<ReviewDailyCountRow>>
+
+    /** 窗口内的评价分布（困难 / 正常 / 已掌握各多少次）。 */
+    @Query(
+        """
+        SELECT rating, COUNT(*) AS eventCount
+        FROM review_events
+        WHERE reviewedAt >= :windowStart
+        GROUP BY rating
+        """
+    )
+    fun observeRatingCountsSince(windowStart: Long): Flow<List<ReviewRatingCountRow>>
 
     @Query("SELECT * FROM review_plans WHERE noteId = :noteId LIMIT 1")
     suspend fun getPlanByNoteId(noteId: Long): ReviewPlanEntity?

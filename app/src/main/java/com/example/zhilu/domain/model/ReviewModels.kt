@@ -46,6 +46,39 @@ data class ReviewPlanWithNote(
 )
 
 /**
+ * 复习统计（复习中心「待复习」档顶部的概览）。
+ *
+ * 窗口口径与列表一致：**今天 0 点**往前推满 [WINDOW_DAYS] 天（今天落在最后一格），
+ * 而不是"最近 168 小时" —— 否则同一个数字会在午夜前后跳一下。
+ */
+data class ReviewStats(
+    val dailyCounts: List<Int> = List(WINDOW_DAYS) { 0 },
+    val ratingCounts: Map<ReviewRating, Int> = emptyMap()
+) {
+    /** 窗口内合计。 */
+    val windowTotal: Int get() = dailyCounts.sum()
+
+    /** 今天（窗口最后一格）的复习次数。 */
+    val todayCount: Int get() = dailyCounts.lastOrNull() ?: 0
+
+    /** 峰值，画柱状图时用来定比例（全 0 时调用方应自行兜底为 1）。 */
+    val maxDailyCount: Int get() = dailyCounts.maxOrNull() ?: 0
+
+    fun countOf(rating: ReviewRating): Int = ratingCounts[rating] ?: 0
+
+    companion object {
+        /** 曲线格子数：一周，最右一格是今天。 */
+        const val WINDOW_DAYS = 7
+
+        private const val DAY_MILLIS = 86_400_000L
+
+        /** 窗口起点：今天 0 点往前推满窗口，使最后一格正好是今天。 */
+        fun windowStart(startOfToday: Long, days: Int = WINDOW_DAYS): Long =
+            startOfToday - (days - 1) * DAY_MILLIS
+    }
+}
+
+/**
  * 「待复习」档的分区结果。
  *
  * [later] 单独成区（而不是并进 [upcoming]）是为了让 30 天档这类远期计划

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReviewPlan
+import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.domain.reminder.ReminderClassifier
 import com.example.zhilu.domain.reminder.ReviewQueueClassifier
 import com.example.zhilu.domain.repository.ReminderRepository
@@ -68,7 +69,7 @@ class ReviewCenterViewModel(
 
     init {
         observePlans()
-        observeReviewedToday()
+        observeStats()
         observeReminders()
         observeIntents()
     }
@@ -152,10 +153,18 @@ class ReviewCenterViewModel(
         }
     }
 
-    private fun observeReviewedToday() {
+    /**
+     * 近一周曲线 + 评价分布。
+     *
+     * 窗口起点按**今天 0 点**推满整周，与列表的分区口径同一个基准
+     * （`ReviewQueueClassifier` 也是以今天 0 点为界）—— 两处若各算各的，
+     * 曲线最后一格和队列的「今天」会在跨零点时对不上。
+     */
+    private fun observeStats() {
+        val windowStart = ReviewStats.windowStart(startOfTodayProvider())
         viewModelScope.launch {
-            reviewRepository.observeEventCountSince(startOfTodayProvider()).collect { count ->
-                _uiState.update { it.copy(reviewedTodayCount = count) }
+            reviewRepository.observeStats(windowStart).collect { stats ->
+                _uiState.update { it.copy(stats = stats) }
             }
         }
     }

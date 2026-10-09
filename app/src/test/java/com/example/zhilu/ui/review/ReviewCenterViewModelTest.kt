@@ -8,6 +8,7 @@ import com.example.zhilu.domain.model.ReminderWithContext
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.ReviewRating
+import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.domain.reminder.ReviewReminderSync
 import com.example.zhilu.domain.repository.ReminderRepository
@@ -91,14 +92,30 @@ class ReviewCenterViewModelTest {
     }
 
     @Test
-    fun reviewedTodayCountReadsEventsSinceStartOfToday() = runTest(dispatcher) {
-        val repository = FakeReviewRepository(reviewedToday = 3)
+    fun statsWindowStartsAtTheFirstCellOfTheWeek() = runTest(dispatcher) {
+        val stats = ReviewStats(dailyCounts = listOf(0, 2, 0, 1, 0, 0, 3))
+        val repository = FakeReviewRepository(stats = stats)
 
         val viewModel = viewModel(repository)
         advanceUntilIdle()
 
-        assertEquals(listOf(startOfToday), repository.eventCountSinceCalls)
-        assertEquals(3, viewModel.uiState.value.reviewedTodayCount)
+        // 窗口是"今天 0 点往前推满一周"，起点即第一格 —— 与队列分区同一个基准
+        assertEquals(listOf(ReviewStats.windowStart(startOfToday)), repository.statsWindowCalls)
+        assertEquals(stats, viewModel.uiState.value.stats)
+    }
+
+    @Test
+    fun todayCountComesFromTheLastBarNotASecondQuery() = runTest(dispatcher) {
+        val repository = FakeReviewRepository(
+            stats = ReviewStats(dailyCounts = listOf(0, 2, 0, 1, 0, 0, 3))
+        )
+
+        val viewModel = viewModel(repository)
+        advanceUntilIdle()
+
+        // 曲线的最后一格就是今天 —— 不再有一条单独的"今日计数"查询
+        assertEquals(3, viewModel.uiState.value.stats.todayCount)
+        assertEquals(6, viewModel.uiState.value.stats.windowTotal)
     }
 
     @Test
@@ -363,7 +380,7 @@ class ReviewCenterViewModelTest {
 
 private class FakeReviewRepository(
     private val plans: List<ReviewPlanWithNote> = emptyList(),
-    private val reviewedToday: Int = 0
+    private val stats: ReviewStats = ReviewStats()
 ) : ReviewRepository {
     private val plansFlow =
         MutableStateFlow<RepositoryResult<List<ReviewPlanWithNote>>>(RepositoryResult.Success(plans))
@@ -371,13 +388,13 @@ private class FakeReviewRepository(
     val enableCalls = mutableListOf<Pair<Long, Long>>()
     val startCalls = mutableListOf<Pair<Long, Long>>()
     val disableCalls = mutableListOf<Long>()
-    val eventCountSinceCalls = mutableListOf<Long>()
+    val statsWindowCalls = mutableListOf<Long>()
 
     override fun observePlans(): Flow<RepositoryResult<List<ReviewPlanWithNote>>> = plansFlow
 
-    override fun observeEventCountSince(since: Long): Flow<Int> {
-        eventCountSinceCalls += since
-        return flowOf(reviewedToday)
+    override fun observeStats(windowStart: Long): Flow<ReviewStats> {
+        statsWindowCalls += windowStart
+        return flowOf(stats)
     }
 
     override suspend fun getPlanByNoteId(noteId: Long): RepositoryResult<ReviewPlan?> =

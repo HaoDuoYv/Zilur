@@ -4,6 +4,7 @@ import com.example.zhilu.domain.model.ReminderBucket
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderWithContext
 import com.example.zhilu.domain.model.ReviewQueue
+import com.example.zhilu.domain.model.ReviewStats
 import com.example.zhilu.ui.reminder.ReminderFilter
 
 /** 复习中心的两个档位。 */
@@ -27,7 +28,13 @@ data class ReviewCenterUiState(
     val startOfToday: Long = 0L,
     // ---- 「待复习」档 ----
     val queue: ReviewQueue = ReviewQueue(),
-    val reviewedTodayCount: Int = 0,
+    /**
+     * 近一周曲线 + 评价分布（窗口按今天 0 点推满 `ReviewStats.WINDOW_DAYS` 天）。
+     *
+     * 「今天复习了几篇」由 [ReviewStats.todayCount] 给出（曲线的最后一格就是今天），
+     * 所以这里不再单存一个今日计数 —— 同一个数字打两条查询迟早会在跨零点时对不上。
+     */
+    val stats: ReviewStats = ReviewStats(),
     // ---- 「提醒」档 ----
     val reminderFilter: ReminderFilter = ReminderFilter.Pending,
     val reminderBucket: ReminderBucket = ReminderBucket(),
@@ -51,4 +58,15 @@ data class ReviewCenterUiState(
     /** 分段标题上的「提醒 N」：未完成（待处理 + 逾期）的提醒数。 */
     val pendingReminderCount: Int
         get() = reminderBucket.today.size + reminderBucket.future.size + reminderBucket.overdue.size
+
+    /**
+     * 毕业率的分子 / 分母：已完成的计划数、计划总数（进行中 + 已暂停 + 已完成）。
+     *
+     * 直接从队列算，不再多打一条聚合查询 —— 队列本来就把这三种状态分好区了。
+     * 分母为 0 时界面不显示毕业率（没有分母的比率是假话）。
+     */
+    val graduatedPlanCount: Int get() = queue.completed.size
+
+    val totalPlanCount: Int
+        get() = queue.completed.size + queue.paused.size + queue.queuedCount
 }
