@@ -84,11 +84,16 @@ val contentBlocks: List<Block>
 共改动 12 个读写点。**保留** `cards.ifEmpty { note.blocks }` 这类写法（三个导出器、
 `NoteViewModel.load()`）：它们本来就是「没有卡片才回退到 blocks」，与互斥语义一致，不是 bug。
 
-### 顺带说明：④ 的「标题不一致」
+### 顺带说明：④ 的「标题不一致」（2026-10-09 已修复）
 
-用户观察到「新增知识点时，标题取的是笔记标题」，这与清空无关，但确实是个独立的小毛病：
-`NoteViewModel` 用 `knowledgeCardsFromBlocks(state.title, state.blocks)` 造卡片，新卡片的标题直接继承笔记标题。
-它只是让人看着别扭，不会丢数据。**本轮未改**，留作后续。
+用户观察到「新增知识点时，标题取的是笔记标题」，这与清空无关，但确实是个独立的小毛病。
+**已修复**——根因不是 `knowledgeCardsFromBlocks`，而是 `NoteViewModel` 里一套「笔记标题 ↔
+当前卡片标题」的双向同步：`onTitleChange` 把笔记标题写进**当前卡片**（「新增知识点 →
+改笔记标题」这条操作流里 currentCardId 正好指向新卡）、`onCardTitleChange` 把卡片标题
+回写笔记标题、`ensureCurrentCardExists` 的兜底卡也带 `title = state.title`，三条路径一起制造了「继承」。三处全部移除后，
+笔记标题与卡片标题**完全独立**（唯一保留的复制是隐式单卡**诞生时**取一次笔记标题当初始值，
+那是快照不是持续同步）。回归用例：`NoteViewModelKnowledgeCardTest` 的
+`noteTitleChangeDoesNotLeakIntoAnyCard` / `cardTitleChangeDoesNotOverwriteNoteTitle`。
 
 ---
 

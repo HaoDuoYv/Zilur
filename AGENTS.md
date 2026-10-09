@@ -38,6 +38,7 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
   - 同一条判据适用于别处：**"是规则而不是编排"的逻辑放 `domain/`**，`ui/` 只留 Compose 与状态机。行内标记那一套（`domain/markup/`）就是这么落的。
 - `NoteRepositoryImpl.hydrate()`：无 `cardId` 的孤儿块会被并入第一张卡片并重排 `sortOrder`；没有卡片时块挂在 note 本身。改保存/加载逻辑时别破坏这条规则。
 - **`NoteUiState.toNote()` 是把块挂回卡片的唯一落点**（`NoteUiState.kt` 里 `block.copy(cardId = card.id)`）——仓库层靠 `cardMap[block.cardId]` 找归属，漏填/填错就等于"只改标题却把正文删了"。有 `NoteUiStateToNoteTest` 守着。
+- **笔记标题与卡片标题互相独立，别做同步**（`NoteViewModel.onTitleChange` / `onCardTitleChange`）：改笔记标题不碰任何小节标题，改小节标题也不回写笔记标题。曾是一套双向同步 + `ensureCurrentCardExists` 兜底卡带笔记标题，三条路径共同制造「新增知识点时，新卡标题变成笔记标题」（2026-10-02 记录，2026-10-09 修复）。唯一保留的复制是**隐式单卡在诞生时**取一次笔记标题当初始值（快照，不是持续同步）。回归：`NoteViewModelKnowledgeCardTest` 的 `noteTitleChangeDoesNotLeakIntoAnyCard` / `cardTitleChangeDoesNotOverwriteNoteTitle`。
 - `NoteViewModel` 未保存块用递减负数临时 id（`nextBlockId--`）。保存后通过 id 映射回写真实 `cardId` / `parentBranchId`。
 - 块剪贴板：JSON 带 `CLIPBOARD_PREFIX` 前缀写入系统剪贴板；识别粘贴只看前缀。
 - 入口：`MainActivity`、`ZhiLuApplication`（Hilt + WorkManager 周期提醒）。导航在 `ui/navigation/`。
