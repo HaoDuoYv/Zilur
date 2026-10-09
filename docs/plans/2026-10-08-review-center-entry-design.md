@@ -614,3 +614,121 @@ Destination.Tags / Destination.Reminders
 
 - 阶段二其余三条（全局待办档、通知动作按钮、自定义间隔 / SM-2）仍待排期；
 - 曲线只做 7 天窗口 + 评价分布 + 毕业率；更长周期（30 天 / 年）与周聚合未做。
+
+---
+
+## 十二、实施记录（阶段二 · 批次 B）
+
+> 范围：「七、分期」阶段二的**收尾四条** —— 全局「待办」档、标签合并、通知动作按钮、
+> 自定义复习间隔。连同批次 A 已交付的三条，阶段二共七条设计项全部落地（SM-2 放弃，理由见 12.6）。
+
+### 12.1 落地范围
+
+| 层 | 新增 | 改动 |
+|---|---|---|
+| 数据 | `TodoWithContextRow` 投影 | `TodoDao`（`observeAllWithContext` 联笔记标题 + `deletedAt IS NULL` 判活、`delete`）、`TagDao`（合并三步 `repointNoteTags` / `deleteNoteTagsByTagIds` / `deleteTagsByIds`）、`TodoRepositoryImpl.deleteTodo` + `observeAllWithContext`、`TagRepositoryImpl.mergeTags`（可注入事务跑）、`ReviewRepositoryImpl`（构造期 `schedulePolicy` → `currentPolicy()` 每次读当前阶梯） |
+| 领域 | `ReviewIntervals`（天表示 + 校验 + 预览 + 预设）、`TodoWithContext` | `ReviewSchedulePolicy`（+`stepCount` / `fromDays`） |
+| 提醒 | `ReminderActionReceiver`（「完成」/「延后 1 小时」广播） | `ReminderNotifier`（文案全量中文化 + TODO 挂两动作）、`AndroidManifest` 注册 receiver（`exported=false`） |
+| 界面 | `ui/review/TodoRow.kt`、`TodoDialogs.kt`、`ui/settings/ReviewIntervalScreen.kt` | 复习中心三档 toggle + `TodosPane`（待处理区 + 已完成折叠区）；`TagManageSheet`（多选合并模式）+ `TagMergeDialog`；`ReviewCenterScreen` / `ReminderRow` 参数化 `stepTotal`；设置页「复习间隔」入口 + `Destination.ReviewInterval` 路由 |
+| DI | — | `provideTagRepository` 传 `RoomRepositoryTransactionRunner`；`provideReviewRepository` 改传 `userPreferences` |
+
+### 12.2 四条设计要点
+
+**全局「待办」档**
+
+- 行复用 `DocumentRow` 基座，状态**不另起胶囊**（区块标题已表达「待处理 / 已完成」），改由
+  **书脊色 + 删除线**表达 —— 与笔记页勾选同一语义；
+- 动作顺序是硬规则：完成 = 先写 `todo_items.completedAt` 再 `markDone`；恢复 =
+  `updateTodo(completedAt=null)` + `reconcile`；**删除 = 先 `cancel` 提醒成功才删本体**
+  （反序会留下指向已删待办的孤儿提醒）——单测钉住双向失败路径。
+
+**标签合并**
+
+- 事务三步：`repointNoteTags`（`INSERT OR IGNORE` —— 避开 `(noteId,tagId)` 联合主键冲突，
+  而这在真实数据里就是主场景：两个待合并的标签经常同时挂在一篇笔记上）→ 清源关联 → 删源标签；
+- 被合并掉的标签若正被筛选，`selectedTagIds` 改挂到目标并重查（与「删除标签」同理，
+  不让筛选悬空）；
+- 管理弹层：≥2 个标签才出现「合并」入口；选择模式里 Checkbox 接管行首（色点让位）、
+  隐藏重命名 / 删除。
+
+**通知动作按钮**
+
+- 只有 **TODO** 提醒挂动作（REVIEW 计划自己管提醒生灭，各入口都只读）；「完成」/「延后 1 小时」
+  与提醒列表同名动作**共用 `ResolveReminderUseCase`** —— 通知栏只是第三个入口，
+  不该有第二套「完成」的定义；
+- Receiver **不信任 intent 字段**：先按 `(type, sourceId)` 取库中当前活跃实例，取不到就只清通知
+  （通知发出后提醒可能已在应用内处理掉）；
+- 动作 PendingIntent `requestCode = notificationId * 31 + action.hashCode()`，同一条通知的
+  两个动作互不覆盖；
+- 顺带全量中文化：标题「复习提醒 / 待办提醒」、正文「有笔记到期，点开开始复习。」/
+  「有待办到期，点开查看。」、渠道「提醒」+ 描述「到期的复习与待办提醒」。
+
+**自定义复习间隔**
+
+- 阶梯的唯一存储形态是**一串天数**（`ReviewIntervals`：默认 `1,3,7,15,30`、最多 10 档、
+  单档 1–365）；毫秒换算只发生在 `ReviewSchedulePolicy.fromDays`；
+- DataStore 键 `review_intervals`（逗号分隔），读回**校验失败回落默认** —— 脏数据不能让应用崩；
+- `ReviewRepositoryImpl` 删掉构造期 `schedulePolicy`，改 `currentPolicy()` 在写路径挂起读一次 ——
+  计划开 / 推进那一刻的阶梯才是有效阶梯；
+- 档位总数贯穿：`ReviewCenterUiState.stepCount` → 复习中心进度点 + 提醒行「第 N/M 次」；
+  **已有计划不重置**（保存页明确告知：保留当前档位，从下一档开始按新间隔走）。
+
+### 12.3 真机暴露并修复的一处缺陷（既有）
+
+**合并（/ 删除 / 重命名）标签后，首页卡片的标签胶囊不刷新**
+
+现象：合并「二次型」→「线性代数」后，两篇笔记的标签**库里已经正确**（`note_tags` 无重复、
+无孤儿关联），但首页卡片仍显示「二次型 / 线性代数」，**冷启动才更新**
+（`15-tag-stale-before` ↔ `16-tag-live-after`）。
+
+根因：`NoteRepositoryImpl.hydrate` 里的标签是**一次性查询**（`tagDao.getByNoteId`），
+而列表 Flow（`noteDao.getAll()` 等）**只观察 `notes` 表** —— `note_tags` / `tags` 的写入
+不会让 Flow 重发。阶段一的「删除标签」其实同样有此问题，只是当时验收走的搜索页
+（标签条有自己的 Flow）没暴露。
+
+修复：`TagDao.observeTagChanges()`（`note_tags JOIN tags` 的心跳查询，两表任一步写入都重发）+
+在 `asNoteResultFlow` 里 `combine` 它 —— 所有列表类 Flow（首页 / 收藏 / 回收站）一并受益。
+回归护栏：`NoteRepositoryImplTest` 新增「tag 心跳触发重发并拿到新标签」用例。
+
+### 12.4 验收结论
+
+| 项 | 结果 |
+|---|---|
+| `:app:assembleDebug` | ✅ APK 23.9 MB |
+| `:app:lintDebug` | ✅ 0 errors / 71 warnings（与批次 A 持平，无新增） |
+| `:app:testDebugUnitTest` | ✅ **660 例 / 84 个测试类全绿**（新增 `ReviewIntervalsTest` 22 例、`ReviewSchedulePolicyTest` +6、`ReviewCenterViewModelTest` +5、`HomeViewModelSearchTest` +2、`NoteRepositoryImplTest` +1） |
+| 真机 | ✅ 见 12.5 |
+
+### 12.5 真机验收（MuMu Android 12，1440×2560 @ 640dpi）
+
+截图存档：`docs/review/verify-stage4-*.png`（19 张）。
+
+| 验收点 | 证据 |
+|---|---|
+| 复习中心三档（待复习 / 待办 / 提醒），待办档跨笔记列表带来源笔记名与提醒时间 | `01-todos` |
+| 完成 → 进「已完成 · N」（书脊色 + 删除线）；恢复 → 回流；删除 → 确认弹窗（含"无法恢复"提示） | `02` / `03`；DB 复核 `completedAt` 三态回写 |
+| 管理弹层「合并」入口 → 多选（Checkbox 接管行首）→ 保留项 Radio 弹窗（限所选集合） | `04` / `05` / `06` |
+| 合并落库：tags 11→10；**联合主键去重**（3、5 号笔记各剩 1 条关联）、无孤儿；卡片/标签条即时更新 | `07`；DB 复核 |
+| 通知：标题「待办提醒」+ 正文「有待办到期，点开查看。」+「完成 / 延后 1 小时」两动作 | `08`；`dumpsys` 复核 `actions=2`、两动作均 `broadcastIntent` |
+| 点通知「完成」→ 待办勾选 + 提醒 DONE + 通知清除；点「延后 1 小时」→ `remindAt` 前移 1h + 实例重建 SCHEDULED + 通知清除 | DB 复核三组状态 |
+| 复习间隔：入口描述（`1 · 3 · 7 · 15 · 30 天（共 5 档）`）/ 三个预设 / 非法输入红框校验（「间隔需要从小到大排列」）/ 实时预览 | `09` / `10` / `11` |
+| 保存 `1,5,15`：DataStore 落库；**已有计划档位与到期时间一字未变**；设置页描述更新（共 3 档） | `12`；DB 复核 |
+| 档位跟随：复习中心进度点 5→3、「第 1/3 次」；提醒档 REVIEW 行「第 3/3 次复习」 | `13` / `14` |
+| 标签刷新修复：合并后**不冷启动**卡片即时更新（「GBN / SR / +3」→「GBN / 可靠传输 / +2」） | `15`（修复前）↔ `16`（修复后） |
+| 双主题：纸墨深色下复习间隔 / 待办档（含已完成区）/ 标签管理 | `17` / `18` / `19` |
+
+验收后设备已还原（动森 · 浅色 · 青绿）；通知场景的测试数据已还原（待办恢复未完成态）。
+
+### 12.6 未纳入：SM-2 放弃理由
+
+设计文档阶段二原列「自定义复习间隔 / SM-2」。**自定义间隔已交付；SM-2 明确放弃**：
+
+- SM-2 需要给每张卡维护 `easeFactor`（难度因子，评级会连乘着调间隔），落库意味着
+  `ReviewPlan` 加列 + Room 迁移；
+- 现有界面的核心展示是「第 N/5 次 + 进度点」，它假设**档位是有限台阶**；SM-2 的间隔是连续量、
+  没有「总档数」概念 —— 复习中心、提醒行、`schedule_review` 的四态判定都要跟着重定义；
+- 收益侧：本地笔记场景里，「重来 / 正常 / 掌握」三档评级 + 自定义阶梯已覆盖
+  「按记忆难度调节节奏」的需求；SM-2 的边际价值主要在超长期记忆场景（数百天），
+  与当前单机笔记的复习周期（默认 30 天毕业）不匹配。
+
+结论：以「自定义阶梯」作为该条的落地形态，SM-2 不做。

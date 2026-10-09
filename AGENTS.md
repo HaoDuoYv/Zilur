@@ -44,7 +44,7 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 
 ## 数据库（强约束）
 
-- 当前 `AppDatabase` **version = 6**（v6 加了 `note_blocks.emphasis` 与 `note_cards.accent`），schema 导出到 `app/schemas/`（已纳入版本控制，改表必须提交）。
+- 当前 `AppDatabase` **version = 7**（v6 加了 `note_blocks.emphasis` 与 `note_cards.accent`；v7 加了 `ai_messages.refsJson` 与 `quotedMessageId`），schema 导出到 `app/schemas/`（已纳入版本控制，改表必须提交）。
 - **禁止** `fallbackToDestructiveMigration()`。每次升版本必须在 `Migration.kt` 写 Migration，并挂到 `Migration.all`（`di/AppModule.kt` 使用）。
 - Room / Hilt 走 **kapt**（不是 KSP）。`room.schemaLocation` 已在 `app/build.gradle.kts` 配好。
 - `BlockType.value`（TEXT=1 … BRANCH=8）是持久化稳定值，**不可改序/改值**，导出 JSON 与库内都依赖它。
@@ -254,6 +254,11 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
 ## 复习、提醒与搜索标签
 
 - **提醒只认两个同步点**：REVIEW 提醒由 `ReviewReminderSync` 驱动（`sourceId` = 计划 id），TODO 提醒由 `TodoReminderSync` 驱动（`sourceId` = 待办 id）；提醒页只读，计划三动作（pause / resume / restart）统一走 `ManageReviewPlanUseCase`。想"顺手改一下提醒"前先问：这是不是第二个写者？（历史教训：`NoteViewModel` 曾手抄过一份 `ReviewReminderSync` 的等价逻辑。）
+- **待办三个动作的写入顺序是硬规则**：完成 = 先写 `todo_items.completedAt` 再 `todoReminderSync.markDone`；恢复 = `updateTodo(completedAt=null)` + `reconcile`；**删除 = 先 `cancel` 提醒、成功才删本体**（反序会留下指向已删待办的孤儿提醒）。`ReviewCenterViewModelTest` 钉住双向失败路径。
+- **通知动作按钮（`ReminderActionReceiver`）**：只有 TODO 提醒挂「完成 / 延后 1 小时」（REVIEW 不给动作）；动作与提醒列表同名操作**共用 `ResolveReminderUseCase`**，别写第二套"完成"的定义。Receiver **不信任 intent 字段**——先按 `(type, sourceId)` 取库中当前活跃实例，取不到就只清通知。动作 PendingIntent 的 `requestCode = notificationId * 31 + action.hashCode()`。
+- **自定义复习阶梯的唯一来源是 `ReviewIntervals`（天的列表）+ `ReviewSchedulePolicy.fromDays`**：默认 `1,3,7,15,30`、最多 10 档、单档 1–365；DataStore 键 `review_intervals`，读回校验失败回落默认。`ReviewRepositoryImpl` 用 `currentPolicy()` 在**写路径挂起读**当前阶梯（别再在构造期固化）。界面的档位总数取状态里的 `stepCount`（复习中心进度点、提醒行「第 N/M 次」），**别写死 `/5`**。已有计划保存新阶梯时**不重置**（保留档位，从下一档开始按新间隔走）。
+- **标签合并的顺序也固定**：`repointNoteTags`（`INSERT OR IGNORE`，避开 `(noteId,tagId)` 联合主键冲突——两个待合并的标签经常同时挂在一篇笔记上）→ `deleteNoteTagsByTagIds` → `deleteTagsByIds`，三步在**同一事务**（`TagRepositoryImpl` 的 `transactionRunner` 可注入）。被合并掉的标签若正在筛选，`selectedTagIds` 要改挂到目标并重查。
+- **列表 Flow 的标签刷新靠 `TagDao.observeTagChanges()` 心跳**（`note_tags JOIN tags`）`combine` 进 `NoteRepositoryImpl.asNoteResultFlow`：`hydrate` 里的标签是**一次性查询**，`notes` 表自己的 Flow 推不出 `note_tags` / `tags` 的写入——删掉这层 combine 的话，合并/删除/重命名标签后卡片标签会陈旧到冷启动（真机复现过，`NoteRepositoryImplTest` 有回归用例）。
 - **复习统计窗口口径**：`ReviewStats.WINDOW_DAYS = 7`，**末格是今天**；`todayCount` 取自 `dailyCounts.last()`，别再单设"今日计数"查询（同一数字两个来源会在跨零点对不上）。天粒度分桶下推 SQLite（`GROUP BY dayIndex`），缺席的天在 Kotlin 补 0、越界格子丢弃（`IndexOutOfBounds` 会断掉整个 Flow）。
 - **`#` 标签引用的语法唯一来源是 `TagQueryParser`**：以空白分隔的**最后一个词**、以 `#` 开头才算（`C#` / `foo#bar` 都不认）；末尾空白要先跳掉（输入法补空格不该让候选消失）。补全候选与查询归一必须调同一套解析，别再写第二份 `startsWith("#")`。
 
