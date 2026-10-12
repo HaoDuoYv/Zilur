@@ -19,7 +19,8 @@ import org.junit.Test
  */
 class TagRepositoryImplTest {
     private val tagDao: TagDao = mockk()
-    private val repository = TagRepositoryImpl(tagDao = tagDao)
+    private val searchIndexer: NoteSearchIndexer = mockk(relaxed = true)
+    private val repository = TagRepositoryImpl(tagDao = tagDao, searchIndexer = searchIndexer)
 
     @Test
     fun `getNoteCountsByTag maps aggregate rows into a tagId keyed map`() = runTest {

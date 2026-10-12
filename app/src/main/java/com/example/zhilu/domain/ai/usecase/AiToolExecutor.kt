@@ -86,10 +86,10 @@ class AiToolExecutor @Inject constructor(
         {
           "type": "object",
           "properties": {
-            "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "image"], "description": "子块类型（子块里不要再放 branch）"},
-            "content": {"type": "string", "description": "子块正文，同内容块规则"},
-            "language": {"type": "string", "description": "仅 code 类型需要"},
-            "emphasis": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"], "description": "子块的块级语义标记，同内容块规则"}
+            "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "image"]},
+            "content": {"type": "string"},
+            "language": {"type": "string"},
+            "emphasis": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"]}
           },
           "required": ["type", "content"]
         }
@@ -99,29 +99,29 @@ class AiToolExecutor @Inject constructor(
         {
           "type": "object",
           "properties": {
-            "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "branch", "image"], "description": "块类型；缺省按 text 处理。divider 是分割线，不需要 content"},
-            "content": {"type": "string", "description": "块正文。text：可含行内标记；latex：只写裸 LaTeX 源码（不含 \u0024\u0024 包裹）；image：只能填上下文「本次附带的图片」给出的路径或笔记里已有的图片地址，不可编造；divider：留空"},
-            "language": {"type": "string", "description": "仅 code 类型需要，如 kotlin / python / java"},
-            "emphasis": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"], "description": "块级语义标记：key=要点、idea=想法、warn=注意、todo=待办；缺省 none（不标记）"},
-            "children": {"type": "array", "description": "仅 branch 类型使用：折叠分支内部的子块。用户展开分支才会看到，适合放推导过程、例题详解、补充材料", "items": $childBlockSchema}
+            "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "branch", "image"]},
+            "content": {"type": "string"},
+            "language": {"type": "string"},
+            "emphasis": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"]},
+            "children": {"type": "array", "description": "仅 branch 类型使用", "items": $childBlockSchema}
           },
           "required": ["type"]
         }
     """.trimIndent()
 
     private val blockArraySchema = """
-        {"type": "array", "description": "内容块列表，按顺序排列", "items": $blockItemSchema}
+        {"type": "array", "items": $blockItemSchema}
     """.trimIndent()
 
     private val cardsSchema = """
         {
           "type": "array",
-          "description": "小节列表（推荐用它组织多段内容）。每个小节有独立标题，可单独指定身份色",
+          "description": "小节列表，推荐用它组织多段内容",
           "items": {
             "type": "object",
             "properties": {
-              "title": {"type": "string", "description": "小节标题，如「惯性定理与规范形」"},
-              "accent": {"type": "string", "enum": ["ink", "ochre", "teal", "crimson", "moss", "graphite", "violet", "vermilion"], "description": "小节身份色；vermilion=朱红，用来标'这节最重要'。缺省按顺序自动分配；一般不用填"},
+              "title": {"type": "string"},
+              "accent": {"type": "string", "enum": ["ink", "ochre", "teal", "crimson", "moss", "graphite", "violet", "vermilion"]},
               "blocks": $blockArraySchema
             },
             "required": ["title", "blocks"]
@@ -133,7 +133,7 @@ class AiToolExecutor @Inject constructor(
     val definitions: List<AiToolDefinition> = listOf(
         AiToolDefinition(
             name = "list_notes",
-            description = "列出知识库中全部笔记的 id 与标题，用于了解已有内容。",
+            description = "列出知识库中笔记的 id 与标题（最多 50 条），用于了解已有内容。",
             parametersJson = """{"type":"object","properties":{},"required":[]}"""
         ),
         AiToolDefinition(
@@ -152,7 +152,7 @@ class AiToolExecutor @Inject constructor(
         ),
         AiToolDefinition(
             name = "create_note",
-            description = "创建一篇新笔记。多段内容请用 cards 组织成小节；只有一段短内容时才用 blocks。",
+            description = "创建一篇新笔记。",
             parametersJson = """
                 {
                   "type": "object",
@@ -168,7 +168,7 @@ class AiToolExecutor @Inject constructor(
         ),
         AiToolDefinition(
             name = "update_note",
-            description = "改写已有笔记的标题 / 小节 / 正文（传入的内容会完整覆盖原来的部分）。只想追加内容请用 add_blocks，避免误删。",
+            description = "改写已有笔记：传入的 title / cards / blocks 会**完整覆盖**原来的对应部分。只想追加内容请用 add_blocks，避免误删。",
             parametersJson = """
                 {
                   "type": "object",
@@ -185,14 +185,14 @@ class AiToolExecutor @Inject constructor(
         ),
         AiToolDefinition(
             name = "add_blocks",
-            description = "在已有笔记末尾追加内容块（不覆盖原有内容）。可指定追加到哪个小节。",
+            description = "在已有笔记末尾追加内容块，不覆盖原有内容。可指定追加到哪个小节。",
             parametersJson = """
                 {
                   "type": "object",
                   "properties": {
                     "noteId": {"type": "integer"},
                     "blocks": $blockArraySchema,
-                    "card": {"type": "string", "description": "目标小节标题；同名小节已存在则追加进去，不存在则新建。不填时追加到最后一个小节"}
+                    "card": {"type": "string", "description": "目标小节标题；不填则追加到最后一个小节"}
                   },
                   "required": ["noteId", "blocks"]
                 }
@@ -200,14 +200,14 @@ class AiToolExecutor @Inject constructor(
         ),
         AiToolDefinition(
             name = "set_block_emphasis",
-            description = "给某一条内容块设置或取消块级语义标记（整条小点的左缘色条 + 底色 + 标签词）。注意：任何写入都会重建块 id，因此要先用 get_note 取最新块 id。",
+            description = "给某一条内容块设置或取消块级语义标记。",
             parametersJson = """
                 {
                   "type": "object",
                   "properties": {
                     "noteId": {"type": "integer"},
-                    "blockId": {"type": "integer", "description": "目标块 id，来自 get_note 的输出"},
-                    "tone": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"], "description": "none=取消标记；key=要点、idea=想法、warn=注意、todo=待办"}
+                    "blockId": {"type": "integer", "description": "目标块 id（取自 get_note 的输出）"},
+                    "tone": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"], "description": "none=取消标记"}
                   },
                   "required": ["noteId", "blockId", "tone"]
                 }
@@ -222,13 +222,13 @@ class AiToolExecutor @Inject constructor(
         ),
         AiToolDefinition(
             name = "add_todos",
-            description = "给笔记追加**可勾选**的待办项（会显示在该笔记的待办块里）。注意：待办项挂在笔记上，不是挂在某条块上；追加不会覆盖已有待办。",
+            description = "给笔记追加**可勾选**的待办项（显示在该笔记的待办块里）。",
             parametersJson =
-                """{"type":"object","properties":{"noteId":{"type":"integer"},"todos":{"type":"array","items":{"type":"string"},"description":"待办事项文本，一条一项，不要带序号或勾选框"},"remindAt":{"type":"array","items":{"type":"integer"},"description":"可选，与 todos 一一对应的提醒时间（Unix 毫秒时间戳）。用户说了具体时间才填；说不清就先不填，别自己猜时间"}},"required":["noteId","todos"]}"""
+                """{"type":"object","properties":{"noteId":{"type":"integer"},"todos":{"type":"array","items":{"type":"string"},"description":"待办事项文本，一条一项，不要带序号或勾选框"},"remindAt":{"type":"array","items":{"type":"integer"},"description":"可选，与 todos 一一对应的提醒时间（Unix 毫秒时间戳）"}},"required":["noteId","todos"]}"""
         ),
         AiToolDefinition(
             name = "schedule_review",
-            description = "为笔记开启复习计划（艾宾浩斯间隔：1 / 3 / 7 / 15 / 30 天）。用户说「帮我安排复习」「加入复习计划」时调用。已经在进行中的计划**不会重置进度**，会直接告知下次复习时间。",
+            description = "为笔记开启复习计划（艾宾浩斯间隔）。用户说「帮我安排复习」「加入复习计划」时调用。已在进行中的计划**不会重置进度**，会直接告知下次复习时间。",
             parametersJson =
                 """{"type":"object","properties":{"noteId":{"type":"integer","description":"要安排复习的笔记 id"}},"required":["noteId"]}"""
         ),
@@ -275,8 +275,19 @@ class AiToolExecutor @Inject constructor(
     private suspend fun listNotes(): String {
         return when (val result = noteRepository.getAllNotes().first()) {
             is RepositoryResult.Success -> {
-                if (result.data.isEmpty()) "当前知识库为空。"
-                else result.data.joinToString("\n") { "- [${it.id}] ${it.title}" }
+                if (result.data.isEmpty()) {
+                    "当前知识库为空。"
+                } else {
+                    // 输出截断：全库标题灌进 tool 结果会在笔记上千后冲击上下文预算。
+                    val shown = result.data.take(LIST_NOTES_LIMIT)
+                    buildString {
+                        append(shown.joinToString("\n") { "- [${it.id}] ${it.title}" })
+                        if (result.data.size > shown.size) {
+                            append("\n（共 ${result.data.size} 篇，只列出最近更新的 ${shown.size} 篇；")
+                            append("要定位具体内容请用 search_notes，不要把这里的截断当成全部）")
+                        }
+                    }
+                }
             }
             is RepositoryResult.Error -> "读取笔记失败：${result.message}"
         }
@@ -285,11 +296,21 @@ class AiToolExecutor @Inject constructor(
     private suspend fun searchNotes(argumentsJson: String): String {
         val query = parseArgs(argumentsJson).optString("query")
         if (query.isNullOrBlank()) return "缺少 query 参数"
-        return when (val result = noteRepository.searchNotes(query)) {
+        return when (val result = noteRepository.searchNotes(query, limit = NoteRepository.AI_SEARCH_LIMIT)) {
             is RepositoryResult.Success -> {
-                if (result.data.isEmpty()) "未找到与「$query」相关的笔记。"
-                else result.data.joinToString("\n") { note ->
-                    "- [${note.id}] ${note.title}" + snippetOf(note)
+                if (result.data.isEmpty()) {
+                    "未找到与「$query」相关的笔记。"
+                } else {
+                    val keywords = query.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+                    buildString {
+                        append(result.data.joinToString("\n") { note ->
+                            "- [${note.id}] ${note.title}" + snippetOf(note, keywords)
+                        })
+                        if (result.data.size >= NoteRepository.AI_SEARCH_LIMIT) {
+                            append("\n（已达结果上限 ${NoteRepository.AI_SEARCH_LIMIT} 条，可能还有更多；")
+                            append("需要更全的结果请换更具体的关键词）")
+                        }
+                    }
                 }
             }
             is RepositoryResult.Error -> "搜索失败：${result.message}"
@@ -883,14 +904,35 @@ class AiToolExecutor @Inject constructor(
         return head + body
     }
 
-    /** 摘要：先剥离行内语法再截断，否则标记字符会挤占这 60 个字的预算。 */
-    private fun snippetOf(note: Note): String {
-        val text = note.contentBlocks.firstOrNull { it.type == BlockType.TEXT }?.content
+    /**
+     * 检索结果摘要：优先给出**命中关键词所在块**的窗口文本。
+     *
+     * 旧实现取「第一个 TEXT 块」——关键词命中在第 5 个块时，摘要与命中内容完全无关，
+     * 模型据此判断「这篇不相关」就不再 get_note，检索链路就此断掉且用户无从察觉。
+     * 现在：① 遍历块找第一个含任一关键词的（与搜索命中语义一致）；
+     * ② 以命中位置为中心开窗（前后各留一段），而不是无脑取块首。
+     * 关键词只出现在标题/标签时退回「第一个 TEXT 块」的旧形态兜底。
+     */
+    private fun snippetOf(note: Note, keywords: List<String>): String {
+        val textBlocks = note.contentBlocks.filter { it.type == BlockType.TEXT }
+        for (block in textBlocks) {
+            val stripped = InlineMarkup.stripMarkup(block.content).replace('\n', ' ')
+            val hit = keywords.firstOrNull { stripped.contains(it, ignoreCase = true) } ?: continue
+            val at = stripped.indexOf(hit, ignoreCase = true).coerceAtLeast(0)
+            val start = (at - SNIPPET_HIT_LEAD).coerceAtLeast(0)
+            val end = (at + hit.length + SNIPPET_HIT_TAIL).coerceAtMost(stripped.length)
+            val window = stripped.substring(start, end).trim()
+            if (window.isBlank()) continue
+            val prefix = if (start > 0) "…" else ""
+            val suffix = if (end < stripped.length) "…" else ""
+            return "｜$prefix$window$suffix"
+        }
+        val fallback = textBlocks.firstOrNull()?.content
             ?.let(InlineMarkup::stripMarkup)
             ?.replace('\n', ' ')
             ?.trim()
-            ?.take(60)
-        return if (text.isNullOrBlank()) "" else "｜$text"
+            ?.take(SNIPPET_MAX_CHARS)
+        return if (fallback.isNullOrBlank()) "" else "｜$fallback"
     }
 
     /**
@@ -899,6 +941,16 @@ class AiToolExecutor @Inject constructor(
      */
     private fun droppedImageHint(count: Int): String =
         if (count <= 0) "" else "（有 $count 个图片块因图片路径不可读被跳过，请勿声称这些图片已写入）"
+
+    private companion object {
+        /** list_notes 输出的条数上限（防全库标题冲击上下文预算）。 */
+        const val LIST_NOTES_LIMIT = 50
+
+        /** 摘要窗口：命中位置之前/之后保留的字符数，以及无命中时的兜底截断长度。 */
+        const val SNIPPET_HIT_LEAD = 15
+        const val SNIPPET_HIT_TAIL = 45
+        const val SNIPPET_MAX_CHARS = 60
+    }
 }
 
 private fun Block.withEmphasis(

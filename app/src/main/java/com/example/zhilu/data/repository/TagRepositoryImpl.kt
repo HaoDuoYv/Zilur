@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.map
 
 class TagRepositoryImpl(
     private val tagDao: TagDao,
+    private val searchIndexer: NoteSearchIndexer,
     private val transactionRunner: RepositoryTransactionRunner = NoOpRepositoryTransactionRunner
 ) : TagRepository {
     override fun getAllTags(): Flow<RepositoryResult<List<Tag>>> = tagDao.getAll()
@@ -34,12 +35,27 @@ class TagRepositoryImpl(
         tagDao.insert(TagMapper.toEntity(tag))
     }.toRepositoryResult("Failed to save tag")
 
+    /**
+     * 改名要连带重建**关联笔记**的检索索引：标签名是索引正文的一部分，
+     * 不重建就会"搜旧名还能命中、搜新名搜不到"。
+     */
     override suspend fun updateTag(tag: Tag): RepositoryResult<Unit> = runCatching {
-        tagDao.update(TagMapper.toEntity(tag))
+        transactionRunner.runInTransaction {
+            tagDao.update(TagMapper.toEntity(tag))
+            searchIndexer.reindex(tagDao.noteIdsForTags(listOf(tag.id)))
+        }
     }.toRepositoryResult("Failed to update tag")
 
+    /**
+     * 删除同理：先取关联笔记（删完就查不到了），删标签后重建 ——
+     * 重建读到的是删除后的状态，该标签名自然从索引里消失。
+     */
     override suspend fun deleteTag(tag: Tag): RepositoryResult<Unit> = runCatching {
-        tagDao.delete(TagMapper.toEntity(tag))
+        transactionRunner.runInTransaction {
+            val affected = tagDao.noteIdsForTags(listOf(tag.id))
+            tagDao.delete(TagMapper.toEntity(tag))
+            searchIndexer.reindex(affected)
+        }
     }.toRepositoryResult("Failed to delete tag")
 
     override suspend fun mergeTags(sourceIds: List<Long>, targetId: Long): RepositoryResult<Unit> =
@@ -47,11 +63,15 @@ class TagRepositoryImpl(
             val sources = sourceIds.filter { it != targetId }
             if (sources.isEmpty()) return@runCatching
             transactionRunner.runInTransaction {
+                // 受影响的是**源标签**关联的笔记：合并后它们的标签集合里
+                // 源名换成目标名。目标标签关联的笔记集合不变，无需重建。
+                val affected = tagDao.noteIdsForTags(sources)
                 // 顺序固定：先改挂关联、再清源关联、最后删源标签。
                 // 任何一步失败都会整体回滚，不会留下"关联丢了、标签还在"的半截状态。
                 tagDao.repointNoteTags(sourceTagIds = sources, targetId = targetId)
                 tagDao.deleteNoteTagsByTagIds(sources)
                 tagDao.deleteTagsByIds(sources)
+                searchIndexer.reindex(affected)
             }
         }.toRepositoryResult("Failed to merge tags")
 

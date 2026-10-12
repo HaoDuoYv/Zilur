@@ -113,5 +113,32 @@ object Migration {
         }
     }
 
-    val all = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+    /**
+     * v8：笔记全文检索索引（FTS4 虚拟表）。
+     *
+     * 只建空表，**不搬数据** —— 索引正文是 Kotlin 侧 bigram（
+     * [com.example.zhilu.domain.search.NoteSearchTokens]）的产物，SQL 迁移里造不出来。
+     * 首次启动由 `NoteSearchIndexer.reconcile()` 检测到行数不一致后全量重建
+     * （空表 vs 非空 notes 必然不一致，天然触发一次重建）。
+     *
+     * ⚠️ 这条 CREATE 必须与 Room 为 [com.example.zhilu.data.local.entity.NoteFtsEntity]
+     * 生成的定义**逐字一致**（对照 `app/schemas/8.json`），否则启动时 schema 校验失败。
+     */
+    internal val MIGRATION_7_8: androidx.room.migration.Migration = object : androidx.room.migration.Migration(7, 8) {
+        override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS `note_fts` USING FTS4(`body` TEXT NOT NULL, tokenize=unicode61)"
+            )
+        }
+    }
+
+    val all = arrayOf(
+        MIGRATION_1_2,
+        MIGRATION_2_3,
+        MIGRATION_3_4,
+        MIGRATION_4_5,
+        MIGRATION_5_6,
+        MIGRATION_6_7,
+        MIGRATION_7_8
+    )
 }

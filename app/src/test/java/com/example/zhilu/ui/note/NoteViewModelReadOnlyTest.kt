@@ -163,7 +163,7 @@ private class ReadOnlyFakeNoteRepository(
     override suspend fun getNoteById(id: Long): RepositoryResult<Note?> =
         RepositoryResult.Success(note.takeIf { it.id == id })
 
-    override suspend fun searchNotes(keyword: String, tagIds: List<Long>): RepositoryResult<List<Note>> =
+    override suspend fun searchNotes(keyword: String, tagIds: List<Long>, limit: Int): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =

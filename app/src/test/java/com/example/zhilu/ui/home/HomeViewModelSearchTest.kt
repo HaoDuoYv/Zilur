@@ -461,7 +461,11 @@ private class SearchTestNoteRepository : NoteRepository {
     override suspend fun getNoteById(id: Long): RepositoryResult<Note?> =
         RepositoryResult.Success(null)
 
-    override suspend fun searchNotes(keyword: String, tagIds: List<Long>): RepositoryResult<List<Note>> {
+    override suspend fun searchNotes(
+        keyword: String,
+        tagIds: List<Long>,
+        limit: Int
+    ): RepositoryResult<List<Note>> {
         searchCalls += keyword
         tagCalls += tagIds
         // 带标签筛选时回一条可分辨的结果：首页"关键词 / 标签"两条链路各自断言得开。

@@ -190,27 +190,51 @@ private fun HighlightedText(
 /**
  * 给 [highlightColor] 加粗着色，其余文字保持原样。
  *
+ * 查询支持**多个关键词**（空格分隔，与检索侧的隐式 AND 同构）——逐个词找全部命中，
+ * 拉平成不重叠区间后统一着色。早先只把整串查询当单一针，输入「矩阵 对称」时
+ * 两个词都命中却一处都不高亮。
+ *
  * @param highlightColor 命中词的字色，由调用方从当前色彩方案取（= 强调色）。
  *   不接受默认值——默认色会让「换了强调色搜索高亮还是蓝的」这种不一致悄悄溜过去。
  */
 fun highlightMatches(text: String, query: String, highlightColor: Color): AnnotatedString {
-    val trimmed = query.trim().removePrefix("#")
-    if (trimmed.isEmpty()) return AnnotatedString(text)
-    return buildAnnotatedString {
-        var start = 0
-        val lowerText = text.lowercase()
-        val lowerQuery = trimmed.lowercase()
-        while (true) {
-            val index = lowerText.indexOf(lowerQuery, start)
-            if (index < 0) {
-                append(text.substring(start))
-                break
+    val needles = query.trim().split(WHITESPACE_SEPARATOR)
+        .map { it.removePrefix("#") }
+        .filter { it.isNotEmpty() }
+    if (needles.isEmpty()) return AnnotatedString(text)
+
+    val lowerText = text.lowercase()
+    val hits = needles
+        .flatMap { needle ->
+            val lowerNeedle = needle.lowercase()
+            buildList {
+                var from = 0
+                while (true) {
+                    val at = lowerText.indexOf(lowerNeedle, from)
+                    if (at < 0) break
+                    add(at until at + needle.length)
+                    from = at + needle.length
+                }
             }
-            append(text.substring(start, index))
-            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = highlightColor))
-            append(text.substring(index, index + trimmed.length))
-            pop()
-            start = index + trimmed.length
         }
+        .sortedBy { it.first }
+
+    if (hits.isEmpty()) return AnnotatedString(text)
+
+    return buildAnnotatedString {
+        var cursor = 0
+        for (hit in hits) {
+            // 两个关键词的命中区间可能套在一起（如「对称」与「对称矩阵」），跳过被覆盖的那段
+            if (hit.first < cursor) continue
+            append(text.substring(cursor, hit.first))
+            pushStyle(SpanStyle(fontWeight = FontWeight.Bold, color = highlightColor))
+            append(text.substring(hit.first, hit.last + 1))
+            pop()
+            cursor = hit.last + 1
+        }
+        append(text.substring(cursor))
     }
 }
+
+/** 关键词分隔：任意空白（与检索侧的查询切分口径一致）。 */
+private val WHITESPACE_SEPARATOR = Regex("\\s+")

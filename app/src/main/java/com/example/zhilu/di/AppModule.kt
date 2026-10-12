@@ -10,6 +10,7 @@ import com.example.zhilu.data.local.dao.MediaDao
 import com.example.zhilu.data.local.dao.NoteBlockDao
 import com.example.zhilu.data.local.dao.NoteCardDao
 import com.example.zhilu.data.local.dao.NoteDao
+import com.example.zhilu.data.local.dao.NoteFtsDao
 import com.example.zhilu.data.local.dao.ReminderDao
 import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.dao.TagDao
@@ -23,6 +24,7 @@ import com.example.zhilu.data.local.database.Migration
 import com.example.zhilu.data.repository.AiConversationRepositoryImpl
 import com.example.zhilu.data.repository.MediaRepositoryImpl
 import com.example.zhilu.data.repository.NoteRepositoryImpl
+import com.example.zhilu.data.repository.NoteSearchIndexer
 import com.example.zhilu.data.repository.ReminderRepositoryImpl
 import com.example.zhilu.data.repository.ReviewRepositoryImpl
 import com.example.zhilu.data.repository.RoomRepositoryTransactionRunner
@@ -68,6 +70,9 @@ object AppModule {
     fun provideNoteCardDao(database: AppDatabase): NoteCardDao = database.noteCardDao()
 
     @Provides
+    fun provideNoteFtsDao(database: AppDatabase): NoteFtsDao = database.noteFtsDao()
+
+    @Provides
     fun provideMediaDao(database: AppDatabase): MediaDao = database.mediaDao()
 
     @Provides
@@ -92,16 +97,19 @@ object AppModule {
         noteDao: NoteDao,
         noteBlockDao: NoteBlockDao,
         noteCardDao: NoteCardDao,
-        tagDao: TagDao
-    ): NoteRepository = NoteRepositoryImpl(database, noteDao, noteBlockDao, noteCardDao, tagDao)
+        tagDao: TagDao,
+        searchIndexer: NoteSearchIndexer
+    ): NoteRepository = NoteRepositoryImpl(database, noteDao, noteBlockDao, noteCardDao, tagDao, searchIndexer)
 
     @Provides
     @Singleton
     fun provideTagRepository(
         database: AppDatabase,
-        tagDao: TagDao
+        tagDao: TagDao,
+        searchIndexer: NoteSearchIndexer
     ): TagRepository = TagRepositoryImpl(
         tagDao = tagDao,
+        searchIndexer = searchIndexer,
         transactionRunner = RoomRepositoryTransactionRunner(database)
     )
 

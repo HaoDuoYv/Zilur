@@ -9,6 +9,7 @@ import com.example.zhilu.data.local.dao.MediaDao
 import com.example.zhilu.data.local.dao.NoteBlockDao
 import com.example.zhilu.data.local.dao.NoteCardDao
 import com.example.zhilu.data.local.dao.NoteDao
+import com.example.zhilu.data.local.dao.NoteFtsDao
 import com.example.zhilu.data.local.dao.ReminderDao
 import com.example.zhilu.data.local.dao.ReviewDao
 import com.example.zhilu.data.local.dao.TagDao
@@ -19,6 +20,7 @@ import com.example.zhilu.data.local.entity.MediaEntity
 import com.example.zhilu.data.local.entity.NoteBlockEntity
 import com.example.zhilu.data.local.entity.NoteCardEntity
 import com.example.zhilu.data.local.entity.NoteEntity
+import com.example.zhilu.data.local.entity.NoteFtsEntity
 import com.example.zhilu.data.local.entity.NoteTagEntity
 import com.example.zhilu.data.local.entity.ReminderInstanceEntity
 import com.example.zhilu.data.local.entity.ReviewEventEntity
@@ -33,6 +35,7 @@ import com.example.zhilu.data.local.entity.TodoItemEntity
         NoteTagEntity::class,
         NoteBlockEntity::class,
         NoteCardEntity::class,
+        NoteFtsEntity::class,
         MediaEntity::class,
         ReviewPlanEntity::class,
         ReviewEventEntity::class,
@@ -41,7 +44,7 @@ import com.example.zhilu.data.local.entity.TodoItemEntity
         AiConversationEntity::class,
         AiMessageEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -50,6 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tagDao(): TagDao
     abstract fun noteBlockDao(): NoteBlockDao
     abstract fun noteCardDao(): NoteCardDao
+    abstract fun noteFtsDao(): NoteFtsDao
     abstract fun mediaDao(): MediaDao
     abstract fun reviewDao(): ReviewDao
     abstract fun todoDao(): TodoDao

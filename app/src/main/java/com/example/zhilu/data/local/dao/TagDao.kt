@@ -35,6 +35,15 @@ interface TagDao {
     suspend fun getByNoteId(noteId: Long): List<TagEntity>
 
     /**
+     * 若干标签关联的全部笔记 id 并集（含软删）——标签改名/删除/合并后重建这些笔记的检索索引。
+     *
+     * 必须在删关联/删标签**之前**调用：删除后查不到（无外键级联的场景下虽有孤儿行，
+     * 语义上也不该再依赖它）。
+     */
+    @Query("SELECT DISTINCT noteId FROM note_tags WHERE tagId IN (:tagIds)")
+    suspend fun noteIdsForTags(tagIds: List<Long>): List<Long>
+
+    /**
      * 按标签聚合笔记数，供标签索引行显示二级信息。
      *
      * 在 SQL 里 `GROUP BY` 一次算完，避免为了计数把每条笔记（连同卡片、区块、标签）都 hydrate 一遍。

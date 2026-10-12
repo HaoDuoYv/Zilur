@@ -30,13 +30,15 @@ class NoteRepositoryImplTest {
     private val noteBlockDao: NoteBlockDao = mockk()
     private val noteCardDao: NoteCardDao = mockk()
     private val tagDao: TagDao = mockk()
+    private val searchIndexer: NoteSearchIndexer = mockk(relaxed = true)
 
     private val repository = NoteRepositoryImpl(
         database = database,
         noteDao = noteDao,
         noteBlockDao = noteBlockDao,
         noteCardDao = noteCardDao,
-        tagDao = tagDao
+        tagDao = tagDao,
+        searchIndexer = searchIndexer
     )
 
     @Test

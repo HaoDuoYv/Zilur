@@ -135,4 +135,27 @@ class AiToolExecutorDefinitionsTest {
         val occurrences = Regex("\\\"enum\\\": \\[\\\"text\\\", \\\"latex\\\"").findAll(raw).count()
         assertTrue("块 schema 应同时用于 cards[].blocks 与顶层 blocks，实际 $occurrences 处", occurrences >= 2)
     }
+
+    /**
+     * 工具清单每轮都要重发，体积直接决定基础开销；同时它也是 prompt cache 前缀的一部分。
+     * 语法规范统一写在 `SYSTEM_PROMPT`，工具描述只保留「何时用哪个工具」的选型信息 ——
+     * 这条守卫用来拦住"顺手把规范又抄回工具描述"的回涨（精简依据见
+     * `docs/ai-retrieval-and-prompt-cache.md` §2.3）。
+     */
+    @Test
+    fun `工具载荷总量保持在预算内`() {
+        val total = executor.definitions.sumOf {
+            it.name.length + it.description.length + it.parametersJson.length
+        }
+        assertTrue(
+            "工具载荷 $total 字符超出预算 $TOOLS_PAYLOAD_BUDGET；" +
+                "新增说明前先确认它是否已写在 SYSTEM_PROMPT 里（重复内容只该留一处）",
+            total <= TOOLS_PAYLOAD_BUDGET
+        )
+    }
+
+    private companion object {
+        /** 精简后实测 8298 字符（改前 11311，-26.6%）；留约 6% 余量。 */
+        const val TOOLS_PAYLOAD_BUDGET = 8_800
+    }
 }

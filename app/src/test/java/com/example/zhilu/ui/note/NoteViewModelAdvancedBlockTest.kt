@@ -660,7 +660,7 @@ private class RecordingNoteRepository(
         return RepositoryResult.Success(returnedNote)
     }
 
-    override suspend fun searchNotes(keyword: String, tagIds: List<Long>): RepositoryResult<List<Note>> =
+    override suspend fun searchNotes(keyword: String, tagIds: List<Long>, limit: Int): RepositoryResult<List<Note>> =
         RepositoryResult.Success(emptyList())
 
     override suspend fun getNotesByTagId(tagId: Long): RepositoryResult<List<Note>> =

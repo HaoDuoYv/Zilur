@@ -16,6 +16,7 @@ import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.repository.NoteRepository
+import com.example.zhilu.domain.search.NoteSearchTokens
 import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -27,7 +28,8 @@ class NoteRepositoryImpl(
     private val noteDao: NoteDao,
     private val noteBlockDao: NoteBlockDao,
     private val noteCardDao: NoteCardDao,
-    private val tagDao: TagDao
+    private val tagDao: TagDao,
+    private val searchIndexer: NoteSearchIndexer
 ) : NoteRepository {
     override fun getAllNotes(): Flow<RepositoryResult<List<Note>>> = noteDao.getAll().asNoteResultFlow("Failed to load notes")
 
@@ -43,16 +45,30 @@ class NoteRepositoryImpl(
 
     override suspend fun searchNotes(
         keyword: String,
-        tagIds: List<Long>
+        tagIds: List<Long>,
+        limit: Int
     ): RepositoryResult<List<Note>> = runCatching {
         val normalized = keyword.trim()
+        val ftsQuery = NoteSearchTokens.buildMatchQuery(normalized)
         when {
             // 无关键词也无标签：保持旧行为返回空，不意外全量返回。
             normalized.isEmpty() && tagIds.isEmpty() -> emptyList()
-            // 纯关键词：沿用原查询（不需要 EXISTS + 计数子查询的开销）。
-            tagIds.isEmpty() -> noteDao.search(normalized).map { hydrate(it) }
+            // 纯关键词：FTS 主路径，异常（如索引未就绪/查询语法）降级回 LIKE 扫描。
+            tagIds.isEmpty() -> {
+                if (ftsQuery == null) {
+                    // 关键词里没有可检索的 token（纯标点等）：LIKE 语义兜底，
+                    // 保证与改造前行为一致（例如正文里真写了「！！」）。
+                    noteDao.search(normalized)
+                } else {
+                    runCatching { noteDao.searchFts(ftsQuery, limit) }
+                        .getOrElse { noteDao.search(normalized) }
+                }.map { hydrate(it) }
+            }
             // 标签筛选（关键词可为空串 = 纯标签浏览；SQL 内 `:keyword = ''` 分支兜底）。
-            else -> noteDao.searchWithTags(normalized, tagIds, tagIds.size).map { hydrate(it) }
+            ftsQuery == null -> noteDao.searchWithTags(normalized, tagIds, tagIds.size).map { hydrate(it) }
+            else -> runCatching { noteDao.searchWithTagsFts(ftsQuery, tagIds, tagIds.size, limit) }
+                .getOrElse { noteDao.searchWithTags(normalized, tagIds, tagIds.size) }
+                .map { hydrate(it) }
         }
     }.toRepositoryResult("Failed to search notes")
 
@@ -67,6 +83,8 @@ class NoteRepositoryImpl(
             val savedCards = replaceCards(noteId, note)
             val savedBlocks = replaceBlocks(noteId, note, savedCards)
             val tags = replaceTags(noteId, note)
+            // 检索索引与数据同一事务：写入失败整体回滚，不会留下"内容变了索引没变"。
+            searchIndexer.reindex(noteId)
             NoteMapper.toDomain(
                 entity = noteDao.getById(noteId)!!,
                 blocks = savedBlocks,
@@ -82,6 +100,7 @@ class NoteRepositoryImpl(
             val savedCards = replaceCards(note.id, note)
             val savedBlocks = replaceBlocks(note.id, note, savedCards)
             val tags = replaceTags(note.id, note)
+            searchIndexer.reindex(note.id)
             NoteMapper.toDomain(
                 entity = noteDao.getById(note.id)!!,
                 blocks = savedBlocks,
@@ -92,10 +111,15 @@ class NoteRepositoryImpl(
     }.toRepositoryResult("Failed to update note")
 
     override suspend fun deleteNote(note: Note): RepositoryResult<Unit> = runCatching {
-        noteDao.delete(NoteMapper.toEntity(note))
+        database.withTransaction {
+            noteDao.delete(NoteMapper.toEntity(note))
+            // 硬删后笔记已不存在，reindex 会清掉它的索引行。
+            searchIndexer.reindex(note.id)
+        }
     }.toRepositoryResult("Failed to delete note")
 
     override suspend fun softDeleteNote(id: Long): RepositoryResult<Unit> = runCatching {
+        // 索引不动：软删只是改 deletedAt，查询侧 JOIN notes 过滤即可。
         noteDao.softDelete(id, System.currentTimeMillis())
     }.toRepositoryResult("Failed to move note to trash")
 
@@ -104,7 +128,11 @@ class NoteRepositoryImpl(
     }.toRepositoryResult("Failed to restore note")
 
     override suspend fun clearDeletedNotes(): RepositoryResult<Unit> = runCatching {
-        noteDao.clearDeleted()
+        database.withTransaction {
+            noteDao.clearDeleted()
+            // 清掉已硬删笔记留下的索引行。
+            searchIndexer.pruneOrphans()
+        }
     }.toRepositoryResult("Failed to clear trash")
 
     override suspend fun getNoteCount(): RepositoryResult<Int> = runCatching {
