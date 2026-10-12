@@ -678,7 +678,7 @@ bigram 化之后 FTS 列里存的是 token 流,`snippet()` 截取的就是这段
 - **UI 端到端**:「对称矩阵」→ 1 条并高亮;「计算机网络」(4 字 = 4 bigram,AND bug 下必然 0)→ 3 条;
   「矩阵 对称」→ 1 条(多关键词 AND);「矩阵 网络」→ 0 条(正确收窄)。
 - **索引正文形状**:`二次 次型 型知 知识 识点 点整 整理` / `二次 次型 型是 n 元二 次齐 齐次 …`
-- **三件套**:`testDebugUnitTest` 695 例 + `lintDebug` + `assembleDebug` 全绿。
+- **三件套**:`testDebugUnitTest` 696 例 + `lintDebug` + `assembleDebug` 全绿。
 
 **顺带修掉的一处**:多关键词检索在 UI 上**不高亮**(高亮函数把整串查询当单一针,
 `矩阵 对称` 两个词都命中却一处不亮)。`highlightMatches` 改为按空白切词、逐个找命中并合并重叠区间。
