@@ -5,27 +5,21 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
+import com.example.zhilu.ui.component.AppBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReviewPlan
 import com.example.zhilu.domain.model.ReviewRating
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
+import com.example.zhilu.ui.component.GeneratingIndicator
 import com.example.zhilu.ui.theme.Spacing
-import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.ZhiLuType
-
-private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
 /**
  * 复习面板（底部 sheet）：由顶栏「复习」胶囊唤出，承载开启、评级与关闭，
@@ -42,7 +36,7 @@ fun ReviewSheet(
     onRate: (ReviewRating) -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -60,8 +54,8 @@ fun ReviewSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
+                    GeneratingIndicator(
+                        size = 16.dp,
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -75,7 +69,7 @@ fun ReviewSheet(
                 }
             }
             if (plan == null || !plan.enabled) {
-                OutlinedButton(onClick = onStart, shape = PillShape) { Text("开启复习") }
+                AppButton(onClick = onStart, variant = AppButtonVariant.Outline) { Text("开启复习") }
             } else {
                 Text(
                     text = "下一次复习：${formatReminderTime(plan.nextReviewAt)}",
@@ -88,24 +82,23 @@ fun ReviewSheet(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.Sm),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedButton(
+                        AppButton(
                             onClick = { onRate(ReviewRating.HARD) },
-                            enabled = !isRecording,
-                            shape = PillShape
+                            variant = AppButtonVariant.Outline,
+                            enabled = !isRecording
                         ) { Text("困难") }
-                        OutlinedButton(
+                        AppButton(
                             onClick = { onRate(ReviewRating.NORMAL) },
-                            enabled = !isRecording,
-                            shape = PillShape
+                            variant = AppButtonVariant.Outline,
+                            enabled = !isRecording
                         ) { Text("一般") }
-                        Button(
+                        AppButton(
                             onClick = { onRate(ReviewRating.MASTERED) },
-                            enabled = !isRecording,
-                            shape = PillShape
+                            enabled = !isRecording
                         ) { Text("掌握") }
                     }
                 }
-                TextButton(onClick = onDisable) { Text("关闭复习") }
+                AppButton(onClick = onDisable, variant = AppButtonVariant.Quiet) { Text("关闭复习") }
             }
         }
     }

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -121,8 +120,8 @@ fun ImageViewer(
                 )
 
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(36.dp),
+                    GeneratingIndicator(
+                        size = 36.dp,
                         color = MaterialTheme.colorScheme.primary,
                         strokeWidth = 3.dp
                     )

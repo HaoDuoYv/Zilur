@@ -21,7 +21,7 @@ import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -197,7 +197,7 @@ private fun MarkToolbarItem(
             contentDescription = "标记",
             icon = Icons.Default.Brush
         )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             for (tone in EmphasisTone.entries) {
                 DropdownMenuItem(
                     text = { Text("标记为${tone.label}") },
@@ -255,7 +255,7 @@ private fun ImageToolbarItem(
             contentDescription = "图片块",
             icon = Icons.Default.Image
         )
-        DropdownMenu(
+        AppDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {

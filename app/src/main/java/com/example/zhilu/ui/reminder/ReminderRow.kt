@@ -8,10 +8,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,18 +26,17 @@ import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReminderInstance
 import com.example.zhilu.domain.model.ReminderType
 import com.example.zhilu.domain.model.ReminderWithContext
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
 import com.example.zhilu.ui.component.AppCard
 import com.example.zhilu.ui.component.DescBlock
 import com.example.zhilu.ui.component.MetaLine
 import com.example.zhilu.ui.component.QuietAction
-import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
 /**
  * 提醒卡：知识点标题 + 状态标记 + 信息行 +（复习）引导块 /（待办）操作行。
@@ -125,7 +123,7 @@ fun ReminderRow(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.Sm),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(onClick = onDone, shape = PillShape) {
+                    AppButton(onClick = onDone, variant = AppButtonVariant.Outline) {
                         Text("完成", style = ZhiLuType.chip)
                     }
                     QuietAction(label = "取消", onClick = onCancel)
@@ -142,7 +140,7 @@ private fun SnoozeMenu(onSnooze: (SnoozeOption) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         QuietAction(label = "延后", onClick = { expanded = true })
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             SnoozeOption.entries.forEach { option ->
                 DropdownMenuItem(
                     text = { Text(option.label, style = ZhiLuType.bodySmall) },

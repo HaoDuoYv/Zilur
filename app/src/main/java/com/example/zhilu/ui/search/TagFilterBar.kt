@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -88,7 +88,7 @@ fun TagFilterBar(
                     onClick = { onToggle(item.tag.id) },
                     onLongClick = { menuTagId = item.tag.id }
                 )
-                DropdownMenu(
+                AppDropdownMenu(
                     expanded = menuTagId == item.tag.id,
                     onDismissRequest = { menuTagId = null }
                 ) {

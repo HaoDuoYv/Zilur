@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -20,7 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.zhilu.ui.theme.Radius
+import com.example.zhilu.ui.component.AppButton
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 
@@ -63,10 +61,7 @@ fun AssistantEmptyState(
         )
         if (!configured) {
             Spacer(modifier = Modifier.height(Spacing.Lg))
-            Button(
-                onClick = onOpenSettings,
-                shape = RoundedCornerShape(Radius.Field)
-            ) {
+            AppButton(onClick = onOpenSettings) {
                 Text("去设置", style = ZhiLuType.chip)
             }
         } else {

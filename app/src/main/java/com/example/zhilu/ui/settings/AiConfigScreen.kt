@@ -29,7 +29,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.Color
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
 import com.example.zhilu.ui.component.AppSwitch
+import com.example.zhilu.ui.component.AppTextField
 import com.example.zhilu.ui.component.ProviderAvatar
 import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.Radius
@@ -302,9 +305,10 @@ private fun AiServiceRow(
 @Composable
 private fun AddAiButton(onClick: () -> Unit) {
     // contentPadding 收窄：默认的 16dp 左右内边距让图标看起来浮在卡片里，
-    // 与上面那几行的左边界对不齐。
-    TextButton(
+    // 与上面那几行的左边界对不齐（纸墨沿用此调法；动森态由 AppButton 立体键接管）。
+    AppButton(
         onClick = onClick,
+        variant = AppButtonVariant.Quiet,
         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
     ) {
         Icon(imageVector = Icons.Default.Add, contentDescription = null)
@@ -349,25 +353,25 @@ private fun AiServiceFormSection(
     }
 
     SettingsGroup(title = "基本信息") {
-        AiTextField(
+        AppTextField(
             label = "显示名称",
             value = draft.name,
             onValueChange = { v -> onUpdate { it.copy(name = v) } },
             placeholder = "如：我的 DeepSeek"
         )
-        AiTextField(
+        AppTextField(
             label = "API Key",
             value = draft.apiKey,
             onValueChange = { v -> onUpdate { it.copy(apiKey = v) } },
             secret = true
         )
-        AiTextField(
+        AppTextField(
             label = "模型 ID",
             value = draft.model,
             onValueChange = { v -> onUpdate { it.copy(model = v) } },
             placeholder = "如：deepseek-chat"
         )
-        AiTextField(
+        AppTextField(
             label = "API 端点",
             value = draft.endpoint,
             onValueChange = { v -> onUpdate { it.copy(endpoint = v) } },
@@ -382,7 +386,7 @@ private fun AiServiceFormSection(
     }
 
     SettingsGroup(title = "高级设置") {
-        TextButton(onClick = onToggleAdvanced) {
+        AppButton(onClick = onToggleAdvanced, variant = AppButtonVariant.Quiet) {
             Icon(
                 imageVector = if (advancedExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = null
@@ -398,7 +402,7 @@ private fun AiServiceFormSection(
                 value = draft.temperature,
                 onValueChange = { v -> onUpdate { it.copy(temperature = v) } }
             )
-            AiTextField(
+            AppTextField(
                 label = "最大 Tokens",
                 value = draft.maxTokens.toString(),
                 onValueChange = { v ->
@@ -407,7 +411,7 @@ private fun AiServiceFormSection(
                     }
                 }
             )
-            AiTextField(
+            AppTextField(
                 label = "系统提示词",
                 value = draft.systemPrompt,
                 onValueChange = { v -> onUpdate { it.copy(systemPrompt = v) } },
@@ -435,10 +439,14 @@ private fun AiServiceFormSection(
                 contentDescription = "保存",
                 onClick = onSave
             )
-            TextButton(onClick = onTest, enabled = !testInProgress) {
+            AppButton(
+                onClick = onTest,
+                variant = AppButtonVariant.Quiet,
+                enabled = !testInProgress
+            ) {
                 Text(if (testInProgress) "测试中…" else "测试连接", style = ZhiLuType.chip)
             }
-            TextButton(onClick = onCancel) {
+            AppButton(onClick = onCancel, variant = AppButtonVariant.Quiet) {
                 Text("取消", style = ZhiLuType.chip)
             }
         }

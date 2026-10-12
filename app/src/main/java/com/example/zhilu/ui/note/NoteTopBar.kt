@@ -18,7 +18,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -111,7 +111,7 @@ fun NoteTopBar(
                         onClick = { overflowOpen = true },
                         modifier = Modifier.size(TopBarActionSize)
                     )
-                    DropdownMenu(
+                    AppDropdownMenu(
                         expanded = overflowOpen,
                         onDismissRequest = { overflowOpen = false }
                     ) {

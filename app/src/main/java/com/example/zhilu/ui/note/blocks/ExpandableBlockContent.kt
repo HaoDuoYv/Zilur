@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.component.RichText
 
 /**
@@ -72,16 +72,11 @@ internal fun ExpandableText(
             modifier = Modifier.fillMaxWidth()
         )
         if (hasOverflow || isExpanded) {
-            TextButton(
+            QuietAction(
+                label = if (isExpanded) "收起" else "展开更多",
                 onClick = { isExpanded = !isExpanded },
                 modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(
-                    text = if (isExpanded) "收起" else "展开更多",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
+            )
         }
     }
 }

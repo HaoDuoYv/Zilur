@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -150,7 +150,7 @@ fun BlockGutter(
                             )
                     )
                 }
-                DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+                AppDropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
                     if (emphasis != null) {
                         DropdownMenuItem(
                             text = { Text("取消标记") },

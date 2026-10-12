@@ -19,6 +19,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.ui.theme.ZhiLuType
 
@@ -76,5 +78,32 @@ fun GeneratingBadge(modifier: Modifier = Modifier) {
                 color = content
             )
         }
+    }
+}
+
+/**
+ * 裸的「忙碌中」指示器（不带徽章文案）：纸墨是转圈，动森是 [BouncingDots] 三球。
+ *
+ * 全站的加载/生成/处理中指示器统一走它 —— 别再逐处手写 `CircularProgressIndicator`：
+ * 「旋转」在动森那套语汇里不存在（一切是浮、沉、弹），逐处手写的结果就是切到动森后
+ * 满屏转圈、独独几个地方不转。"有没有材质"仍是唯一判据（见 [useBouncingDots]）。
+ *
+ * [size] 是**标称占位**：纸墨据此画转圈直径；动森按它折算球径（小球阵天然比转圈宽一点）。
+ */
+@Composable
+fun GeneratingIndicator(
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+    size: Dp = 20.dp,
+    strokeWidth: Dp = 2.dp
+) {
+    if (useBouncingDots()) {
+        BouncingDots(color = color, modifier = modifier, dotSize = size * 0.4f)
+    } else {
+        CircularProgressIndicator(
+            modifier = modifier.size(size),
+            strokeWidth = strokeWidth,
+            color = color
+        )
     }
 }

@@ -5,10 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -18,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.ai.toolNameLabel
 import com.example.zhilu.domain.ai.model.AiTask
+import com.example.zhilu.ui.component.GeneratingIndicator
 import com.example.zhilu.ui.theme.ZhiLuType
 
 /**
@@ -52,8 +51,8 @@ fun GlobalAiStatusBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(14.dp),
+            GeneratingIndicator(
+                size = 14.dp,
                 strokeWidth = 1.8.dp,
                 color = MaterialTheme.colorScheme.onPrimary
             )

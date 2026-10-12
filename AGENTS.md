@@ -144,6 +144,9 @@ DataStore 只存一个 JSON 字符串键 `ai_settings`，不再拆成一堆 Pref
   - `TagChip` / `SegmentedToggle` — 动森下加描边。
   - `HomeSearchField` — 动森下胶囊 + 2.5dp 描边 + 底部厚度。**刻意不做参考仓库那种"聚焦整体上浮"**：布局盒高度不变、底部会空出 3dp 位移，字段密集处会看着在抖；这里只换描边色。
 - **`animalHandDrawnShape` 别再改回 `GenericShape` 手画贝塞尔**（`ui/theme/IrregularShape.kt`）。第一版照参考仓库 `Modal.kt` 的 `AnimalModalShape` 自己写了一整圈曲线，**四个角渲染成内凹的尖角**、卡片像被咬了一口 —— `GenericShape` 画错方向不报错，只安静地画出错形状，是**真机截图**才发现的。现在用 `RoundedCornerShape` 逐角指定不等半径：观感来源相同（不等角半径才是"手作感"的真来源），路径交给框架生成就不会写反。
+- **通用交互件已全部收口到双态 wrapper**（2026-10-11，清单与执行记录在 `docs/theme/animal-island-component-audit.md`）。新增 UI **不要再直接用原生** `Button` 系 / `AlertDialog` / `OutlinedTextField` / `DropdownMenu` / `ModalBottomSheet` / `Checkbox` / `RadioButton` / `FilterChip` / `HorizontalDivider` —— 对应走 `AppButton`（5 变体）/ `AppDialog` / `AppTextField` / `AppDropdownMenu` / `AppBottomSheet` / `AppCheckbox`（`AppRadioButton` 同文件）/ `AppChip` / `ZhiLuDivider`；行内次要动作走 `QuietAction`，弹层整宽动作走 `AppSheetAction`。
+  - `AppBottomSheet` 的动森描边必须用 `drawWithContent + drawOutline`（M3 1.3 的 `ModalBottomSheet` 没有 border 参数，`Modifier.border` 会被 Surface 背景盖掉半条）；`drawOutline` 的 import 在 `androidx.compose.ui.graphics`，**不在** `.drawscope` 子包（编译踩过）。
+  - `AppTopBar` 动森板的容器必须透明（`Color.Transparent`），板色由外层带圆角的 Box 画——顶栏自己再画矩形底色会把圆角"填方"。
 - **`ColorScheme` 的"没显式给的角色"会落到 material3 的默认值上，而那是淡紫**。踩过：`ModalBottomSheet` 的容器读的是 `surfaceContainerLow`，我没设过，于是真机上新建弹层的底色是 `#F7F2FA`（两套外观都没有这个色）。M3 的**组件**（底部弹层 / 菜单 / 对话框 / 滚动条）会读 `surfaceContainerLowest…Highest`、`surfaceBright`、`surfaceDim`、`inverseSurface`、`inverseOnSurface`、`inversePrimary`、`surfaceTint`，**两套外观都要显式给全**（纸墨与动森各一组，见 `ThemePalettes.kt`）。
   - 判据不是"代码里有没有引用"，而是"**M3 组件会不会读**"——上面那些角色在 app 代码里 grep 不到，但组件内部在读。
 - **`ToySurface` 的高度是显式参数（`faceHeight`），别改回 `matchParentSize()`**。第一版靠它对齐两层，外层若没有固定尺寸（比如只有 `wrapContentSize` 的圆钮）厚度层就退化成 0 高度、**按钮整个消失**。现在高度由参数决定，外层尺寸从它推出来，不存在这条退化路径。改这个签名时记得同步 `BottomBar` 的调用点。

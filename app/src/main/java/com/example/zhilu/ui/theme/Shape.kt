@@ -41,6 +41,12 @@ object Radius {
 
     /** 动森的小控件（勾选框）：8dp。 */
     val ControlAnimalIsland = 8.dp
+
+    /**
+     * 动森的底部弹层：顶部两角比纸墨的 M3 默认（28dp）再大一档，
+     * 「大圆角 + 描边」是它和纸墨弹层最直接的形状差别。
+     */
+    val SheetAnimalIsland = 32.dp
 }
 
 val AppShapes = Shapes(

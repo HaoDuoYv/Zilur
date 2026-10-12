@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -26,21 +25,18 @@ import com.example.zhilu.domain.model.EmphasisTone
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.TodoItem
 import com.example.zhilu.ui.component.AppCardStyle
+import com.example.zhilu.ui.component.DividerTokens
 import com.example.zhilu.ui.component.ElevationTokens
 import com.example.zhilu.ui.component.GeneratingBadge
+import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.component.rememberGeneratingPulse
 import com.example.zhilu.ui.theme.AlphaTokens
-import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalExtendedColors
-import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.MotionDuration
-import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.cardAccentColor
-import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.motionEnterTween
-import com.example.zhilu.ui.theme.LocalThemePalette
 
 /**
  * 知识卡片：头部（图钉 + 标题）与块列表的容器。
@@ -186,9 +182,9 @@ fun KnowledgeCardItem(
                 )
 
                 if (!isCollapsed) {
-                    HorizontalDivider(
+                    ZhiLuDivider(
                         modifier = Modifier.fillMaxWidth(),
-                        thickness = 1.dp,
+                        thickness = DividerTokens.Bold,
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = AlphaTokens.Border)
                     )
 

@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import com.example.zhilu.ui.component.AppBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.shadow
@@ -54,7 +54,7 @@ fun CreateSheet(
     onImportDtk: () -> Unit,
     onAiCreate: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

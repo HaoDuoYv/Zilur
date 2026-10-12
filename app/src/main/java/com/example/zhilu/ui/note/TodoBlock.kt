@@ -7,13 +7,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +21,11 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
+import com.example.zhilu.ui.component.AppCheckbox
+import com.example.zhilu.ui.component.AppTextField
+import com.example.zhilu.ui.component.ZhiLuDivider
 import kotlinx.coroutines.launch
 
 @Composable
@@ -58,12 +58,11 @@ fun TodoBlock(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
+                AppTextField(
                     value = content,
                     onValueChange = { content = it },
                     modifier = Modifier.weight(1f),
-                    label = { Text("待办事项") },
-                    singleLine = true,
+                    label = "待办事项",
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(
                         onDone = {
@@ -76,7 +75,7 @@ fun TodoBlock(
                         }
                     )
                 )
-                Button(
+                AppButton(
                     onClick = {
                         coroutineScope.launch {
                             if (onCreateTodo(content, reminderText.toLongOrNull())) {
@@ -90,23 +89,21 @@ fun TodoBlock(
                     Text("添加")
                 }
             }
-            OutlinedTextField(
+            AppTextField(
                 value = reminderText,
                 onValueChange = { value -> reminderText = value.filter(Char::isDigit) },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("提醒时间（毫秒时间戳，可选）") },
-                singleLine = true
+                label = "提醒时间（毫秒时间戳，可选）"
             )
         }
 
         if (todoItems.any { it.isCompleted }) {
-            TextButton(
+            AppButton(
                 onClick = onToggleCompletedTodos,
+                variant = AppButtonVariant.Quiet,
                 modifier = Modifier.padding(vertical = 2.dp)
             ) {
                 Text(
-                    if (showCompletedTodos) "隐藏已完成" else "显示已完成",
-                    color = MaterialTheme.colorScheme.primary
+                    if (showCompletedTodos) "隐藏已完成" else "显示已完成"
                 )
             }
         }
@@ -127,10 +124,7 @@ fun TodoBlock(
                     onCompleteTodo = onCompleteTodo
                 )
                 if (todo != visibleItems.last()) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        thickness = 0.5.dp
-                    )
+                    ZhiLuDivider()
                 }
             }
         }
@@ -151,7 +145,7 @@ private fun TodoRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Checkbox(
+        AppCheckbox(
             checked = todo.isCompleted,
             onCheckedChange = if (enabled) {
                 { checked ->

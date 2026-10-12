@@ -16,7 +16,6 @@ import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +33,7 @@ import com.example.zhilu.domain.model.ReviewPlanWithNote
 import com.example.zhilu.domain.model.TodoWithContext
 import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppEmptyState
+import com.example.zhilu.ui.component.AppProgressBar
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.component.SectionHeader
 import com.example.zhilu.ui.component.SegmentedToggle
@@ -100,7 +100,7 @@ fun ReviewCenterScreen(
                 .padding(padding)
         ) {
             if (state.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                AppProgressBar()
             }
             SegmentedToggle(
                 options = listOf(

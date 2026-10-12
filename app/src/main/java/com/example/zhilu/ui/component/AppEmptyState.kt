@@ -9,12 +9,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,7 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.ZhiLuType
 
 /**
@@ -78,16 +74,17 @@ fun AppEmptyState(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp)
         )
-        FilledTonalButton(
+        AppButton(
             onClick = onAction,
-            shape = RoundedCornerShape(ShapeTokens.Pill),
+            variant = AppButtonVariant.Tonal,
             modifier = Modifier.padding(top = 16.dp)
         ) {
             Text(text = buttonText, style = ZhiLuType.chip)
         }
         if (secondaryActionLabel != null && onSecondaryAction != null) {
-            TextButton(
+            AppButton(
                 onClick = onSecondaryAction,
+                variant = AppButtonVariant.Quiet,
                 modifier = Modifier.padding(top = 4.dp)
             ) {
                 Text(secondaryActionLabel, style = ZhiLuType.chip)

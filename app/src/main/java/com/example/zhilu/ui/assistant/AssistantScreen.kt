@@ -30,15 +30,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import com.example.zhilu.ui.component.PushDrawer
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -73,6 +67,9 @@ import com.example.zhilu.domain.ai.model.AiRef
 import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.domain.model.AiRole
 import com.example.zhilu.domain.model.ImageBlockContent
+import com.example.zhilu.ui.component.AppBottomSheet
+import com.example.zhilu.ui.component.AppProgressBar
+import com.example.zhilu.ui.component.PushDrawer
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
@@ -576,7 +573,7 @@ private fun RefNotePickerSheet(
     onDismiss: () -> Unit,
     onSelect: (AiRef) -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -622,7 +619,7 @@ private fun ToolStatusBar(label: String?) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        LinearProgressIndicator(modifier = Modifier.weight(1f))
+        AppProgressBar(modifier = Modifier.weight(1f))
         Text(
             text = label,
             style = ZhiLuType.meta,

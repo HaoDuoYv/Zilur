@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,6 +18,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.ui.component.TagChip
+import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.note.tag.TagPickerInline
 
 /**
@@ -127,6 +127,6 @@ internal fun ReadOnlyHeader(
                 }
             }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        ZhiLuDivider()
     }
 }

@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
+import com.example.zhilu.ui.component.GeneratingIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import ru.noties.jlatexmath.JLatexMathDrawable
@@ -254,10 +253,7 @@ fun LatexImage(
     ) {
         when (state) {
             is LatexRenderState.Loading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    strokeWidth = 2.dp
-                )
+                GeneratingIndicator(size = 24.dp, strokeWidth = 2.dp)
             }
 
             is LatexRenderState.Success -> {

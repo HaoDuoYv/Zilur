@@ -20,7 +20,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -299,7 +299,7 @@ private fun BlockOverflowMenu(
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
-    DropdownMenu(
+    AppDropdownMenu(
         expanded = expanded,
         onDismissRequest = { expanded = false }
     ) {

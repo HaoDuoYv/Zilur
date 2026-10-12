@@ -10,12 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +23,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
+import com.example.zhilu.ui.component.AppDialog
+import com.example.zhilu.ui.component.AppRadioButton
+import com.example.zhilu.ui.component.AppTextField
 import com.example.zhilu.ui.component.rememberTagAccent
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
@@ -39,19 +40,11 @@ fun TagRenameDialog(
     onDismiss: () -> Unit
 ) {
     var name by remember(tag.id) { mutableStateOf(tag.name) }
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("重命名标签") },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
+        title = "重命名标签",
         confirmButton = {
-            TextButton(
+            AppButton(
                 onClick = { onConfirm(name.trim()) },
                 enabled = name.isNotBlank()
             ) {
@@ -59,9 +52,14 @@ fun TagRenameDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            AppButton(onClick = onDismiss, variant = AppButtonVariant.Quiet) { Text("取消") }
         }
-    )
+    ) {
+        AppTextField(
+            value = name,
+            onValueChange = { name = it }
+        )
+    }
 }
 
 /** 删除标签：仅移除关联，正文文本不动（标签不是从正文解析出来的）。 */
@@ -71,17 +69,18 @@ fun TagDeleteDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("删除标签「${tag.name}」？") },
-        text = { Text("仅移除标签关联，不会删除笔记内容。") },
+        title = "删除标签「${tag.name}」？",
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("删除") }
+            AppButton(onClick = onConfirm, variant = AppButtonVariant.Danger) { Text("删除") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            AppButton(onClick = onDismiss, variant = AppButtonVariant.Quiet) { Text("取消") }
         }
-    )
+    ) {
+        Text("仅移除标签关联，不会删除笔记内容。")
+    }
 }
 
 /**
@@ -98,55 +97,11 @@ fun TagMergeDialog(
 ) {
     var targetId by remember(items) { mutableStateOf(items.firstOrNull()?.tag?.id) }
 
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("合并 ${items.size} 个标签") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(Spacing.Xs)) {
-                Text(
-                    text = "选择要保留的标签，其余标签会被删除，它们的笔记改为挂在保留的标签下。",
-                    style = ZhiLuType.meta,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                items.forEach { item ->
-                    val selected = item.tag.id == targetId
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = selected,
-                                role = Role.RadioButton,
-                                onClick = { targetId = item.tag.id }
-                            )
-                            .padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = selected, onClick = null)
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(rememberTagAccent(item.tag.color))
-                        )
-                        Text(
-                            text = item.tag.name,
-                            style = ZhiLuType.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(start = Spacing.Sm)
-                        )
-                        Text(
-                            text = "${item.noteCount} 条笔记",
-                            style = ZhiLuType.meta,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        },
+        title = "合并 ${items.size} 个标签",
         confirmButton = {
-            TextButton(
+            AppButton(
                 onClick = { targetId?.let(onConfirm) },
                 enabled = targetId != null
             ) {
@@ -154,7 +109,50 @@ fun TagMergeDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            AppButton(onClick = onDismiss, variant = AppButtonVariant.Quiet) { Text("取消") }
         }
-    )
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.Xs)) {
+            Text(
+                text = "选择要保留的标签，其余标签会被删除，它们的笔记改为挂在保留的标签下。",
+                style = ZhiLuType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            items.forEach { item ->
+                val selected = item.tag.id == targetId
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = selected,
+                            role = Role.RadioButton,
+                            onClick = { targetId = item.tag.id }
+                        )
+                        .padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    AppRadioButton(selected = selected, onClick = null)
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(rememberTagAccent(item.tag.color))
+                    )
+                    Text(
+                        text = item.tag.name,
+                        style = ZhiLuType.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = Spacing.Sm)
+                    )
+                    Text(
+                        text = "${item.noteCount} 条笔记",
+                        style = ZhiLuType.meta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
 }

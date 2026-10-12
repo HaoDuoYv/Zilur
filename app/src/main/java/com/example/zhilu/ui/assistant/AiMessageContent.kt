@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +31,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.component.DividerTokens
 import com.example.zhilu.ui.component.RichText
+import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.note.latex.LatexImage
 import com.example.zhilu.ui.note.latex.rememberLatexImage
 
@@ -214,7 +215,7 @@ private fun CodeBlock(code: String, language: String, modifier: Modifier = Modif
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             )
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+        ZhiLuDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
         Text(
             text = code,
             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -338,7 +339,7 @@ private fun MarkdownTable(table: MdBlock.Table, textColor: Color, primaryColor: 
                 )
             }
         }
-        HorizontalDivider(color = borderColor)
+        ZhiLuDivider(color = borderColor)
         table.rows.forEachIndexed { rowIndex, row ->
             Row(
                 modifier = if (rowIndex % 2 == 1) Modifier.background(stripeBg) else Modifier
@@ -353,9 +354,9 @@ private fun MarkdownTable(table: MdBlock.Table, textColor: Color, primaryColor: 
                 }
             }
             if (rowIndex < table.rows.lastIndex) {
-                HorizontalDivider(
+                ZhiLuDivider(
                     color = borderColor.copy(alpha = 0.5f),
-                    thickness = 0.5.dp
+                    thickness = DividerTokens.Hairline
                 )
             }
         }

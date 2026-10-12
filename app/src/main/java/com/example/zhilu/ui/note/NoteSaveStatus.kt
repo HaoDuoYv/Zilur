@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.ui.component.GeneratingIndicator
 import com.example.zhilu.ui.theme.LocalReducedMotion
 import com.example.zhilu.ui.theme.MotionDuration
 import com.example.zhilu.ui.theme.ZhiLuType
@@ -54,8 +54,8 @@ fun NoteSaveStatus(
                 label = "保存中",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 leading = {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
+                    GeneratingIndicator(
+                        size = 12.dp,
                         strokeWidth = 1.5.dp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

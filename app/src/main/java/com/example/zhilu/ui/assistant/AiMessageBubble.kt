@@ -26,8 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -56,6 +55,7 @@ import coil.compose.SubcomposeAsyncImage
 import com.example.zhilu.ai.toolNameLabel
 import com.example.zhilu.domain.model.AiMessage
 import com.example.zhilu.domain.model.AiRole
+import com.example.zhilu.ui.component.GeneratingIndicator
 import com.example.zhilu.ui.component.LongPressSelectableText
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
@@ -104,8 +104,8 @@ private fun ToolCallBadge(message: AiMessage, isActive: Boolean) {
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 if (isActive) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
+                    GeneratingIndicator(
+                        size = 12.dp,
                         strokeWidth = 1.5.dp,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -241,7 +241,7 @@ private fun ChatBubble(
                 }
             }
 
-            DropdownMenu(
+            AppDropdownMenu(
                 expanded = menuExpanded,
                 onDismissRequest = { menuExpanded = false },
                 offset = with(density) { DpOffset(menuAnchor.x.toDp(), menuAnchor.y.toDp()) }

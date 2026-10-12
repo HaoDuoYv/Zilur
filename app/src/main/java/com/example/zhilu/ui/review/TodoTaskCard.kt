@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,20 +37,19 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.TodoWithContext
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
 import com.example.zhilu.ui.component.AppCard
 import com.example.zhilu.ui.component.DescBlock
 import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.theme.LocalThemePalette
 import com.example.zhilu.ui.theme.Radius
-import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 import com.example.zhilu.ui.theme.palettePaint
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
-private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
 /**
  * 待办任务卡（对齐产品原型的 task-card 形态）：
@@ -162,7 +160,7 @@ private fun ColumnScope.TodoCardBody(
         if (completed) {
             QuietAction(label = "恢复", onClick = onReopen)
         } else {
-            OutlinedButton(onClick = onComplete, shape = PillShape) {
+            AppButton(onClick = onComplete, variant = AppButtonVariant.Outline) {
                 Text("完成", style = ZhiLuType.chip)
             }
         }

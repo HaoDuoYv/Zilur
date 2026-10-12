@@ -12,9 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,9 +23,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.ReviewPlanWithNote
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
 import com.example.zhilu.ui.component.AppCard
 import com.example.zhilu.ui.component.QuietAction
-import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 
@@ -35,8 +34,6 @@ import com.example.zhilu.ui.theme.ZhiLuType
 enum class ReviewPlanZone {
     Overdue, Today, Upcoming, Later, Paused, Completed
 }
-
-private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
 /** 进度点直径（原型 ring-dot 是 8px）。 */
 private val StepDotSize = 8.dp
@@ -109,7 +106,7 @@ fun ReviewPlanCard(
         when (zone) {
             ReviewPlanZone.Overdue, ReviewPlanZone.Today -> {
                 ActionRow {
-                    OutlinedButton(onClick = onStart, shape = PillShape) {
+                    AppButton(onClick = onStart, variant = AppButtonVariant.Outline) {
                         Text("开始复习", style = ZhiLuType.chip)
                     }
                     QuietAction(label = "暂停", onClick = onPause)
@@ -117,7 +114,7 @@ fun ReviewPlanCard(
             }
             ReviewPlanZone.Paused -> {
                 ActionRow {
-                    OutlinedButton(onClick = onResume, shape = PillShape) {
+                    AppButton(onClick = onResume, variant = AppButtonVariant.Outline) {
                         Text("继续", style = ZhiLuType.chip)
                     }
                     QuietAction(label = "重新开始", onClick = onRestart)
@@ -125,7 +122,7 @@ fun ReviewPlanCard(
             }
             ReviewPlanZone.Completed -> {
                 ActionRow {
-                    OutlinedButton(onClick = onRestart, shape = PillShape) {
+                    AppButton(onClick = onRestart, variant = AppButtonVariant.Outline) {
                         Text("重新开始", style = ZhiLuType.chip)
                     }
                 }

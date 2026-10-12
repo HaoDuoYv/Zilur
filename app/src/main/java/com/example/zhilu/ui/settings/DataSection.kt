@@ -8,14 +8,15 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Upload
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
+import com.example.zhilu.ui.component.AppDialog
 import com.example.zhilu.ui.component.MetaLine
 import com.example.zhilu.ui.theme.Spacing
 
@@ -62,23 +63,22 @@ fun ImportPreviewDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismiss,
-        title = { Text("导入知识点") },
-        text = {
-            Text(
-                "标题：${preview.title}\n" +
-                    "块数：${preview.blockCount}\n" +
-                    "图片：${preview.imageCount}"
-            )
-        },
+        title = "导入知识点",
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("导入") }
+            AppButton(onClick = onConfirm) { Text("导入") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            AppButton(onClick = onDismiss, variant = AppButtonVariant.Quiet) { Text("取消") }
         }
-    )
+    ) {
+        Text(
+            "标题：${preview.title}\n" +
+                "块数：${preview.blockCount}\n" +
+                "图片：${preview.imageCount}"
+        )
+    }
 }
 
 /** 存储：回收站入口单独成组使用。 */

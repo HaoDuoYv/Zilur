@@ -107,3 +107,35 @@
 - **相机页 chrome**（`camera/*`）：特殊语境（取景器叠加层），沿用现有实现。
 - **`AnimalLoading` 全屏动画 / `NookPhone` / `AnimalFooter` / `AnimalTime`**：无对标场景或过重，不引入。
 - **复习热力图固定绿阶**：刻意偏离主题色的产品决策（2026-10-09 用户指定），非欠账。
+
+## 八、执行记录（2026-10-11，十项全部完成）
+
+三件套全绿（`testDebugUnitTest` / `lintDebug` / `assembleDebug`）。落点汇总：
+
+| # | 落点 | 说明 |
+| --- | --- | --- |
+| 1 | `ui/component/AppTextField.kt`（新） | 双态输入框；原 `AiTextField` 删除。替换 AI 配置页 6 处 + TagManageSheet / TagDialogs / TodoBlock×2 / ReviewIntervalScreen |
+| 2 | `GeneratingIndicator.kt`（加裸指示器）、`AppProgressBar.kt`（新） | 8 处生成类转 `GeneratingIndicator`（含清单外的 `ImageViewer`）；4 条 `LinearProgressIndicator` 转 `AppProgressBar` |
+| 3 | `ui/component/AppButton.kt`（新） | 5 变体：Primary / Tonal / Outline / Quiet / Danger；动森立体键（厚度 4dp，按下 4→1dp；`matchParentSize()` 厚度层同时支持 wrap-content 与 fillWidth）；收敛约 21 文件 |
+| 4 | `ui/component/AppDialog.kt`（新） | 纸墨 M3 原样 / 动森手作圆角 + 暖褐描边 + 右上飘出关闭钮；替换全部 8 处 `AlertDialog` 调用点 |
+| 5 | `ui/component/AppCheckbox.kt`（新，含 `AppRadioButton`） | 22dp 框 / 2.5dp 描边 / 8dp 圆角（`Radius.ControlAnimalIsland`）/ 勾号弹簧（0.6/400）；收敛 3 处 |
+| 6 | 6 个调用点改调 `ZhiLuDivider` | 自定义颜色/厚度项保留，仅统一入口；全项目已无裸 `HorizontalDivider` |
+| 7 | `ui/component/AppChip.kt`（新） | 复用 `TagChip` 双态描边语言；收敛供应商预设 + 历史搜索词 |
+| 8 | `ui/component/AppDropdownMenu.kt`（新） | 统一 12dp 圆角（`ShapeTokens.Medium`）+ 描边随外观；替换 12 处（行仍是 `DropdownMenuItem`，只包容器） |
+| 9 | `ui/component/AppBottomSheet.kt`（新）+ `Radius.SheetAnimalIsland = 32.dp` | 纸墨 M3 默认 / 动森 32dp 顶角 + 描边；9 处替换 |
+| 10 | `AppTopBar.kt`（微调） | 动森：surface 顶栏板 + 底部 20dp 圆角 + 暖褐描边（底边线常显，不再叠加滚动分隔线） |
+
+### 与清单的两处有意偏离
+
+1. **AppDialog 没用 `GenericShape` blob 外形**，改用既有 `animalHandDrawnShape`（四角不等半径）。清单原写「移植 `AnimalModalShape` 贝塞尔」，但 `IrregularShape.kt` 已记录过教训——同样的贝塞尔路径会渲染成内凹尖角且不报错（真机截图才发现）；本次照做的第一版连编译都过不去（`GenericShape` 在此 Compose 版本解析失败）。回到框架生成的路径，观感来源相同（不等角半径）、零方向风险。见 `AppDialog.kt` KDoc。
+2. **`AppDropdownMenu` 的 12dp 圆角两套外观一致**（清单只写「12dp 圆角 + 描边随外观」）：纸墨也获得与纸卡 14dp 同族的圆润度；描边仍只在动森出现。
+
+### 两条实现备忘（防回退）
+
+- **`AppBottomSheet` 动森描边走 `drawWithContent + drawOutline`**：M3 1.3 的 `ModalBottomSheet` 没有 border 参数，而 `Modifier.border` 会被 Surface 自己的背景盖掉半条。另注意 `drawOutline` 的 import 在 `androidx.compose.ui.graphics`（`OutlineKt`），**不在** `.drawscope` 子包。
+- **`AppTopBar` 动森板的顶栏容器色必须是 `Color.Transparent`**：板色由外层 Box 带圆角地画，顶栏自己再画一层矩形底色会把圆角"填方"。
+
+### 顺手修掉的
+
+- `KnowledgeCardItem.kt` 6 处重复的 `LocalThemePalette` import、`AssistantScreen.kt` 两处重复 import + 未用的 `rememberModalBottomSheetState`（历史批量操作残留）。
+- `ToySurface` 按压方向 bug：面层 offset 原为 `lift - thickness`（按下时反而上弹），修正为 `thickness - lift`。

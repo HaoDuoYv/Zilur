@@ -19,12 +19,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Create
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -40,8 +38,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.ui.component.AppChip
 import com.example.zhilu.ui.component.AppEmptyState
 import com.example.zhilu.ui.component.MetaLine
+import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.component.RowReveal
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
@@ -313,9 +313,7 @@ private fun SearchResultHeader(
             parts = listOf(if (isSearching) "搜索中…" else "$resultCount 条结果"),
             modifier = Modifier.weight(1f)
         )
-        TextButton(onClick = onClear) {
-            Text("清空", style = ZhiLuType.chip)
-        }
+        QuietAction(label = "清空", onClick = onClear)
     }
 }
 
@@ -335,9 +333,9 @@ private fun RecentQueriesRow(
         verticalArrangement = Arrangement.spacedBy(Spacing.Xs)
     ) {
         queries.forEach { query ->
-            AssistChip(
-                onClick = { onSelect(query) },
-                label = { Text(query, style = ZhiLuType.chip) }
+            AppChip(
+                label = query,
+                onClick = { onSelect(query) }
             )
         }
     }

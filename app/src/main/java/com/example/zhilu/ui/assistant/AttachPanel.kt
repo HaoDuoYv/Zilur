@@ -26,7 +26,6 @@ import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.theme.LocalExtendedColors
 import com.example.zhilu.ui.theme.Radius
 import com.example.zhilu.ui.theme.Spacing
@@ -136,9 +136,7 @@ fun AttachPanel(
                         modifier = Modifier.weight(1f)
                     )
                     if (!canReadGallery) {
-                        TextButton(onClick = onRequestGalleryAccess) {
-                            Text("开启访问", style = ZhiLuType.chip)
-                        }
+                        QuietAction(label = "开启访问", onClick = onRequestGalleryAccess)
                     }
                 }
 

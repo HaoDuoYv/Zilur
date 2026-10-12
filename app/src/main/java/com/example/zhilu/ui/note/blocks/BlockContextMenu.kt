@@ -1,6 +1,6 @@
 package com.example.zhilu.ui.note.blocks
 
-import androidx.compose.material3.DropdownMenu
+import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,7 +21,7 @@ fun BlockContextMenu(
     onMoveDown: () -> Unit,
     onCiteToAi: () -> Unit = {}
 ) {
-    DropdownMenu(
+    AppDropdownMenu(
         expanded = expanded,
         offset = offset,
         onDismissRequest = onDismiss

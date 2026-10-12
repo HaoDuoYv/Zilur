@@ -22,7 +22,6 @@ import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -39,6 +38,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.reminder.ReviewIntervals
+import com.example.zhilu.ui.component.AppProgressBar
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.Destination
@@ -110,7 +110,7 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(Spacing.Xs)
         ) {
             if (state.isWorking) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                AppProgressBar()
             }
 
             // 顺序对齐设计原型：身份 → 提醒 → 外观 → AI → 数据 → 存储 → 关于。

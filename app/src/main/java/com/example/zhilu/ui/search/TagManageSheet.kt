@@ -13,13 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import com.example.zhilu.ui.component.AppBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,13 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppCheckbox
+import com.example.zhilu.ui.component.AppTextField
 import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.component.rememberTagAccent
-import com.example.zhilu.ui.theme.ShapeTokens
 import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
-
-private val PillShape = RoundedCornerShape(ShapeTokens.Pill)
 
 /**
  * 标签管理弹层：新建 + 逐个重命名 / 删除 + **多选合并**（含笔记数）。
@@ -64,7 +60,7 @@ fun TagManageSheet(
     var selectedIds by remember { mutableStateOf(emptyList<Long>()) }
     var mergePicking by remember { mutableStateOf(false) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    AppBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -98,22 +94,18 @@ fun TagManageSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)
             ) {
-                OutlinedTextField(
+                AppTextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    placeholder = { Text("新标签名", style = ZhiLuType.bodySmall) },
-                    singleLine = true,
-                    // 走 MaterialTheme.shapes（跟外观走）：纸墨 14dp、动森 20dp。
-                    shape = MaterialTheme.shapes.medium,
+                    placeholder = "新标签名",
                     modifier = Modifier.weight(1f)
                 )
-                Button(
+                AppButton(
                     onClick = {
                         onCreate(newName)
                         newName = ""
                     },
-                    enabled = newName.isNotBlank(),
-                    shape = PillShape
+                    enabled = newName.isNotBlank()
                 ) {
                     Text("新建", style = ZhiLuType.chip)
                 }
@@ -151,10 +143,9 @@ fun TagManageSheet(
                     }
                 }
                 if (selecting) {
-                    Button(
+                    AppButton(
                         onClick = { mergePicking = true },
-                        enabled = selectedIds.size >= 2,
-                        shape = PillShape
+                        enabled = selectedIds.size >= 2
                     ) {
                         Text(
                             text = "合并所选（${selectedIds.size}）",
@@ -205,7 +196,7 @@ private fun TagManageRow(
     ) {
         if (selecting) {
             // 选择模式下勾选框接管行首，色点让位（少一个视觉噪声，勾选状态就是全部信息）
-            Checkbox(checked = checked, onCheckedChange = null)
+            AppCheckbox(checked = checked, onCheckedChange = null)
         } else {
             Box(
                 modifier = Modifier

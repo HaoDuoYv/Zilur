@@ -10,11 +10,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -28,7 +26,9 @@ import androidx.navigation.NavHostController
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.ui.component.AnimatedListItem
 import com.example.zhilu.ui.component.AppEmptyState
+import com.example.zhilu.ui.component.AppProgressBar
 import com.example.zhilu.ui.component.AppTopBar
+import com.example.zhilu.ui.component.QuietAction
 import com.example.zhilu.ui.component.RevealSide
 import com.example.zhilu.ui.component.RowReveal
 import com.example.zhilu.ui.component.ZhiLuDivider
@@ -69,9 +69,7 @@ fun TrashScreen(
                 onBack = { navController.popBackStack() },
                 actions = {
                     if (state.deletedNotes.isNotEmpty()) {
-                        TextButton(onClick = { clearConfirmVisible = true }) {
-                            Text("清空", style = ZhiLuType.chip)
-                        }
+                        QuietAction(label = "清空", onClick = { clearConfirmVisible = true })
                     }
                 }
             )
@@ -83,7 +81,7 @@ fun TrashScreen(
                 .padding(padding)
         ) {
             if (state.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                AppProgressBar()
             }
             if (!state.isLoading && state.deletedNotes.isEmpty()) {
                 AppEmptyState(

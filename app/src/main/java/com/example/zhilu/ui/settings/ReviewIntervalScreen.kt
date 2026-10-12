@@ -8,10 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -25,6 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.example.zhilu.domain.reminder.ReviewIntervals
+import com.example.zhilu.ui.component.AppButton
+import com.example.zhilu.ui.component.AppButtonVariant
+import com.example.zhilu.ui.component.AppTextField
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.AppTabScaffold
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
@@ -93,26 +93,26 @@ fun ReviewIntervalScreen(
                     horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)
                 ) {
                     ReviewIntervals.PRESETS.forEach { preset ->
-                        OutlinedButton(
+                        AppButton(
                             onClick = {
                                 touched = true
                                 draft = ReviewIntervals.format(preset.days)
-                            }
+                            },
+                            variant = AppButtonVariant.Outline
                         ) {
                             Text(preset.label, style = ZhiLuType.chip)
                         }
                     }
                 }
 
-                OutlinedTextField(
+                AppTextField(
                     value = draft,
                     onValueChange = {
                         touched = true
                         draft = it
                     },
-                    label = { Text("间隔（天）") },
-                    placeholder = { Text("1, 3, 7, 15, 30") },
-                    singleLine = true,
+                    label = "间隔（天）",
+                    placeholder = "1, 3, 7, 15, 30",
                     isError = error != null,
                     supportingText = {
                         Text(
@@ -120,8 +120,7 @@ fun ReviewIntervalScreen(
                                 "每档 ${ReviewIntervals.MIN_DAY}–${ReviewIntervals.MAX_DAY} 天",
                             style = ZhiLuType.meta
                         )
-                    },
-                    modifier = Modifier.fillMaxWidth()
+                    }
                 )
             }
 
@@ -147,17 +146,16 @@ fun ReviewIntervalScreen(
                 )
             }
 
-            Button(
+            AppButton(
                 onClick = {
-                    val days = parsed ?: return@Button
+                    val days = parsed ?: return@AppButton
                     viewModel.setReviewIntervals(days)
                     touched = false
                     scope.launch { snackbar.showSnackbar("复习间隔已保存") }
                 },
                 enabled = canSave,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.PageGutter)
+                fillWidth = true,
+                modifier = Modifier.padding(horizontal = Spacing.PageGutter)
             ) {
                 Text("保存", style = ZhiLuType.chip)
             }

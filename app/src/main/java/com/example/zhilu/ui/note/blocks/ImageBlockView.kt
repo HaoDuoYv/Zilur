@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Image
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,6 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.example.zhilu.domain.model.ImageBlockContent
+import com.example.zhilu.ui.component.GeneratingIndicator
 
 private const val MAX_IMAGE_HEIGHT_DP = 400
 
@@ -59,8 +59,8 @@ fun ImageBlockView(
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(28.dp),
+                        GeneratingIndicator(
+                            size = 28.dp,
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.primary
                         )

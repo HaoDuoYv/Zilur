@@ -66,12 +66,15 @@ fun ToySurface(
                 .clip(shape)
                 .background(thicknessColor.copy(alpha = faceAlpha))
         )
-        // 面层：往上抬 lift
+        // 面层：从顶部下沉 (thickness - lift)。
+        // `lift` 的语义 = **未遮住的厚度**：不按时整层厚度都露在下面；
+        // 按下时只剩 pressedLift（默认 1dp），面"落到厚度上"。
+        // 方向若写成 (lift - thickness)，按下会变成面往上弹、露出更多厚度 —— 反了。
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(faceHeight)
-                .offset(y = lift - thickness)
+                .offset(y = thickness - lift)
                 .clip(shape)
                 .background(faceColor.copy(alpha = faceAlpha)),
             contentAlignment = Alignment.Center

@@ -19,12 +19,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarResult
@@ -58,6 +56,7 @@ import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
 import com.example.zhilu.domain.model.KnowledgeCard
 import com.example.zhilu.domain.model.Tag
+import com.example.zhilu.ui.component.GeneratingIndicator
 import com.example.zhilu.ui.component.ImageViewer
 import com.example.zhilu.ui.component.LocalFindHighlight
 import com.example.zhilu.ui.component.FindHighlight
@@ -568,8 +567,8 @@ fun NoteEditScreen(
                             .background(MaterialTheme.colorScheme.surface),
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
+                        GeneratingIndicator(
+                            size = 20.dp,
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.primary
                         )
