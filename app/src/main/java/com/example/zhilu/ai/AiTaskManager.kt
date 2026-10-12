@@ -336,11 +336,14 @@ class AiTaskManager @Inject constructor(
     /**
      * 把本次附带的图片路径交代给模型，使「把这张图存进笔记」可行。
      * 图片在附加时已复制到应用内部存储，URI 长期有效，可直接作为 image 块内容。
+     *
+     * 这段文本由仓库层的 `buildMessages` 作为 `trailing` 注入**最新一条 user 消息**
+     * （而非 system prompt）—— 它一轮一变，拼进 system 会让 prompt 前缀每轮都失去缓存命中。
      */
     private fun resolveImageContext(images: List<String>): String {
         if (images.isEmpty()) return ""
         return buildString {
-            append("\n\n【本次附带的图片】用户这条消息附带了 ${images.size} 张图片：\n")
+            append("【本次附带的图片】用户这条消息附带了 ${images.size} 张图片：\n")
             images.forEachIndexed { index, uri ->
                 append("图${index + 1}：$uri\n")
             }

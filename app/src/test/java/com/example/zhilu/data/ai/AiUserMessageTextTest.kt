@@ -114,6 +114,30 @@ class AiUserMessageTextTest {
         assertEquals("", AiUserMessageText.build("", "  ", emptyList(), "   "))
     }
 
+    @Test
+    fun `运行时上下文排在最后 且在附件之后`() {
+        val text = AiUserMessageText.build(
+            base = "帮我看看这张图",
+            fileText = "附件正文",
+            refs = listOf(ref("引用快照")),
+            quotedText = "被引用消息",
+            trailing = "【本次附带的图片】…"
+        )
+        val file = text.indexOf("【附件内容】")
+        val trailing = text.indexOf("【本次附带的图片】")
+        assertTrue("trailing 必须存在", trailing >= 0)
+        assertTrue("运行时上下文要排在附件之后（前缀稳定性的关键）", trailing > file)
+    }
+
+    @Test
+    fun `无运行时上下文时与旧行为完全一致`() {
+        val withoutTrailing = AiUserMessageText.build("问题", "附件", emptyList(), null)
+        val withNull = AiUserMessageText.build("问题", "附件", emptyList(), null, trailing = null)
+        val withBlank = AiUserMessageText.build("问题", "附件", emptyList(), null, trailing = "  ")
+        assertEquals(withoutTrailing, withNull)
+        assertEquals(withoutTrailing, withBlank)
+    }
+
     private fun ref(snapshot: String) = AiRef(
         kind = AiRefKind.NOTE,
         noteId = 1L,

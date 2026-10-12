@@ -5,6 +5,7 @@ import com.example.zhilu.data.ai.dto.ChatCompletionRequest
 import com.example.zhilu.data.ai.dto.ChatCompletionResponse
 import com.example.zhilu.data.ai.dto.FunctionCallDto
 import com.example.zhilu.data.ai.dto.ToolCallDto
+import com.example.zhilu.data.ai.dto.UsageDto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -17,6 +18,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import timber.log.Timber
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,10 +26,11 @@ import javax.inject.Singleton
 /** LLM 调用异常，[code] 为 HTTP 状态码（网络层错误为 -1）。 */
 class LlmApiException(message: String, val code: Int = -1) : Exception(message)
 
-/** 流式调用的聚合结果：完整文本 + 可能存在的工具调用。 */
+/** 流式调用的聚合结果：完整文本 + 可能存在的工具调用 + 用量（含缓存命中，可能为 null）。 */
 data class StreamOutcome(
     val text: String,
-    val toolCalls: List<ToolCallDto>
+    val toolCalls: List<ToolCallDto>,
+    val usage: UsageDto? = null
 )
 
 /** SSE 流中按 index 聚合工具调用分片。 */
@@ -71,6 +74,14 @@ internal class SseStreamAssembler(private val json: Json) {
     var terminated: Boolean = false
         private set
 
+    /** 是否收到了显式的 `[DONE]` 哨兵。读循环只在见到它时立即停止。 */
+    var sawDone: Boolean = false
+        private set
+
+    /** 流末附加的 usage 分片（`choices=[]` + `usage`，需请求侧带 include_usage）。 */
+    var usage: UsageDto? = null
+        private set
+
     /** 服务端给出的结束原因（`stop` / `length` / `tool_calls`…），未结束时为 null。 */
     private var finishReason: String? = null
 
@@ -81,6 +92,7 @@ internal class SseStreamAssembler(private val json: Json) {
         if (data.isEmpty()) return null
         if (data == "[DONE]") {
             terminated = true
+            sawDone = true
             return null
         }
         val element = runCatching { json.parseToJsonElement(data) }.getOrNull() ?: return null
@@ -89,6 +101,9 @@ internal class SseStreamAssembler(private val json: Json) {
         errorMessageOf(element)?.let { throw LlmApiException(it) }
         val chunk = runCatching { json.decodeFromJsonElement<ChatCompletionChunk>(element) }
             .getOrNull() ?: return null
+        // usage 分片必须在这里捕获：它自带 `choices=[]`，会在下一行的提前 return 处被丢弃。
+        // 且它是**流末尾**的分片，服务端发它时 finish_reason 早已发出。
+        chunk.usage?.let { usage = it }
         val choice = chunk.choices.firstOrNull() ?: return null
         choice.finishReason?.let {
             terminated = true
@@ -122,7 +137,8 @@ internal class SseStreamAssembler(private val json: Json) {
                         type = "function",
                         function = FunctionCallDto(name = acc.name, arguments = acc.arguments.toString())
                     )
-                }
+                },
+            usage = usage
         )
         // 被 max_tokens 截断的回答不可信：正文可能只说了一半，工具调用的 JSON 也可能是残的。
         // 半截回复留在会话里只会被当成完整结果看，不如不留 —— 给一条能照着做的提示。
@@ -193,6 +209,31 @@ class LlmApiClient @Inject constructor() {
         onDelta: (String) -> Unit
     ): StreamOutcome = withContext(Dispatchers.IO) {
         val httpRequest = buildRequest(endpoint, apiKey, request.copy(stream = true))
+        // stream_options 并非所有 OpenAI 兼容实现都认识（Ollama、部分中转站可能 400）。
+        // 降级：400 时去掉该字段重试一次，并记日志 —— 让 collectUsage 的可观测性
+        // 不成为"某些服务完全不可用"的原因。重试仍失败则抛原始错误。
+        try {
+            executeStream(httpRequest, request, onDelta)
+        } catch (e: LlmApiException) {
+            if (request.streamOptions != null && e.code == 400) {
+                Timber.w("stream_options 不被支持，降级重试：${e.message}")
+                executeStream(
+                    buildRequest(endpoint, apiKey, request.copy(stream = true, streamOptions = null)),
+                    request.copy(streamOptions = null),
+                    onDelta
+                )
+            } else {
+                throw e
+            }
+        }
+    }
+
+    private fun executeStream(
+        httpRequest: Request,
+        request: ChatCompletionRequest,
+        onDelta: (String) -> Unit
+    ): StreamOutcome {
+        val expectUsage = request.streamOptions?.includeUsage == true
         client.newCall(httpRequest).execute().use { response ->
             if (!response.isSuccessful) {
                 val body = response.body?.string()
@@ -201,13 +242,21 @@ class LlmApiClient @Inject constructor() {
             val source = response.body?.source()
                 ?: throw LlmApiException("模型未返回内容")
             val assembler = SseStreamAssembler(json)
+            var graceLines = 0
             while (true) {
                 val line = source.readUtf8Line() ?: break
                 assembler.accept(line)?.let(onDelta)
-                // 拿到结束信号就停：部分服务发完 [DONE] 不会立刻关连接。
-                if (assembler.terminated) break
+                // [DONE] 是最后一行，见到即停：部分服务发完 [DONE] 不会立刻关连接。
+                if (assembler.sawDone) break
+                // finish_reason 只表示"正文已完"，usage 分片（choices=[]）通常在它之后
+                // 才到达 —— 开启 include_usage 时不能见 finish_reason 就断流，
+                // 最多再探 USAGE_GRACE_LINES 行；未开启时保持原有的立即停止行为。
+                if (assembler.terminated) {
+                    if (assembler.usage != null || !expectUsage) break
+                    if (++graceLines > USAGE_GRACE_LINES) break
+                }
             }
-            assembler.finish()
+            return assembler.finish()
         }
     }
 
@@ -232,5 +281,10 @@ class LlmApiClient @Inject constructor() {
         if (body.isNullOrBlank()) return fallback
         val element = runCatching { json.parseToJsonElement(body) }.getOrNull() ?: return fallback
         return errorMessageOf(element) ?: fallback
+    }
+
+    private companion object {
+        /** 见到 finish_reason 后为等 usage 分片最多再读的行数（usage 通常在 1–2 行内到达）。 */
+        const val USAGE_GRACE_LINES = 5
     }
 }

@@ -161,4 +161,52 @@ class SseStreamAssemblerTest {
         assertEquals("答", emitted)
         assertEquals("答", a.finish().text)
     }
+
+    @Test
+    fun `usage 分片在 finish_reason 之后到达也不丢 且无正文产出`() {
+        // 真实流的顺序：正文 → finish_reason → usage（choices=[]）→ [DONE]。
+        // usage 分片必须在这里被捕获 —— 它自带空 choices，容易被当成"无内容的行"丢弃。
+        val a = assembler()
+        val emitted = collect(
+            a,
+            textLine("完整回答"),
+            stopLine("stop"),
+            """data: {"choices":[],"usage":{"prompt_tokens":120,"completion_tokens":8,"prompt_cache_hit_tokens":96,"prompt_cache_miss_tokens":24}}""",
+            "data: [DONE]"
+        )
+        assertEquals("完整回答", emitted)
+        assertTrue(a.sawDone)
+        val outcome = a.finish()
+        assertEquals(120, outcome.usage?.promptTokens)
+        assertEquals(8, outcome.usage?.completionTokens)
+        assertEquals(96, outcome.usage?.effectiveCachedTokens)
+    }
+
+    @Test
+    fun `OpenAI 嵌套形态的 cached_tokens 同样被统一取值`() {
+        val a = assembler()
+        collect(
+            a,
+            textLine("答"),
+            stopLine("stop"),
+            """data: {"choices":[],"usage":{"prompt_tokens":2048,"completion_tokens":3,"prompt_tokens_details":{"cached_tokens":1792}}}""",
+            "data: [DONE]"
+        )
+        assertEquals(1792, a.finish().usage?.effectiveCachedTokens)
+    }
+
+    @Test
+    fun `未带 usage 的流 取值为空而不报错`() {
+        val a = assembler()
+        collect(a, textLine("答"), stopLine("stop"), "data: [DONE]")
+        assertEquals(null, a.finish().usage)
+    }
+
+    @Test
+    fun `DONE 与 finish_reason 是两种信号 分开记录`() {
+        val a = assembler()
+        collect(a, textLine("答"), stopLine("stop"))
+        assertTrue("finish_reason 也算正常结束", a.terminated)
+        assertFalse("但没见到 [DONE] 哨兵", a.sawDone)
+    }
 }

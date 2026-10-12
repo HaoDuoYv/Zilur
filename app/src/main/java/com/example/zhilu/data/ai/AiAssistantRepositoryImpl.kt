@@ -1,10 +1,13 @@
 package com.example.zhilu.data.ai
 
 import android.net.Uri
+import com.example.zhilu.BuildConfig
 import com.example.zhilu.data.ai.dto.ChatCompletionRequest
 import com.example.zhilu.data.ai.dto.ChatMessageDto
 import com.example.zhilu.data.ai.dto.FunctionDto
+import com.example.zhilu.data.ai.dto.StreamOptionsDto
 import com.example.zhilu.data.ai.dto.ToolDto
+import com.example.zhilu.data.ai.dto.UsageDto
 import com.example.zhilu.data.ai.dto.multimodalContent
 import com.example.zhilu.data.ai.dto.textContent
 import com.example.zhilu.data.local.file.MediaFileManager
@@ -21,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import timber.log.Timber
 
 /**
  * AI 对话仓库实现：组装 system prompt 与历史消息，驱动 Function Calling 工具循环，
@@ -86,16 +90,20 @@ class AiAssistantRepositoryImpl @Inject constructor(
                     // 只用这一个模型：当前主流大模型本身就能同时处理文本与图片，
                     // 不再分「文本模型 / 视觉模型」两个字段（见 AiService 的类注释）。
                     model = service.model,
-                    messages = messages,
                     tools = tools,
+                    messages = messages,
                     temperature = service.temperature.toDouble(),
-                    maxTokens = service.maxTokens
+                    maxTokens = service.maxTokens,
+                    // usage 观测（P4）：仅 debug 构建附带。release 不带该字段，
+                    // 避免不识别 stream_options 的服务（部分中转站/Ollama）收到 400。
+                    streamOptions = if (BuildConfig.DEBUG) StreamOptionsDto() else null
                 ),
                 onDelta = { delta ->
                     hasEmitted = true
                     onDelta(delta)
                 }
             )
+            logUsage(service, round, outcome.usage)
             if (outcome.toolCalls.isEmpty()) {
                 return@withContext outcome.text
             }
@@ -131,18 +139,16 @@ class AiAssistantRepositoryImpl @Inject constructor(
     ): List<ChatMessageDto> {
         val messages = mutableListOf<ChatMessageDto>()
         // 每个服务可以带自己的系统提示词；留空就用应用内置那份。
-        // 注意：contextText 现在只承载「本次附带图片」的 URI 说明 —— 引用与引用消息
-        // 一律进 user 消息本体（AiUserMessageText），不再往 system prompt 里塞。
+        // system prompt 必须是**逐轮不变的稳定前缀**（prompt cache 的命中前提）：
+        // 引用、附件、图片说明等一切「随消息/随轮次变化」的内容都不许拼进来。
         val basePrompt = service.systemPrompt.ifBlank { SYSTEM_PROMPT }
-        val systemPrompt = if (contextText.isBlank()) {
-            basePrompt
-        } else {
-            "$basePrompt\n\n$contextText"
-        }
-        messages.add(ChatMessageDto(role = "system", content = textContent(systemPrompt)))
+        messages.add(ChatMessageDto(role = "system", content = textContent(basePrompt)))
         // 引用的消息按 id 在历史里解析：引用随消息落库后，这里能重放出同一条上下文。
         val byId = history.associateBy { it.id }
-        history.forEach { message ->
+        // 运行时上下文（「本次附带的图片」）只挂到**最后一条 user 消息**上：
+        // 它是本轮数据，不是全局人设；挂 system 会让附图后的每一轮从首 token 起失配缓存。
+        val latestUserIndex = history.indexOfLast { it.role == AiRole.USER }
+        history.forEachIndexed { index, message ->
             when (message.role) {
                 AiRole.USER -> {
                     val dataUrls = message.images.mapNotNull { uriString ->
@@ -152,7 +158,8 @@ class AiAssistantRepositoryImpl @Inject constructor(
                         base = message.content,
                         fileText = message.fileText,
                         refs = message.refs,
-                        quotedText = message.quotedMessageId?.let { byId[it]?.content }
+                        quotedText = message.quotedMessageId?.let { byId[it]?.content },
+                        trailing = contextText.takeIf { index == latestUserIndex }
                     )
                     messages.add(
                         ChatMessageDto(
@@ -182,6 +189,26 @@ class AiAssistantRepositoryImpl @Inject constructor(
         )
     )
 
+    /**
+     * Prompt cache 命中观测（P4）：debug 日志即可，不接 UI。
+     *
+     * `hitRate` 是 P1/P2 效果的验收指标 —— system prompt 稳定后，多轮对话的
+     * 后续轮次应看到高命中率；若附图轮仍然全 miss，说明前缀还有一轮一变的东西。
+     */
+    private fun logUsage(service: AiService, round: Int, usage: UsageDto?) {
+        if (usage == null) return
+        val hitRate = 100.0 * usage.effectiveCachedTokens / usage.promptTokens.coerceAtLeast(1)
+        Timber.d(
+            "AI usage: round=%d in=%d out=%d cacheHit=%d hitRate=%.1f%% service=%s",
+            round,
+            usage.promptTokens,
+            usage.completionTokens,
+            usage.effectiveCachedTokens,
+            hitRate,
+            service.displayName
+        )
+    }
+
     companion object {
         private const val MAX_TOOL_ROUNDS = 5
 
@@ -207,6 +234,11 @@ class AiAssistantRepositoryImpl @Inject constructor(
 6. 用户附上图片并要求识别文字时，逐字识别图中文字并保留原始排版，可直接作为 create_note 的内容来源。
 7. 回答简洁精炼，除非用户要求展开。
 
+【检索】
+- 调用 search_notes 前，先把用户问题改写成 1–3 个**关键词**（名词 / 术语 / 专名），用空格分隔作为 query；
+  不要把整句用户输入直接当 query 传。每个关键词至少 2 个字 —— 搜索按「全部关键词都要命中」匹配，词越长越准。
+- query 没有结果时，换用同义词或上位词再试一次；仍无结果才回答「没找到」。
+
 【用户引用】
 - 用户消息里可能出现「【用户引用的知识内容】」段落：那是用户主动引用的本地笔记原文（可能是整篇 / 卡片 / 块），回答应优先依据那段内容，不要声称看不到引用内容；
 - 「【引用的消息】」是用户对你此前某条回复的引用，用于指向该条内容。
@@ -215,7 +247,8 @@ class AiAssistantRepositoryImpl @Inject constructor(
 笔记 = 若干「小节」(cards)，小节 = 若干「内容块」(blocks)。
 - 多段内容一律用 cards 组织成小节，每个小节给一个具体标题（如「惯性定理与规范形」），不要把全部内容塞进扁平的 blocks 变成一篇流水账；
 - 只有短短一两句时才用 blocks；
-- 往已有笔记补内容用 add_blocks，可用 card 指定追加到哪个小节（同名小节不存在会自动新建）。
+- 往已有笔记补内容用 add_blocks，可用 card 指定追加到哪个小节（同名小节不存在会自动新建）；
+- 每个小节可指定身份色 accent（vermilion 朱红用来标「这节最重要」）；一般不用填，缺省按顺序自动分配。
 
 【内容块】
 每个块的字段：type（text / latex / code / todo / link / divider / branch / image）、content、language（仅 code）、emphasis、children（仅 branch）。
@@ -238,7 +271,7 @@ type=branch 的块可以带 children 数组（结构同内容块），里面的�
 【三个容易混的「待办」】
 - emphasis: todo —— 给**整条块**贴"待办"角色（左缘色条 + 标签词），正文照常显示；
 - {{t:文字}} —— 行内标记，只给**一句话里的几个字**上色；
-- type: todo —— 待办块，用 add_todos 往里追加**可勾选**的清单项；块自身不写 content。
+- type: todo —— 待办块，用 add_todos 往里追加**可勾选**的清单项（待办项挂在**笔记**上，不属于哪条块）；块自身不写 content。
 用户说「记个待办」时：要能勾选的清单 → type=todo + add_todos；只是一句提醒 → emphasis: todo。
 
 【正文的行内标记】只写在 text 块的 content 里
