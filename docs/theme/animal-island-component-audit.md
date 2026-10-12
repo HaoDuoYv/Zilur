@@ -139,3 +139,11 @@
 
 - `KnowledgeCardItem.kt` 6 处重复的 `LocalThemePalette` import、`AssistantScreen.kt` 两处重复 import + 未用的 `rememberModalBottomSheetState`（历史批量操作残留）。
 - `ToySurface` 按压方向 bug：面层 offset 原为 `lift - thickness`（按下时反而上弹），修正为 `thickness - lift`。
+
+## 九、真机验收（2026-10-12，MuMu · 动森浅色 + 纸墨浅色）
+
+**动森·浅色 10/10 通过**：AppTopBar（圆角板 + 底边线）/ AppBottomSheet（32dp 圆角 + 2dp 描边）/ AppDropdownMenu（12dp 圆角 + 描边，卡片长按与标签长按两入口）/ AppDialog（手作圆角 + 描边 + 右上飘出关闭钮 + Danger 立体键）/ AppButton（填充 / Quiet / Disabled 三态）/ AppChip（供应商 8 胶囊，2dp 描边）/ AppTextField（新建 AI 表单，20dp 圆角 + 描边）/ AppCheckbox（选中 = 青绿填充 + 白勾 + 深青描边，未选 = 暖褐描边空框）/ AppRadioButton（选中 = 青绿粗环 + 实心点，未选 = 暖褐环）/ AppSwitch（青绿）。
+
+**纸墨·浅色回归 9/9 通过**：顶栏纯文字无形 / 卡片白底阴影浮起（无描边）/ 胶囊浅灰填充无描边 / 输入框 M3 默认细描边 / 菜单白底无描边 / 弹窗回归 M3 `AlertDialog` 默认（无描边无关闭钮）/ 弹层 M3 默认 / 复选框墨蓝填充白勾 / 按钮文字态——双态无串味。
+
+验证路径：筛选条滑到最右「管理」→ 标签管理弹层「合并」→ 勾 2 个 →「合并所选（n）」→ TagMergeDialog（`AppRadioButton` 唯一入口）。截图归档 `.workbuddy/shots/zoom-*.png`（工作区内部，不入库）。
