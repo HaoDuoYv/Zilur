@@ -97,7 +97,11 @@ class CreateSheetViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isWorking = true, dtkPreview = null) }
             importKnowledgeUseCase.import(uri)
-                .onSuccess { _uiState.update { it.copy(isWorking = false, message = "导入成功") } }
+                .onSuccess { summary ->
+                    val message = "已导入 ${summary.noteCount} 篇笔记" +
+                        if (summary.mediaCount == 0) "" else "、${summary.mediaCount} 张图片"
+                    _uiState.update { it.copy(isWorking = false, message = message) }
+                }
                 .onFailure { throwable ->
                     _uiState.update {
                         it.copy(isWorking = false, message = "导入失败：${throwable.message}")

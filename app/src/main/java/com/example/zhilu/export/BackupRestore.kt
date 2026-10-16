@@ -21,8 +21,16 @@ import com.example.zhilu.domain.model.Note
  * 纯函数，不依赖 Android，可直接单测。
  *
  * @param mediaIdMap 旧媒体 id → 新媒体 id（导入时媒体行会被重建）
+ * @param mediaUriMap 旧媒体 id → **导入后新落盘的本机 uri**。图片块的内容是
+ *   `"<mediaId>|<uri>"`，只换 mediaId 而留着源设备的绝对路径，在目标机上就是一条死链
+ *   （渲染按 mediaId 走，但编辑、分享、再导出都会读到那个失效 uri）。
+ *   不传时保持"uri 原样"的旧行为。
  */
-fun remapForInsert(note: Note, mediaIdMap: Map<Long, Long> = emptyMap()): Note {
+fun remapForInsert(
+    note: Note,
+    mediaIdMap: Map<Long, Long> = emptyMap(),
+    mediaUriMap: Map<Long, String> = emptyMap()
+): Note {
     val allBlocks = note.contentBlocks
     // 旧 id → 临时 id。重复 id（手工改过的备份可能出现）取最后一个，属于病态输入，
     // 不为此增加复杂度；正常备份里 id 唯一。
@@ -36,7 +44,7 @@ fun remapForInsert(note: Note, mediaIdMap: Map<Long, Long> = emptyMap()): Note {
         cardId = cardTempId,
         // 分支层级：父块的旧 id 换成同一个临时 id 空间里的值，仓储层才好重映射
         parentBranchId = block.parentBranchId?.let { tempIdByOldId[it] },
-        content = remapImageContent(block, mediaIdMap)
+        content = remapImageContent(block, mediaIdMap, mediaUriMap)
     )
 
     if (note.cards.isEmpty()) {
@@ -52,10 +60,15 @@ fun remapForInsert(note: Note, mediaIdMap: Map<Long, Long> = emptyMap()): Note {
     return note.copy(id = 0L, blocks = emptyList(), cards = cards)
 }
 
-/** 图片块：媒体 id 换成导入后新建的那一行，uri 保持备份里的值（渲染优先按 mediaId 解析）。 */
-private fun remapImageContent(block: Block, mediaIdMap: Map<Long, Long>): String {
+/** 图片块：媒体 id 换成导入后新建的那一行，uri 换成新落盘的位置。 */
+private fun remapImageContent(
+    block: Block,
+    mediaIdMap: Map<Long, Long>,
+    mediaUriMap: Map<Long, String>
+): String {
     if (block.type != BlockType.IMAGE || mediaIdMap.isEmpty()) return block.content
     val oldMediaId = ImageBlockContent.mediaId(block.content) ?: return block.content
     val newMediaId = mediaIdMap[oldMediaId] ?: return block.content
-    return ImageBlockContent.fromMedia(newMediaId, ImageBlockContent.displayUri(block.content))
+    val newUri = mediaUriMap[oldMediaId] ?: ImageBlockContent.displayUri(block.content)
+    return ImageBlockContent.fromMedia(newMediaId, newUri)
 }

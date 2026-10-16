@@ -56,16 +56,17 @@ fun DataSection(
     }
 }
 
-/** .dtk 导入前的预览确认。 */
+/** .dtk 导入前的预览确认。一份包可以是单篇分享，也可以是全量/选中项备份。 */
 @Composable
 fun ImportPreviewDialog(
     preview: ImportKnowledgeUseCase.Preview,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val multiple = preview.noteCount > 1
     AppDialog(
         onDismissRequest = onDismiss,
-        title = "导入知识点",
+        title = if (multiple) "导入 ${preview.noteCount} 篇笔记" else "导入知识点",
         confirmButton = {
             AppButton(onClick = onConfirm) { Text("导入") }
         },
@@ -74,9 +75,11 @@ fun ImportPreviewDialog(
         }
     ) {
         Text(
-            "标题：${preview.title}\n" +
-                "块数：${preview.blockCount}\n" +
-                "图片：${preview.imageCount}"
+            if (multiple) {
+                "共 ${preview.noteCount} 篇\n块数：${preview.blockCount}\n图片：${preview.imageCount}"
+            } else {
+                "标题：${preview.title}\n块数：${preview.blockCount}\n图片：${preview.imageCount}"
+            }
         )
     }
 }

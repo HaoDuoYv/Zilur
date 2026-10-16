@@ -140,4 +140,38 @@ class BackupRoundTripTest {
         assertEquals(88L, ImageBlockContent.mediaId(remapped.blocks.single().content))
         assertEquals("media/a.png", ImageBlockContent.displayUri(remapped.blocks.single().content))
     }
+
+    @Test
+    fun `重映射把图片 uri 也换成导入后的新落盘位置`() {
+        // 只换 mediaId 而留着源设备的绝对路径，目标机上就是一条死链：
+        // 渲染按 mediaId 走没问题，但编辑、分享、再导出读到的都是失效 uri。
+        val note = Note(
+            id = 1,
+            title = "图",
+            blocks = listOf(
+                Block(
+                    id = 9,
+                    type = BlockType.IMAGE,
+                    content = ImageBlockContent.fromMedia(
+                        5L,
+                        "file:///old-device/files/images/img_a.png"
+                    ),
+                    sortOrder = 0
+                )
+            )
+        )
+
+        val remapped = remapForInsert(
+            note,
+            mediaIdMap = mapOf(5L to 88L),
+            mediaUriMap = mapOf(5L to "file:///new-device/files/images/img_new.png")
+        )
+
+        val content = remapped.blocks.single().content
+        assertEquals(88L, ImageBlockContent.mediaId(content))
+        assertEquals(
+            "file:///new-device/files/images/img_new.png",
+            ImageBlockContent.displayUri(content)
+        )
+    }
 }
