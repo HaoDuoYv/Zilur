@@ -31,8 +31,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.outlined.CloudDownload
 import androidx.compose.material3.Icon
 import androidx.compose.ui.unit.dp
 import com.example.zhilu.ui.theme.Spacing
@@ -41,16 +41,19 @@ import com.example.zhilu.ui.theme.ZhiLuType
 /**
  * 底栏中央 ＋ 弹出的「新建 / 导入」弹层。
  *
- * 四个入口按设计原型排成 2×2：新建空白 / 导入备份 / 导入 .dtk / AI 创建。
+ * 四个入口排成 2×2：新建空白 / AI 创建 / 云端恢复 / 导入 .dtk。
  * 每一项都是「图标块 + 标题 + 一句说明」——说明写的是"这个入口会把什么带进知识库"，
  * 因为四个入口的差别只在来源，标题本身不足以区分。
+ *
+ * **导入只有一个入口、一种格式（`.dtk`）**：旧的 JSON 备份通道已下线。
+ * 「云端恢复」目前是占位（只弹一句提示），位置留给后续实现。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateSheet(
     onDismiss: () -> Unit,
     onBlank: () -> Unit,
-    onImportJson: () -> Unit,
+    onCloudRestore: () -> Unit,
     onImportDtk: () -> Unit,
     onAiCreate: () -> Unit
 ) {
@@ -87,16 +90,16 @@ fun CreateSheet(
             Spacer(modifier = Modifier.height(Spacing.Sm))
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.Sm)) {
                 CreateOption(
-                    icon = Icons.Default.FileDownload,
-                    title = "导入备份",
-                    description = "从 JSON 备份恢复全部笔记",
-                    onClick = onImportJson,
+                    icon = Icons.Outlined.CloudDownload,
+                    title = "云端恢复",
+                    description = "从云端找回你的备份",
+                    onClick = onCloudRestore,
                     modifier = Modifier.weight(1f)
                 )
                 CreateOption(
                     icon = Icons.Default.FolderZip,
                     title = "导入 .dtk",
-                    description = "导入单篇知识点（含图片）",
+                    description = "恢复单篇或整份备份（含图片）",
                     onClick = onImportDtk,
                     modifier = Modifier.weight(1f)
                 )

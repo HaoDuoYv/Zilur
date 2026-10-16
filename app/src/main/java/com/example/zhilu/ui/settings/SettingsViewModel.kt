@@ -2,7 +2,6 @@ package com.example.zhilu.ui.settings
 
 import android.content.Context
 import android.net.Uri
-import android.util.Base64
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
@@ -11,7 +10,6 @@ import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.ThemePalette
 import com.example.zhilu.data.datastore.UserPreferences
-import com.example.zhilu.domain.model.Media
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.reminder.ReviewIntervals
@@ -19,24 +17,21 @@ import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
-import com.example.zhilu.export.JsonExporter
+import com.example.zhilu.export.DtkExporter
 import com.example.zhilu.export.MarkdownExporter
 import com.example.zhilu.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -205,24 +200,32 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun exportJsonToUri(uri: Uri) {
+    /**
+     * 导出全量备份为 `.dtk`（zip：`note.json` + `media/`）。
+     *
+     * 与单篇分享共用 `DtkExporter` —— 两条路走同一份打包逻辑，图片引用才会
+     * 只有一种编码方式（按 mediaId join）。
+     */
+    fun exportDtkToUri(uri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(isWorking = true) }
             runCatching {
                 val notes = loadNotes()
+                if (notes.isEmpty()) error("知识库还是空的，没有可备份的内容")
                 val media = loadMedia()
-                // 图片必须**内嵌字节**：只写 uri 的话，备份换台设备/清过数据后就再也恢复不出图。
-                val mediaData = collectMediaData(media)
-                context.contentResolver.openOutputStream(uri)?.use { output ->
-                    output.write(
-                        JsonExporter.exportNotes(notes, media, mediaData).toByteArray(Charsets.UTF_8)
-                    )
-                } ?: error("无法写入所选文件")
-                if (media.isEmpty()) {
-                    "备份已导出"
-                } else {
-                    "备份已导出（含 ${mediaData.size}/${media.size} 张图片）"
+                // 与 NoteViewModel 的分享路径一致：导出器就地构造（它是无状态的）
+                val exported = DtkExporter(context, mediaFileManager)
+                    .exportNotes(notes, media)
+                    .getOrThrow()
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        exported.inputStream().use { it.copyTo(output) }
+                    } ?: error("无法写入所选文件")
+                } finally {
+                    // 产物在 cacheDir：不删的话每次导出都在里面留一份完整备份
+                    exported.delete()
                 }
+                "备份已导出（${notes.size} 篇笔记${if (media.isEmpty()) "" else "，含图片"}）"
             }.fold(
                 onSuccess = { message ->
                     _uiState.update { it.copy(isWorking = false, exportMessage = message) }
@@ -260,17 +263,8 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    // 导入（JSON 备份 / .dtk）已迁移到**底栏中央 ＋** 的「新建 / 导入」弹层，
-    // 由 `ui/create/CreateSheetViewModel` 负责；设置页只保留导出。
-    // 逻辑本体在两处共用的用例里：`RestoreJsonBackupUseCase` 与 `ImportKnowledgeUseCase`。
-
-    fun requestJsonExport() {
-        _uiState.update { it.copy(exportMessage = "请选择 JSON 备份的保存位置") }
-    }
-
-    fun requestMarkdownExport() {
-        _uiState.update { it.copy(exportMessage = "请选择 Markdown 的保存位置") }
-    }
+    // 导入（只有 .dtk）在**底栏中央 ＋** 的「新建 / 导入」弹层里，由
+    // `ui/create/CreateSheetViewModel` + `ImportKnowledgeUseCase` 负责；设置页只保留导出。
 
     fun updateNotificationPermissionGranted(granted: Boolean) {
         _uiState.update { it.copy(notificationPermissionGranted = granted) }
@@ -299,25 +293,5 @@ class SettingsViewModel @Inject constructor(
                 is RepositoryResult.Error -> throw result.throwable ?: IllegalStateException(result.message)
             }
             note.id to todos
-        }
-
-    /**
-     * 把媒体读成 `id → base64 data URL`。单张读失败就跳过（不让一张坏图毁掉整个备份）。
-     */
-    private suspend fun collectMediaData(media: List<Media>): Map<Long, String> =
-        withContext(Dispatchers.IO) {
-            val cacheDir = File(context.cacheDir, "json_export_media").apply {
-                deleteRecursively()
-                mkdirs()
-            }
-            val result = media.mapNotNull { item ->
-                val file = mediaFileManager.copyToCache(item, cacheDir).getOrNull()
-                    ?: return@mapNotNull null
-                val data = mediaFileManager.toBase64(file).getOrNull()
-                    ?: return@mapNotNull null
-                item.id to data
-            }.toMap()
-            cacheDir.deleteRecursively()
-            result
         }
 }

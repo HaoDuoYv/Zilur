@@ -47,6 +47,8 @@ import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.navigation.navigateToReview
 import com.example.zhilu.ui.review.ReviewTab
 import com.example.zhilu.ui.theme.Spacing
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 @Composable
@@ -62,9 +64,10 @@ fun SettingsScreen(
 
     // 只有导出留在这里；导入已经搬到**底栏中央 ＋** 的「新建 / 导入」弹层
     // （见 AppShell / CreateSheet），所以这里不再持有导入用的文件选择器。
-    val jsonExportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json"),
-        onResult = { uri -> uri?.let(viewModel::exportJsonToUri) }
+    // 备份格式只有 `.dtk`（zip）—— 图片作为文件进包，不再走 base64 内嵌的 JSON。
+    val backupExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip"),
+        onResult = { uri -> uri?.let(viewModel::exportDtkToUri) }
     )
     val markdownExportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/markdown"),
@@ -196,7 +199,7 @@ fun SettingsScreen(
                 tagCount = state.tagCount,
                 mediaCount = state.mediaCount,
                 totalMediaSize = state.totalMediaSize,
-                onExportJson = { jsonExportLauncher.launch("zhilu-backup.json") },
+                onExportBackup = { backupExportLauncher.launch(backupFileName()) },
                 onExportMarkdown = { markdownExportLauncher.launch("zhilu-notes.md") }
             )
 
@@ -220,3 +223,12 @@ private fun Context.hasNotificationPermission(): Boolean =
             this,
             Manifest.permission.POST_NOTIFICATIONS
         ) == PackageManager.PERMISSION_GRANTED
+
+/**
+ * 全量备份的建议文件名，带日期便于在文件管理器里区分几次备份。
+ * 用户仍可在系统选择器里改名。
+ */
+private fun backupFileName(): String {
+    val date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
+    return "zhilu-backup-$date.dtk"
+}

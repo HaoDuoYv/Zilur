@@ -77,19 +77,16 @@ class BackupRoundTripTest {
     }
 
     @Test
-    fun `媒体字节随备份内嵌并能在导入时取回`() {
-        val media = listOf(Media(id = 5, uri = "file:///data/old/img.png", size = 3))
-        val json = JsonExporter.exportNotes(emptyList(), media, mapOf(5L to "data:image/png;base64,QUJD"))
+    fun `媒体条目只写包内路径，不再内嵌字节`() {
+        // .dtk 把图片作为文件放进 zip；base64 内嵌那套（体积膨胀 33%、整包要读成
+        // 一个 String）随 JSON 备份通道一起下线了。
+        val media = listOf(Media(id = 5, uri = "media/media_5.png", size = 3))
+        val json = JsonExporter.exportNotes(emptyList(), media)
+
         val backup = JsonExporter.importBackup(json)
         assertEquals(1, backup.media.size)
-        assertEquals("data:image/png;base64,QUJD", backup.mediaData[5L])
-    }
-
-    @Test
-    fun `不传字节时 backup 里没有 data 字段（dtk 走 zip 文件）`() {
-        val media = listOf(Media(id = 5, uri = "media/a.png", size = 3))
-        val json = JsonExporter.exportNotes(emptyList(), media)
-        assertTrue(JsonExporter.importBackup(json).mediaData.isEmpty())
+        assertEquals("media/media_5.png", backup.media.single().uri)
+        assertTrue("备份里不该再出现 base64 的 data 字段", !json.contains("\"data\""))
     }
 
     @Test

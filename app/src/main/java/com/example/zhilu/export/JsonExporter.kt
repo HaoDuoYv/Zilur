@@ -20,34 +20,31 @@ import kotlinx.serialization.json.longOrNull
 
 object JsonExporter {
     /**
-     * 备份内容。
+     * 一份备份的解析结果。
      *
-     * [mediaData] 是 `媒体 id → base64 data URL` 的映射，与 [media] 分开是刻意的：
-     * base64 是**传输形态**，塞进 domain 的 `Media` 会让"媒体"这个概念背着几 MB 字符串到处跑。
+     * 这里**没有** `mediaData`（base64 内嵌）—— 那套只服务已废弃的 JSON 备份格式。
+     * 现在唯一的备份容器是 `.dtk`：图片作为 `media/` 下的文件进 zip，
+     * 每个媒体的 `uri` 指的是**包内路径**（`media/media_<id>.<ext>`），
+     * 由导入端按 mediaId 落盘后换成本机 uri。
      */
     data class Backup(
         val notes: List<Note>,
-        val media: List<Media>,
-        val mediaData: Map<Long, String> = emptyMap()
+        val media: List<Media> = emptyList()
     )
 
     fun exportNote(
         note: Note,
         media: List<Media> = emptyList(),
         dtkVersion: Int? = null
-    ): String = exportNotes(listOf(note), media, emptyMap(), dtkVersion)
+    ): String = exportNotes(listOf(note), media, dtkVersion)
 
     /**
-     * @param mediaData 媒体 id → base64 data URL。**JSON 备份必须传**：不内嵌字节的话，
-     *   备份文件里只剩一个指向本机内部存储的 uri，换台设备/清过数据后就永远恢复不出图
-     *   （真机反馈"json 备份导入时图片无法导入"）。`.dtk` 不传 —— 它把图片作为文件放进 zip。
-     * @param dtkVersion 只有 `.dtk` 传：规范要求它的 note.json 带这个字段，导入端按它拒收高版本。
-     *   整体备份是另一个格式，版本号用顶层的 `version`。
+     * @param dtkVersion 只有 `.dtk` 传：规范要求它的 note.json 带这个字段，
+     *   导入端按它拒收高版本（见 `DtkExporter.DTK_VERSION` 的说明）。
      */
     fun exportNotes(
         notes: List<Note>,
         media: List<Media> = emptyList(),
-        mediaData: Map<Long, String> = emptyMap(),
         dtkVersion: Int? = null
     ): String = buildString {
         append("{")
@@ -57,27 +54,20 @@ object JsonExporter {
         append("\"notes\":")
         appendArray(notes) { appendNote(it) }
         append(",\"media\":")
-        appendArray(media) { appendMedia(it, mediaData[it.id]) }
+        appendArray(media) { appendMedia(it) }
         append("}")
     }
 
     fun importBackup(json: String): Backup {
         val root = Json.parseToJsonElement(json).jsonObject
-        val notes = root["notes"] as? JsonArray ?: return Backup(emptyList(), emptyList())
+        val notes = root["notes"] as? JsonArray ?: return Backup(emptyList())
         val parsedNotes = notes.mapNotNull { element ->
             runCatching { element.jsonObject.toNote() }.getOrNull()
         }
-        val mediaElements = root.array("media").mapNotNull { it as? JsonObject }
-        val parsedMedia = mediaElements.mapNotNull { element ->
+        val parsedMedia = root.array("media").mapNotNull { it as? JsonObject }.mapNotNull { element ->
             runCatching { element.toMedia() }.getOrNull()
         }
-        val mediaData = mediaElements.mapNotNull { element ->
-            val data = element["data"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-            val id = element.nullableLong("id") ?: return@mapNotNull null
-            id to data
-        }.toMap()
-        return Backup(notes = parsedNotes, media = parsedMedia, mediaData = mediaData)
+        return Backup(notes = parsedNotes, media = parsedMedia)
     }
 
     fun importNotes(json: String): List<Note> {
@@ -143,7 +133,7 @@ object JsonExporter {
         append("}")
     }
 
-    private fun StringBuilder.appendMedia(media: Media, data: String? = null) {
+    private fun StringBuilder.appendMedia(media: Media) {
         append("{")
         appendJsonField("id", media.id).append(",")
         appendJsonField("uri", media.uri).append(",")
@@ -151,11 +141,6 @@ object JsonExporter {
         append("\"height\":").append(media.height ?: "null").append(",")
         appendJsonField("size", media.size).append(",")
         appendJsonField("createdAt", media.createdAt)
-        // 图片字节内嵌在备份里（见 exportNotes 的说明）。没有数据的（例如 .dtk 路径）不写这个字段。
-        if (!data.isNullOrBlank()) {
-            append(",")
-            appendJsonField("data", data)
-        }
         append("}")
     }
 

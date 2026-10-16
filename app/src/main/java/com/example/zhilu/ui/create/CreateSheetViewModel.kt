@@ -7,7 +7,6 @@ import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
-import com.example.zhilu.domain.usecase.RestoreJsonBackupUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,11 +20,12 @@ import kotlinx.coroutines.launch
  *
  * 新建入口从首页 FAB 移到这里之后，**导入也一并搬过来**：新建与导入本来就是
  * "往知识库里加东西"的同一件事，放在同一个弹层里比分散在设置页更好找。
+ *
+ * 导入**只有 `.dtk`** —— 单一入口、单一格式；旧的 JSON 备份通道已下线。
  */
 @HiltViewModel
 class CreateSheetViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
-    private val restoreJsonBackupUseCase: RestoreJsonBackupUseCase,
     private val importKnowledgeUseCase: ImportKnowledgeUseCase
 ) : ViewModel() {
 
@@ -53,24 +53,6 @@ class CreateSheetViewModel @Inject constructor(
                 is RepositoryResult.Error ->
                     _uiState.update { it.copy(isWorking = false, message = "新建失败：${result.message}") }
             }
-        }
-    }
-
-    fun importJson(uri: Uri) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isWorking = true) }
-            runCatching { restoreJsonBackupUseCase(uri) }.fold(
-                onSuccess = { summary ->
-                    val message = "已导入 ${summary.noteCount} 条笔记" +
-                        if (summary.mediaCount == 0) "" else "、${summary.mediaCount} 张图片"
-                    _uiState.update { it.copy(isWorking = false, message = message) }
-                },
-                onFailure = { throwable ->
-                    _uiState.update {
-                        it.copy(isWorking = false, message = "导入失败：${throwable.message}")
-                    }
-                }
-            )
         }
     }
 

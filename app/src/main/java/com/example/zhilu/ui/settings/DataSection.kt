@@ -27,7 +27,7 @@ fun DataSection(
     tagCount: Int,
     mediaCount: Int,
     totalMediaSize: Long,
-    onExportJson: () -> Unit,
+    onExportBackup: () -> Unit,
     onExportMarkdown: () -> Unit
 ) {
     SettingsGroup(title = "数据") {
@@ -41,9 +41,9 @@ fun DataSection(
         )
         SettingsRow(
             title = "导出备份",
-            description = "导出全部笔记为 JSON 备份文件",
+            description = "导出全部笔记（含图片）为 .dtk 备份文件",
             leadingIcon = Icons.Outlined.Download,
-            onClick = onExportJson,
+            onClick = onExportBackup,
             trailing = { Chevron() }
         )
         SettingsRow(

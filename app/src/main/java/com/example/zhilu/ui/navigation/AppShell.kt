@@ -100,13 +100,6 @@ fun AppShell(
     // 挂在 AppShell 而不是某个页面：它是**全局唯一**的新建入口，四个平级页都能唤起。
     var showCreateSheet by remember { mutableStateOf(false) }
     val createState by createSheetViewModel.uiState.collectAsState()
-    val jsonImportLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-        onResult = { uri ->
-            showCreateSheet = false
-            uri?.let(createSheetViewModel::importJson)
-        }
-    )
     val dtkImportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
@@ -191,8 +184,13 @@ fun AppShell(
                     navController.navigate(Destination.NoteEdit.createRoute(noteId))
                 }
             },
-            onImportJson = {
-                jsonImportLauncher.launch(arrayOf("application/json", "text/*"))
+            onCloudRestore = {
+                // 占位入口：还没实现云端恢复，但**不做成灰的不可点** ——
+                // 点了没反应比明确说一句更让人困惑，而且顺手能把用户引到能用的路径上。
+                showCreateSheet = false
+                shellScope.launch {
+                    snackbarHostState.showSnackbar("云端恢复尚未开放，可先用 .dtk 备份导出到本地")
+                }
             },
             onImportDtk = {
                 dtkImportLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
