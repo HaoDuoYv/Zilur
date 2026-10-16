@@ -1,5 +1,8 @@
 package com.example.zhilu.ui.home
 
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -62,6 +65,8 @@ import com.example.zhilu.ui.theme.Spacing
 import com.example.zhilu.ui.theme.ZhiLuType
 import com.example.zhilu.ui.theme.motionEnterTween
 import com.example.zhilu.ui.theme.motionExitTween
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 @Composable
@@ -83,12 +88,26 @@ fun HomeScreen(
     var renamingTag by remember { mutableStateOf<Tag?>(null) }
     var deletingTag by remember { mutableStateOf<Tag?>(null) }
     var showTagManage by remember { mutableStateOf(false) }
+    // 选中项备份：与全量备份同格式，命名带篇数与日期便于区分
+    val selectionExportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip"),
+        onResult = { uri -> uri?.let(viewModel::exportSelectedToUri) }
+    )
 
-    LaunchedEffect(uiState.error) {
-        uiState.error?.let {
-            snackbar.showSnackbar(it)
-            viewModel.clearError()
-        }
+    // 选中数按**当前列表**取交集：笔记被删/被软删后，选中集里的残留 id 不该再算数
+    val selectedCount = uiState.notes.count { it.id in uiState.selectedNoteIds }
+    val allSelected = uiState.notes.isNotEmpty() && selectedCount == uiState.notes.size
+
+    // 返回键先退选择态，而不是退出应用
+    BackHandler(enabled = uiState.selectionMode) { viewModel.exitSelection() }
+
+    LaunchedEffect(uiState.error, uiState.message) {
+        val text = uiState.message ?: uiState.error ?: return@LaunchedEffect
+        // 先消费再弹：消息是一次性的，留着会反复弹；而 showSnackbar 会挂起到提示消失，
+        // 必须派发到屏幕作用域，否则 effect 被 key 变化重启时会把挂起中的提示一起取消
+        // （见 AGENTS.md「UI 状态与一次性提示」）。
+        viewModel.consumeMessages()
+        scope.launch { snackbar.showSnackbar(text) }
     }
 
     // 一旦开始滚动就收起露出态——这是「上下翻动时误触」最直接的兜底。
@@ -96,8 +115,11 @@ fun HomeScreen(
         if (listState.isScrollInProgress) reveal = null
     }
 
-    // 进入 / 退出搜索等于换了一套列表，露出态同样作废。
-    LaunchedEffect(uiState.isSearchActive) { reveal = null }
+    // 进入 / 退出搜索等于换了一套列表，露出态与选择态同样作废。
+    LaunchedEffect(uiState.isSearchActive) {
+        reveal = null
+        if (uiState.isSearchActive) viewModel.exitSelection()
+    }
 
     // 收藏是可逆动作，不需要二次确认，但必须给一个看得见、能退回的反馈。
     val onToggleFavorite: (Note) -> Unit = { note ->
@@ -118,11 +140,25 @@ fun HomeScreen(
 
     AppTabScaffold(
         topBar = {
-            HomeTopBar(
-                dueReminderCount = uiState.dueReminderCount,
-                // 铃铛背着"到期红点"，语义就是提醒 —— 落点在复习中心的「提醒」档。
-                onOpenReminders = { navController.navigateToReview(intents, ReviewTab.Reminders) }
-            )
+            if (uiState.selectionMode) {
+                HomeSelectionTopBar(
+                    selectedCount = selectedCount,
+                    allSelected = allSelected,
+                    onClose = viewModel::exitSelection,
+                    onToggleSelectAll = {
+                        if (allSelected) viewModel.clearSelection() else viewModel.selectAll()
+                    },
+                    onExport = {
+                        selectionExportLauncher.launch(selectionBackupFileName(selectedCount))
+                    }
+                )
+            } else {
+                HomeTopBar(
+                    dueReminderCount = uiState.dueReminderCount,
+                    // 铃铛背着"到期红点"，语义就是提醒 —— 落点在复习中心的「提醒」档。
+                    onOpenReminders = { navController.navigateToReview(intents, ReviewTab.Reminders) }
+                )
+            }
         },
         // 新建入口已经移到**底栏中央的 ＋**（见 BottomBar / CreateSheet），
         // 首页不再有右下角的 FAB —— 也就没有"FAB 压住滑出的删除键"这个问题了，
@@ -178,8 +214,9 @@ fun HomeScreen(
                     onSelectViewMode = { mode ->
                         if (mode != uiState.viewMode) {
                             // 换视图等于换一套列表，露出态跟着作废——否则新视图里第一行
-                            // 会莫名其妙带着上一次的「删除」槽出现。
+                            // 会莫名其妙带着上一次的「删除」槽出现。选择态同理。
                             reveal = null
+                            viewModel.exitSelection()
                             viewModel.toggleViewMode()
                         }
                     }
@@ -243,7 +280,11 @@ fun HomeScreen(
                         },
                         onToggleFavorite = onToggleFavorite,
                         onDeleteRequest = { note -> pendingDeleteNoteId = note.id },
-                        onTagClick = { tag -> navController.navigateToSearchTag(intents, tag.id) }
+                        onTagClick = { tag -> navController.navigateToSearchTag(intents, tag.id) },
+                        selectionMode = uiState.selectionMode,
+                        selectedNoteIds = uiState.selectedNoteIds,
+                        onEnterSelection = viewModel::enterSelection,
+                        onToggleSelect = viewModel::toggleSelect
                     )
                 }
             }
@@ -339,4 +380,9 @@ private fun RecentQueriesRow(
             )
         }
     }
+}
+/** 选中项备份的建议文件名：带篇数与日期，便于在文件管理器里和全量备份区分。 */
+private fun selectionBackupFileName(count: Int): String {
+    val date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
+    return "zhilu-${count}篇-$date.dtk"
 }

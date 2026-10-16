@@ -28,7 +28,17 @@ data class HomeUiState(
     /** 标签筛选条的候选（按笔记数降序）——标签页撤销后，这里是标签的唯一常驻出口。 */
     val tagFilters: List<TagFilterItem> = emptyList(),
     /** 当前选中的筛选标签（多选为 AND 语义）。 */
-    val selectedTagIds: Set<Long> = emptySet()
+    val selectedTagIds: Set<Long> = emptySet(),
+    /**
+     * 笔记列表的多选态（长按进入）。
+     *
+     * 只作用于**笔记列表**：搜索结果与空态不参与（那两处的点按语义已经不同）。
+     * 选择态下点按行 = 切换勾选，不再进笔记；滑动露出同时失效。
+     */
+    val selectionMode: Boolean = false,
+    val selectedNoteIds: Set<Long> = emptySet(),
+    /** 一次性提示（导出结果等）；由 UI 弹完即消费。 */
+    val message: String? = null
 ) {
     /**
      * 是否处于搜索结果态（而非笔记列表态）。

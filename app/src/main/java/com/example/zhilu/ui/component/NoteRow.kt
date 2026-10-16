@@ -41,6 +41,9 @@ enum class NoteRowVariant { Document, Card }
  * @param accentColor 书脊颜色，默认取首个标签色；仅 Document 形态使用。
  * @param dense 紧凑模式：摘要收为单行、隐藏标签与元信息。
  * @param onTagClick 非空时行内标签胶囊可点（点标签 = 用该标签筛选）。
+ * @param selected 非 null 时进入**选择态行**：行首显示勾选框，点按由调用方接管为"切换勾选"。
+ *   null（默认）表示不在选择态，行不带勾选框 —— 用可空布尔而不是两个参数，
+ *   是为了让"没在选择态"与"在选择态但未选中"在类型上就是两件事。
  */
 @Composable
 fun NoteRow(
@@ -53,11 +56,43 @@ fun NoteRow(
     trailing: @Composable (() -> Unit)? = null,
     onClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
-    onTagClick: ((Tag) -> Unit)? = null
+    onTagClick: ((Tag) -> Unit)? = null,
+    selected: Boolean? = null
 ) {
     val titleStyle = when (variant) {
         NoteRowVariant.Document -> ZhiLuType.rowTitle
         NoteRowVariant.Card -> ZhiLuType.cardTitle
+    }
+
+    // 勾选框只做显示：点按统一由整行接管，避免"点勾选框"和"点行"两条路径语义分叉
+    val body: @Composable () -> Unit = {
+        if (selected == null) {
+            NoteRowBody(
+                note = note,
+                titleStyle = titleStyle,
+                highlightQuery = highlightQuery,
+                dense = dense,
+                trailing = trailing,
+                onTagClick = onTagClick
+            )
+        } else {
+            Row(verticalAlignment = Alignment.Top) {
+                AppCheckbox(
+                    checked = selected,
+                    onCheckedChange = null,
+                    modifier = Modifier.padding(end = Spacing.Xs)
+                )
+                NoteRowBody(
+                    note = note,
+                    titleStyle = titleStyle,
+                    highlightQuery = highlightQuery,
+                    dense = dense,
+                    trailing = trailing,
+                    onTagClick = onTagClick,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 
     if (variant == NoteRowVariant.Card) {
@@ -67,14 +102,7 @@ fun NoteRow(
             onLongClick = onLongClick,
             contentPadding = PaddingValues(Spacing.CardPadding)
         ) {
-            NoteRowBody(
-                note = note,
-                titleStyle = titleStyle,
-                highlightQuery = highlightQuery,
-                dense = dense,
-                trailing = trailing,
-                onTagClick = onTagClick
-            )
+            body()
         }
     } else {
         val accent = rememberTagAccent(
@@ -87,14 +115,7 @@ fun NoteRow(
             onClick = onClick,
             onLongClick = onLongClick
         ) {
-            NoteRowBody(
-                note = note,
-                titleStyle = titleStyle,
-                highlightQuery = highlightQuery,
-                dense = dense,
-                trailing = trailing,
-                onTagClick = onTagClick
-            )
+            body()
         }
     }
 }

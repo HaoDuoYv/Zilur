@@ -30,6 +30,9 @@ import com.example.zhilu.ui.theme.Spacing
  *
  * 露出态（滑动露出的操作槽）由调用方持有（[reveal]），因此同一时刻至多一行露出，
  * 且列表滚动时可以一次性收起。
+ *
+ * 选择态（[selectionMode]）下每行拿到自己的勾选状态；`selected = null` 表示不在选择态，
+ * 这一行不带勾选框（见 [NoteRow] 的可空语义）。
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun LazyListScope.homeNoteList(
@@ -40,7 +43,11 @@ fun LazyListScope.homeNoteList(
     onOpenNote: (Long) -> Unit,
     onToggleFavorite: (Note) -> Unit,
     onDeleteRequest: (Note) -> Unit,
-    onTagClick: ((Tag) -> Unit)? = null
+    onTagClick: ((Tag) -> Unit)? = null,
+    selectionMode: Boolean = false,
+    selectedNoteIds: Set<Long> = emptySet(),
+    onEnterSelection: (Long) -> Unit = {},
+    onToggleSelect: (Long) -> Unit = {}
 ) {
     if (viewMode == ViewMode.TIMELINE) {
         groupNotesByTimeline(notes).forEach { group ->
@@ -67,7 +74,10 @@ fun LazyListScope.homeNoteList(
                             onClick = { onOpenNote(note.id) },
                             onToggleFavorite = { onToggleFavorite(note) },
                             onDeleteRequest = { onDeleteRequest(note) },
-                            onTagClick = onTagClick
+                            onTagClick = onTagClick,
+                            selected = if (selectionMode) note.id in selectedNoteIds else null,
+                            onEnterSelection = { onEnterSelection(note.id) },
+                            onToggleSelect = { onToggleSelect(note.id) }
                         )
                     }
                 }
@@ -84,7 +94,10 @@ fun LazyListScope.homeNoteList(
                     onClick = { onOpenNote(note.id) },
                     onToggleFavorite = { onToggleFavorite(note) },
                     onDeleteRequest = { onDeleteRequest(note) },
-                    onTagClick = onTagClick
+                    onTagClick = onTagClick,
+                    selected = if (selectionMode) note.id in selectedNoteIds else null,
+                    onEnterSelection = { onEnterSelection(note.id) },
+                    onToggleSelect = { onToggleSelect(note.id) }
                 )
             }
         }

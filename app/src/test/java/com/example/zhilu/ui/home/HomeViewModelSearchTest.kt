@@ -15,6 +15,7 @@ import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.ui.navigation.AppIntents
 import com.example.zhilu.ui.theme.TagCreationPalette
+import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -437,10 +438,13 @@ class HomeViewModelSearchTest {
         tagRepository: TagRepository = SearchTestTagRepository(),
         appIntents: AppIntents = AppIntents()
     ): HomeViewModel = HomeViewModel(
+        // 搜索链路用不到 context 与媒体文件管理器（那是「导出选中项」才走的路径）
+        context = mockk(relaxed = true),
         noteRepository = noteRepository,
         tagRepository = tagRepository,
         mediaRepository = SearchTestMediaRepository(),
         reminderRepository = SearchTestReminderRepository(),
+        mediaFileManager = mockk(relaxed = true),
         appIntents = appIntents
     )
 }

@@ -42,6 +42,7 @@ import com.example.zhilu.domain.usecase.clipboard.BlockClipboardManager
 import com.example.zhilu.export.DtkExporter
 import com.example.zhilu.export.HtmlExporter
 import com.example.zhilu.export.MarkdownExporter
+import com.example.zhilu.export.collectReferencedMedia
 import com.example.zhilu.ui.theme.TagCreationPalette
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -1048,17 +1049,8 @@ class NoteViewModel @Inject constructor(
             val note = _uiState.value.toNote()
             val mediaResult = mediaRepository.getAllMedia()
             val media = (mediaResult as? RepositoryResult.Success)?.data.orEmpty()
-            val noteMedia = media.filter { m ->
-                // 精确匹配：优先按块里登记的 mediaId，其次按块是否内嵌该媒体的 URI。
-                // 早期用 content.contains(m.id.toString()) 做子串匹配，一旦 URL 里碰巧出现相同数字
-                // 就会误收无关媒体，而真正引用的媒体反而可能漏掉。
-                note.contentBlocks.any { block ->
-                    block.type == BlockType.IMAGE && (
-                        ImageBlockContent.mediaId(block.content) == m.id ||
-                            block.content.contains(m.uri)
-                        )
-                }
-            }
+            // 收窄到本篇真正引用的媒体（口径与全量/选中项备份共用，见 collectReferencedMedia）
+            val noteMedia = collectReferencedMedia(listOf(note), media)
             val mediaFileManager = MediaFileManager(context)
             when (format) {
                 ShareFormat.HTML -> {

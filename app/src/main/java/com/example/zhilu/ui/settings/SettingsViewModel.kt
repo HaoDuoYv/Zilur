@@ -19,6 +19,7 @@ import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
 import com.example.zhilu.export.DtkExporter
 import com.example.zhilu.export.MarkdownExporter
+import com.example.zhilu.export.collectReferencedMedia
 import com.example.zhilu.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -213,9 +214,11 @@ class SettingsViewModel @Inject constructor(
                 val notes = loadNotes()
                 if (notes.isEmpty()) error("知识库还是空的，没有可备份的内容")
                 val media = loadMedia()
+                // 只打包真正被引用的媒体 —— 全库媒体直接入包会让备份里塞进孤儿图
+                val referenced = collectReferencedMedia(notes, media)
                 // 与 NoteViewModel 的分享路径一致：导出器就地构造（它是无状态的）
                 val exported = DtkExporter(context, mediaFileManager)
-                    .exportNotes(notes, media)
+                    .exportNotes(notes, referenced)
                     .getOrThrow()
                 try {
                     context.contentResolver.openOutputStream(uri)?.use { output ->

@@ -1,8 +1,11 @@
 package com.example.zhilu.ui.home
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.reminder.ReminderClassifier
@@ -10,11 +13,14 @@ import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.TagRepository
+import com.example.zhilu.export.DtkExporter
+import com.example.zhilu.export.collectReferencedMedia
 import com.example.zhilu.ui.navigation.AppIntents
 import com.example.zhilu.ui.search.TagFilterItem
 import com.example.zhilu.ui.search.TagQueryParser
 import com.example.zhilu.ui.theme.TagCreationPalette
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.LocalDate
 import java.time.ZoneId
 import javax.inject.Inject
@@ -35,10 +41,12 @@ import timber.log.Timber
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val noteRepository: NoteRepository,
     private val tagRepository: TagRepository,
     private val mediaRepository: MediaRepository,
     private val reminderRepository: ReminderRepository,
+    private val mediaFileManager: MediaFileManager,
     private val appIntents: AppIntents
 ) : ViewModel() {
 
@@ -120,6 +128,88 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             noteRepository.softDeleteNote(noteId)
         }
+    }
+
+    // ── 列表多选（长按进入；用于「导出选中项」） ─────────────────────────
+
+    /** 长按某一行：进入选择态并选中它。 */
+    fun enterSelection(noteId: Long) {
+        _uiState.update { it.copy(selectionMode = true, selectedNoteIds = setOf(noteId)) }
+    }
+
+    fun toggleSelect(noteId: Long) {
+        _uiState.update { state ->
+            val next = state.selectedNoteIds.toMutableSet()
+            if (!next.add(noteId)) next.remove(noteId)
+            // 取消到空也**留在选择态**：用户可能只是想换一批选，
+            // 直接退出会让他得重新长按一次。退出交给 X / 返回键。
+            state.copy(selectedNoteIds = next)
+        }
+    }
+
+    /** 全选当前笔记列表（不含搜索结果——选择态只作用于列表视图）。 */
+    fun selectAll() {
+        _uiState.update { state ->
+            state.copy(selectedNoteIds = state.notes.mapTo(mutableSetOf()) { it.id })
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedNoteIds = emptySet()) }
+    }
+
+    fun exitSelection() {
+        _uiState.update { it.copy(selectionMode = false, selectedNoteIds = emptySet()) }
+    }
+
+    /**
+     * 把选中的笔记导出成一个 `.dtk`（与全量备份、单篇分享共用同一条打包路径）。
+     * 成功后自动退出选择态 —— 导出是一个"完成即结束"的动作。
+     */
+    fun exportSelectedToUri(uri: Uri) {
+        viewModelScope.launch {
+            runCatching {
+                val state = _uiState.value
+                val selected = state.notes.filter { it.id in state.selectedNoteIds }
+                if (selected.isEmpty()) error("还没有选中任何笔记")
+                val media = (mediaRepository.getAllMedia() as? RepositoryResult.Success)
+                    ?.data.orEmpty()
+                val exported = DtkExporter(context, mediaFileManager)
+                    .exportNotes(selected, collectReferencedMedia(selected, media))
+                    .getOrThrow()
+                try {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        exported.inputStream().use { it.copyTo(output) }
+                    } ?: error("无法写入所选文件")
+                } finally {
+                    // 产物在 cacheDir：不删的话每导出一次就留一份完整副本
+                    exported.delete()
+                }
+                "已导出 ${selected.size} 篇笔记"
+            }.fold(
+                onSuccess = { text ->
+                    _uiState.update {
+                        it.copy(
+                            selectionMode = false,
+                            selectedNoteIds = emptySet(),
+                            message = text,
+                            error = null
+                        )
+                    }
+                },
+                onFailure = { throwable ->
+                    _uiState.update { it.copy(error = "导出失败：${throwable.message}") }
+                }
+            )
+        }
+    }
+
+    /**
+     * 一次性提示的消费：`message` 与 `error` 共用这一条 snackbar 出口，
+     * 谁非空就弹谁（导出成功走 message，失败与其他错误走 error）。
+     */
+    fun consumeMessages() {
+        _uiState.update { it.copy(message = null, error = null) }
     }
 
     fun clearError() {
