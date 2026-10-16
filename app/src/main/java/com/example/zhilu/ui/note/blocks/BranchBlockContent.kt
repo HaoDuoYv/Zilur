@@ -16,6 +16,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.filled.Functions
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
@@ -115,7 +116,8 @@ fun BranchBlockEditor(
                     BranchAddChildToolbar(
                         onAddText = { onAddChild(BlockType.TEXT) },
                         onAddImage = { onAddChild(BlockType.IMAGE) },
-                        onAddLatex = { onAddChild(BlockType.LATEX) }
+                        onAddLatex = { onAddChild(BlockType.LATEX) },
+                        onAddTable = { onAddChild(BlockType.TABLE) }
                     )
                 }
             }
@@ -317,6 +319,7 @@ private fun BranchAddChildToolbar(
     onAddText: () -> Unit,
     onAddImage: () -> Unit,
     onAddLatex: () -> Unit,
+    onAddTable: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -353,6 +356,17 @@ private fun BranchAddChildToolbar(
             Icon(
                 imageVector = Icons.Default.Functions,
                 contentDescription = "添加公式",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(
+            onClick = onAddTable,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.TableChart,
+                contentDescription = "添加表格",
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )

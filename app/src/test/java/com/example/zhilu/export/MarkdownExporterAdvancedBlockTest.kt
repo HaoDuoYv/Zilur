@@ -27,6 +27,21 @@ class MarkdownExporterAdvancedBlockTest {
     }
 
     @Test
+    fun exportsTableBlockAsPipeTable() {
+        // 表格块的内容本来就是 GFM 管道文本，原样写出即可 ——
+        // 这正是"用 Markdown 文本存表格"而不是存 JSON 的收益之一
+        val table = "| 项目 | 说明 |\n| --- | --- |\n| 惯性定理 | 合同变换下不变 |"
+        val note = Note(
+            title = "表格",
+            blocks = listOf(Block(type = BlockType.TABLE, content = table, sortOrder = 0))
+        )
+
+        val markdown = MarkdownExporter.exportNote(note)
+
+        assertTrue("表格应原样出现在 Markdown 里", markdown.contains(table))
+    }
+
+    @Test
     fun exportsCodeBlockLanguageFence() {
         val note = Note(
             title = "Code",

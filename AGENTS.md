@@ -45,7 +45,7 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 
 ## 数据库（强约束）
 
-- 当前 `AppDatabase` **version = 7**（v6 加了 `note_blocks.emphasis` 与 `note_cards.accent`；v7 加了 `ai_messages.refsJson` 与 `quotedMessageId`），schema 导出到 `app/schemas/`（已纳入版本控制，改表必须提交）。
+- 当前 `AppDatabase` **version = 8**（v6 加了 `note_blocks.emphasis` 与 `note_cards.accent`；v7 加了 `ai_messages.refsJson` 与 `quotedMessageId`；v8 建了全文检索虚拟表 `note_fts`），schema 导出到 `app/schemas/`（已纳入版本控制，改表必须提交）。
 - **禁止** `fallbackToDestructiveMigration()`。每次升版本必须在 `Migration.kt` 写 Migration，并挂到 `Migration.all`（`di/AppModule.kt` 使用）。
 - Room / Hilt 走 **kapt**（不是 KSP）。`room.schemaLocation` 已在 `app/build.gradle.kts` 配好。
 - `BlockType.value`（TEXT=1 … BRANCH=8）是持久化稳定值，**不可改序/改值**，导出 JSON 与库内都依赖它。
@@ -69,8 +69,12 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
   ② `testOptions.unitTests.all { forkEvery = 1 }` —— **每个测试类单开 JVM**。`TeXFormula` 的静态初始化只要失败一次（典型触发：某个**纯 JUnit 类**在 Robolectric 沙箱之外碰到它），这个类就永久不可用，之后渲染全抛 `NoClassDefFoundError`。症状极具迷惑性：**单独跑绿、跟别的类一起跑红**。代价是全量测试从 ~35s 涨到 ~3min；
   ③ 测试里手动 `JLatexMathAndroid.init(context)` —— 生产中这句由库自带的 `JLatexMathInitProvider` 干，Robolectric 不跑 ContentProvider。
   ④ `src/test/resources/robolectric.properties` 里 `sdk=34` —— Robolectric 4.13 在启用资源加载时最高支持 34，而模块 `targetSdk` 是 35。
-- **JSON 备份必须内嵌图片字节**（`media[].data` = base64 data URL，导出时由 `SettingsViewModel.collectMediaData` 读入）。只写 `uri` 的话，备份里剩的是一个指向本机内部存储的路径，换设备/清过数据后永远恢复不出图。`.dtk` 反过来：图片作为文件放进 zip，不写 `data`（免得包体翻倍）。
+- **备份只有一种格式：`.dtk`（zip：`note.json` + `media/`）**。三种模式共用同一条打包路径（`DtkExporter.exportNotes`）：单篇分享（编辑页溢出菜单）、全量备份（设置页导出）、选中项备份（首页多选 → 顶栏导出）。旧的 JSON 备份通道（base64 内嵌 `media[].data`）**已整体下线**，`JsonExporter` 现在只负责 `note.json` 的序列化。
+- **图片引用按 `mediaId` 精确 join，不靠文件名**：图片块内容是 `"<mediaId>|<uri>"`，`media[]` 条目的 uri 指向 zip 内路径（`media/media_<id>.<ext>`）。导入端逐张落盘后建「旧 id → 新 id / 新 uri」两张表，交给 `remapForInsert(note, mediaIdMap, mediaUriMap)` 改写块内容。**别再回到"拿 zip 文件名去 `block.content.contains(...)`"那套** —— 内部存储路径是 `.../files/images/img_xxx.png`，永远不含 `media/media_5.png`，匹配恒失败（历史 bug，同机看不出来、换机全是裂图）。
+- `dtkVersion` 当前是 **2**（`DtkExporter.DTK_VERSION`）。抬版本的原因是新的多篇包在老版本 App 里会被 `firstOrNull()` **静默只导第一篇**，而导入端 `> DTK_VERSION` 的判定会让老版本干净拒绝 —— 把静默数据丢失换成显式报错。改包格式时记得同步抬它。
+- **`ArchiveManager.unzip` 是不信任输入的边界**：`.dtk` 可以从任何地方来。路径穿越（`\` 归一 + `canonicalPath` 前缀校验）与 zip bomb（条目数 / 单条目 / 解压总量三重上限，`ZipLimits` 可注入以便测试）都在这里挡。改解包逻辑别把这几道防线改没了。
 - **备份必须保住三类引用**：`cards`（小节结构）、`Block.parentBranchId`（分支层级）、`cardId`/`mediaId`。导出时都要写，导入时统一走 `export/BackupRestore.kt` 的 `remapForInsert()` 换成负临时 id，再由 `NoteRepositoryImpl.replaceCards/replaceBlocks` 映射成真实主键。以前只写扁平的 `contentBlocks`，于是恢复后小节被 `hydrate` 合并成一张卡、子块变成顶层块 —— 改这块务必跑 `BackupRoundTripTest`。
+- **标签必须按名字认领**（`ImportKnowledgeUseCase.resolveTags`）：备份里的 `tag.id` 是源设备主键，直接拿去插 `note_tags` 会挂到本机同 id 的无关标签、或留下指向不存在标签的悬空行。
 - 有卡片时 `blocks` 必须留空、只有扁平块时 `cards` 必须留空：`Note.contentBlocks` 的语义是"blocks 非空就只用 blocks"。
 
 ## UI 状态与一次性提示

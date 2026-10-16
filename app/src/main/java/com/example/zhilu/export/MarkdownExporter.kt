@@ -144,6 +144,8 @@ object MarkdownExporter {
                 append("```").append(language).append("\n").append(block.content.trimEnd()).append("\n```")
             }
             BlockType.TODO -> append(todoMarkdown(block.content, todoItems))
+            // 表格块的内容**本来就是 GFM 管道表格**，原样写出即可 —— 这也是选这个编码的收益之一
+            BlockType.TABLE -> append(block.content.trim())
             BlockType.BRANCH -> append(branchMarkdown(block, mediaById, todoItems, imageResolver, latexResolver, allBlocks))
         }
     }

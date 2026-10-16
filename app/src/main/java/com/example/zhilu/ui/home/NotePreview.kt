@@ -1,6 +1,7 @@
 package com.example.zhilu.ui.home
 
 import com.example.zhilu.domain.markup.InlineMarkup
+import com.example.zhilu.domain.markup.MarkdownTable
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.Note
 import java.text.SimpleDateFormat
@@ -47,6 +48,15 @@ fun notePreviewText(note: Note): String? {
     }
     blocks.firstOrNull { it.type == BlockType.LATEX && it.content.isNotBlank() }?.let {
         return plainPreviewText(it.content)
+    }
+    // 表格块：摘要出**表头那一行**而不是整段管道文本 —— 后者在列表里几乎不可读
+    blocks.firstOrNull { it.type == BlockType.TABLE && it.content.isNotBlank() }?.let { block ->
+        val header = MarkdownTable.parseWhole(block.content)?.header.orEmpty()
+        return if (header.isEmpty()) {
+            block.content.trim().lineSequence().first().take(80)
+        } else {
+            header.filter { it.isNotBlank() }.joinToString(" · ").take(80)
+        }
     }
     return null
 }

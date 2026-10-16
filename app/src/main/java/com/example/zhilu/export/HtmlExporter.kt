@@ -3,6 +3,7 @@ package com.example.zhilu.export
 import android.content.Context
 import android.graphics.Color
 import com.example.zhilu.data.local.file.MediaFileManager
+import com.example.zhilu.domain.markup.MarkdownTable
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.ImageBlockContent
@@ -168,6 +169,32 @@ class HtmlExporter(
                     appendLine("</div>")
                 }
                 appendLine("</details>")
+            }
+            BlockType.TABLE -> {
+                val table = MarkdownTable.parseWhole(block.content)
+                if (table == null) {
+                    // 解析不了（用户写坏了、或老版本降级留下的）就按原文输出，内容不丢
+                    appendLine("<pre>${escapeHtml(block.content)}</pre>")
+                } else {
+                    appendLine("<table>")
+                    appendLine("<thead><tr>")
+                    repeat(table.columnCount) { index ->
+                        appendLine("<th>${htmlInline(table.header.getOrElse(index) { "" }, formulaCache)}</th>")
+                    }
+                    appendLine("</tr></thead>")
+                    if (table.rows.isNotEmpty()) {
+                        appendLine("<tbody>")
+                        table.rows.forEach { row ->
+                            appendLine("<tr>")
+                            repeat(table.columnCount) { index ->
+                                appendLine("<td>${htmlInline(row.getOrElse(index) { "" }, formulaCache)}</td>")
+                            }
+                            appendLine("</tr>")
+                        }
+                        appendLine("</tbody>")
+                    }
+                    appendLine("</table>")
+                }
             }
         }
     }
@@ -335,6 +362,11 @@ class HtmlExporter(
             details.branch { border: 1px solid #eae5dc; border-radius: 8px; padding: 10px 12px; margin: 10px 0; background: #fdfcf9; }
             summary { font-weight: 600; cursor: pointer; line-height: 1.6; }
             .branch-body { margin-top: 8px; padding-left: 10px; border-left: 2px solid #eee7dc; }
+            /* 表格块：导出文件是发给别人的，用自带纯色，不引入要 Chrome 111+ 的 CSS 混色函数 */
+            table { border-collapse: collapse; margin: 12px 0; width: 100%; font-size: 14px; }
+            th, td { border: 1px solid #e6e1d8; padding: 7px 9px; text-align: left; vertical-align: top; line-height: 1.6; }
+            th { background: #f6f2ea; font-weight: 600; color: #4a3f30; }
+            tbody tr:nth-child(even) { background: #fdfcf9; }
         """
     }
 }

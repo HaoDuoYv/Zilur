@@ -21,7 +21,8 @@ class BlockCardTest {
                 BlockType.CODE to "代码",
                 BlockType.DIVIDER to "分割线",
                 BlockType.TODO to "待办",
-                BlockType.BRANCH to "分支"
+                BlockType.BRANCH to "分支",
+                BlockType.TABLE to "表格"
             ),
             labels
         )

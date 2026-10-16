@@ -86,7 +86,7 @@ class AiToolExecutor @Inject constructor(
         {
           "type": "object",
           "properties": {
-            "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "image"]},
+            "type": {"type": "string", "enum": ["text", "table", "latex", "code", "todo", "link", "divider", "image"]},
             "content": {"type": "string"},
             "language": {"type": "string"},
             "emphasis": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"]}
@@ -99,7 +99,7 @@ class AiToolExecutor @Inject constructor(
         {
           "type": "object",
           "properties": {
-            "type": {"type": "string", "enum": ["text", "latex", "code", "todo", "link", "divider", "branch", "image"]},
+            "type": {"type": "string", "enum": ["text", "table", "latex", "code", "todo", "link", "divider", "branch", "image"]},
             "content": {"type": "string"},
             "language": {"type": "string"},
             "emphasis": {"type": "string", "enum": ["none", "key", "idea", "warn", "todo"]},
@@ -816,6 +816,7 @@ class AiToolExecutor @Inject constructor(
 
     private fun blockTypeFromName(name: String): BlockType = when (name.lowercase()) {
         "latex" -> BlockType.LATEX
+        "table" -> BlockType.TABLE
         "code" -> BlockType.CODE
         "todo" -> BlockType.TODO
         "link" -> BlockType.LINK
@@ -896,6 +897,8 @@ class AiToolExecutor @Inject constructor(
             BlockType.TODO -> "- [ ] ${block.content}"
             BlockType.DIVIDER -> "---"
             BlockType.BRANCH -> "【分支】${block.content}"
+            // 表格块的 content 本就是 GFM 管道文本，原样回读；模型改完写回去还是同一编码
+            BlockType.TABLE -> "【表格】\n${block.content}"
             // 图片块的 content 形如「mediaId|uri」，回读时只暴露真实 uri，
             // 这样模型回写 update_note 时能原样沿用，不会编造路径。
             BlockType.IMAGE -> "【图片】${ImageBlockContent.displayUri(block.content)}"

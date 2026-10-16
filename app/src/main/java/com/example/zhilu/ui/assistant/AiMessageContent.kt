@@ -31,7 +31,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.domain.markup.MarkdownTable
 import com.example.zhilu.ui.component.DividerTokens
+import com.example.zhilu.ui.component.MarkdownTableView
 import com.example.zhilu.ui.component.RichText
 import com.example.zhilu.ui.component.ZhiLuDivider
 import com.example.zhilu.ui.note.latex.LatexImage
@@ -55,52 +57,26 @@ private val orderedListRegex = Regex("^(\\d+\\.) (.*)")
 /** Markdown 行被归约为「表格块」或「普通行」两类。 */
 private sealed interface MdBlock {
     data class Line(val text: String) : MdBlock
-    data class Table(val header: List<String>, val rows: List<List<String>>) : MdBlock
-}
-
-private val tableSeparatorCellRegex = Regex("^:?-{2,}:?$")
-
-private fun isTableRow(line: String): Boolean = line.count { it == '|' } >= 2
-
-private fun isTableSeparator(line: String): Boolean {
-    val cells = splitTableCells(line)
-    return cells.isNotEmpty() && cells.all { tableSeparatorCellRegex.matches(it) }
-}
-
-/** 按未转义的 `|` 切分单元格，并还原模型输出的 `\|` 转义。 */
-private fun splitTableCells(line: String): List<String> {
-    val token = "\u0000"
-    return line.trim()
-        .removePrefix("|")
-        .removeSuffix("|")
-        .replace("\\|", token)
-        .split('|')
-        .map { it.trim().replace(token, "|") }
+    data class Table(val value: MarkdownTable.Table) : MdBlock
 }
 
 /**
  * 把 Markdown 行序列归约为块序列：连续的 `| a | b |` + 分隔行 + 数据行识别为一张表，
  * 其余按普通行保留（逐行渲染逻辑不变）。
+ *
+ * 表格的判据与切分全在 [MarkdownTable] 里 —— 笔记的表格块走的是同一份解析，
+ * 两处各写一套迟早会分叉（一边认得多、一边认得少）。
  */
 private fun parseMarkdownBlocks(lines: List<String>): List<MdBlock> {
     val blocks = mutableListOf<MdBlock>()
     var i = 0
     while (i < lines.size) {
-        val line = lines[i]
-        if (isTableRow(line) && !isTableSeparator(line) &&
-            i + 1 < lines.size && isTableSeparator(lines[i + 1])
-        ) {
-            val header = splitTableCells(line)
-            val rows = mutableListOf<List<String>>()
-            var j = i + 2
-            while (j < lines.size && isTableRow(lines[j]) && !isTableSeparator(lines[j])) {
-                rows.add(splitTableCells(lines[j]))
-                j++
-            }
-            blocks.add(MdBlock.Table(header, rows))
-            i = j
+        val table = MarkdownTable.parseAt(lines, i)
+        if (table != null) {
+            blocks.add(MdBlock.Table(table))
+            i += table.lineCount
         } else {
-            blocks.add(MdBlock.Line(line))
+            blocks.add(MdBlock.Line(lines[i]))
             i++
         }
     }
@@ -234,7 +210,12 @@ private fun MarkdownText(text: String, textColor: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         blocks.forEach { block ->
             when (block) {
-                is MdBlock.Table -> MarkdownTable(block, textColor, primaryColor)
+                is MdBlock.Table -> MarkdownTableView(
+                    header = block.value.header,
+                    rows = block.value.rows,
+                    textColor = textColor,
+                    accentColor = primaryColor
+                )
                 is MdBlock.Line -> MarkdownLine(block.text, textColor, primaryColor)
             }
         }
@@ -312,71 +293,6 @@ private fun MarkdownLine(line: String, textColor: Color, primaryColor: Color) {
 }
 
 /**
- * Markdown 表格：表头主色淡底 + 等宽单元格 + 行间细分隔线，超宽时可横向滚动。
- * 单元格统一宽度，保证各列对齐；窄屏下不挤压、不换行错位。
+ * Markdown 表格的渲染已抽到 `ui/component/MarkdownTableView.kt` —— 笔记的表格块
+ * 用的是同一份组件，两处观感天然一致。
  */
-@Composable
-private fun MarkdownTable(table: MdBlock.Table, textColor: Color, primaryColor: Color) {
-    val borderColor = MaterialTheme.colorScheme.outlineVariant
-    val headerBg = primaryColor.copy(alpha = 0.12f)
-    val stripeBg = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.035f)
-    val shape = RoundedCornerShape(8.dp)
-    val columns = maxOf(table.header.size, table.rows.maxOfOrNull { it.size } ?: 0)
-
-    Column(
-        modifier = Modifier
-            .clip(shape)
-            .border(1.dp, borderColor, shape)
-            .horizontalScroll(rememberScrollState())
-    ) {
-        Row(modifier = Modifier.background(headerBg)) {
-            repeat(columns) { index ->
-                TableCell(
-                    text = table.header.getOrElse(index) { "" },
-                    textColor = textColor,
-                    primaryColor = primaryColor,
-                    isHeader = true
-                )
-            }
-        }
-        ZhiLuDivider(color = borderColor)
-        table.rows.forEachIndexed { rowIndex, row ->
-            Row(
-                modifier = if (rowIndex % 2 == 1) Modifier.background(stripeBg) else Modifier
-            ) {
-                repeat(columns) { index ->
-                    TableCell(
-                        text = row.getOrElse(index) { "" },
-                        textColor = textColor,
-                        primaryColor = primaryColor,
-                        isHeader = false
-                    )
-                }
-            }
-            if (rowIndex < table.rows.lastIndex) {
-                ZhiLuDivider(
-                    color = borderColor.copy(alpha = 0.5f),
-                    thickness = DividerTokens.Hairline
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun TableCell(
-    text: String,
-    textColor: Color,
-    primaryColor: Color,
-    isHeader: Boolean
-) {
-    RichText(
-        text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = if (isHeader) primaryColor else textColor,
-        fontWeight = if (isHeader) FontWeight.SemiBold else null,
-        modifier = Modifier
-            .width(92.dp)
-            .padding(horizontal = 8.dp, vertical = 7.dp)
-    )
-}

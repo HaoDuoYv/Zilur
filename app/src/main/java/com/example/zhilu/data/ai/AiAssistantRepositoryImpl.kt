@@ -251,7 +251,7 @@ class AiAssistantRepositoryImpl @Inject constructor(
 - 每个小节可指定身份色 accent（vermilion 朱红用来标「这节最重要」）；一般不用填，缺省按顺序自动分配。
 
 【内容块】
-每个块的字段：type（text / latex / code / todo / link / divider / branch / image）、content、language（仅 code）、emphasis、children（仅 branch）。
+每个块的字段：type（text / table / latex / code / todo / link / divider / branch / image）、content、language（仅 code）、emphasis、children（仅 branch）。
 - divider 是分割线，不需要 content；add_blocks 只能追加到**小节末尾**，不能插到中间或重排（要重排就用 update_note 重写整篇）。
 emphasis 是**整条块的语义标记**，会渲染成左缘色条 + 淡底 + 标签词：
 - key = 要点（定义、结论、主旨、关键数据）
@@ -295,7 +295,15 @@ type=branch 的块可以带 children 数组（结构同内容块），里面的�
 - 反引号包裹的行内代码会渲染成等宽 + 浅底；
 - ${'$'}行内公式${'$'} 会渲染成公式图片；
 - 但行首的 #、##、>、- **不会**被渲染成标题或列表：小节标题直接写成「六、易错点清单」这样的纯文本，列表用「·」或「1.」逐行书写；
-- 需要表格时不要写进笔记块，改用「项目：说明」的逐行文本，或放在对话回答里。
+- 表格有自己的块类型（见下方【表格】），不要用逐行文本模拟表格。
+
+【表格】
+用 type=table 建表格块，content 写成 GFM 管道表格，**第一行是表头、第二行必须是分隔行**：
+| 项目 | 说明 |
+| --- | --- |
+| 惯性定理 | 二次型在合同变换下保持不变的性质 |
+- 分隔行写成 | --- | --- |（少了它不成表，会按纯文本原样显示）；
+- 单元格里不要换行，也不要用行内标记以外的复杂格式；公式请另起 latex 块。
 
 【数学公式】
 - 显示公式用 ${'$'}${'$'}...${'$'}${'$'} 包裹，行内公式用 ${'$'}...${'$'} 包裹；

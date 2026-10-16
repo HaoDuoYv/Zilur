@@ -17,10 +17,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.zhilu.domain.markup.MarkdownTable
 import com.example.zhilu.domain.model.Block
 import com.example.zhilu.domain.model.BlockType
 import com.example.zhilu.domain.model.TodoItem
+import com.example.zhilu.ui.component.MarkdownTableView
 import com.example.zhilu.ui.note.TodoBlock
+import com.example.zhilu.ui.theme.ZhiLuType
 
 @Composable
 fun BlockContent(
@@ -112,6 +115,17 @@ fun BlockContent(
             modifier = modifier
         )
         BlockType.DIVIDER -> DividerBlockView(readOnly = !isEditing, modifier = modifier)
+        BlockType.TABLE -> {
+            if (isEditing) {
+                TableBlockEditor(
+                    value = block.content,
+                    onValueChange = onValueChange,
+                    modifier = modifier
+                )
+            } else {
+                ReadOnlyTableBlockContent(value = block.content, modifier = modifier)
+            }
+        }
         BlockType.TODO -> TodoBlockContent(
             block = block,
             isEditing = isEditing,
@@ -221,6 +235,34 @@ private fun SelectableReadOnlyText(
         modifier = modifier
     ) {
         ExpandableTextContent(text = block.content)
+    }
+}
+
+/**
+ * 表格块的只读态：能解析成表就画网格，否则落回等宽纯文本。
+ *
+ * 落回是必须的：内容来自用户手写或 AI 生成，写坏了（漏了表头分隔行）不能整块消失；
+ * 老版本 App 把 `TABLE` 降级成文本块时看到的也是这段管道文本，语义一致。
+ */
+@Composable
+private fun ReadOnlyTableBlockContent(
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    val table = MarkdownTable.parseWhole(value)
+    if (table != null) {
+        MarkdownTableView(
+            header = table.header,
+            rows = table.rows,
+            modifier = modifier
+        )
+    } else {
+        Text(
+            text = value,
+            style = ZhiLuType.mono,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = modifier
+        )
     }
 }
 

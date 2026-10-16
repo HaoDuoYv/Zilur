@@ -1,5 +1,14 @@
 package com.example.zhilu.domain.model
 
+/**
+ * 内容块类型。
+ *
+ * `value` 是**持久化稳定值**（Room 的 `note_blocks.type`、导出 JSON 的兜底解析都靠它），
+ * 只能追加、不可改序或改值。
+ *
+ * [fromValue] 对未知值静默回退 [TEXT]：老版本 App 读到新类型时，内容会按普通文本显示
+ * —— 这是刻意的降级策略（表格块存的是 Markdown 管道文本，降级后仍可读）。
+ */
 enum class BlockType(val value: Int) {
     TEXT(1),
     IMAGE(2),
@@ -8,7 +17,13 @@ enum class BlockType(val value: Int) {
     LATEX(5),
     CODE(6),
     TODO(7),
-    BRANCH(8);
+    BRANCH(8),
+
+    /**
+     * 表格。内容是一段 GFM 管道表格文本（见 `domain/markup/MarkdownTable`）——
+     * 不发明新编码，导出、降级、检索都能天然承接。
+     */
+    TABLE(9);
 
     companion object {
         fun fromValue(value: Int): BlockType = entries.firstOrNull { it.value == value } ?: TEXT

@@ -1,6 +1,13 @@
 package com.example.zhilu.domain.ai.usecase
 
+import com.example.zhilu.common.RepositoryResult
+import com.example.zhilu.domain.model.BlockType
+import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.repository.NoteRepository
+import io.mockk.coEvery
 import io.mockk.mockk
+import io.mockk.slot
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -99,7 +106,9 @@ class AiToolExecutorDefinitionsTest {
         val raw = executor.definitions.first { it.name == "create_note" }.parametersJson
         assertTrue("块 schema 缺少 children", raw.contains("\"children\""))
         // 子块枚举里不应再出现 branch —— 折叠层级只开放一层
-        val childEnum = Regex("\\\"enum\\\": \\[\\\"text\\\", \\\"latex\\\", \\\"code\\\", \\\"todo\\\", \\\"link\\\", \\\"divider\\\", \\\"image\\\"\\]")
+        val childEnum = Regex(
+            "\\\"enum\\\": \\[\\\"text\\\", \\\"table\\\", \\\"latex\\\", \\\"code\\\", \\\"todo\\\", \\\"link\\\", \\\"divider\\\", \\\"image\\\"\\]"
+        )
         assertTrue("子块枚举应当不含 branch", childEnum.containsMatchIn(raw))
     }
 
@@ -128,11 +137,49 @@ class AiToolExecutorDefinitionsTest {
         }
     }
 
+    /**
+     * `AiToolExecutor` 里跟块类型有关的处理有三处（schema 枚举 / `blockTypeFromName` /
+     * `formatBlock`），**都不是穷尽 when，漏改不会编译报错** —— 这个块类型最容易加漏，
+     * 所以用一个真实的 create_note 调用把整条链路钉住。
+     */
+    @Test
+    fun `create_note 能把 table 类型落成表格块`() = runTest {
+        val noteRepository = mockk<NoteRepository>()
+        val inserted = slot<Note>()
+        coEvery { noteRepository.insertNote(capture(inserted)) } returns
+            RepositoryResult.Success(Note(id = 1L))
+        val executor = AiToolExecutor(
+            noteRepository = noteRepository,
+            tagRepository = mockk(relaxed = true),
+            todoRepository = mockk(relaxed = true),
+            mediaRepository = mockk(relaxed = true),
+            mediaFileManager = mockk(relaxed = true),
+            reviewRepository = mockk(relaxed = true),
+            manageReviewPlan = mockk(relaxed = true),
+            todoReminderSync = mockk(relaxed = true)
+        )
+
+        executor.execute(
+            name = "create_note",
+            argumentsJson = """
+                {"title":"表格笔记","blocks":[
+                  {"type":"table","content":"| a | b |\n| --- | --- |\n| 1 | 2 |"}
+                ]}
+            """.trimIndent()
+        )
+
+        assertEquals(
+            "type=table 必须映射成 TABLE 块（漏映射会静默降级成文本）",
+            BlockType.TABLE,
+            inserted.captured.blocks.single().type
+        )
+    }
+
     @Test
     fun `块 schema 出现在 cards 与 blocks 两处且保持一致`() {
         val raw = executor.definitions.first { it.name == "create_note" }.parametersJson
         // 两处都声明了块类型枚举
-        val occurrences = Regex("\\\"enum\\\": \\[\\\"text\\\", \\\"latex\\\"").findAll(raw).count()
+        val occurrences = Regex("\\\"enum\\\": \\[\\\"text\\\", \\\"table\\\"").findAll(raw).count()
         assertTrue("块 schema 应同时用于 cards[].blocks 与顶层 blocks，实际 $occurrences 处", occurrences >= 2)
     }
 

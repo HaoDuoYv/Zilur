@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +40,7 @@ fun BlockTypePickerSheet(
             )
             listOf(
                 BlockType.TEXT to Icons.AutoMirrored.Filled.Article,
+                BlockType.TABLE to Icons.Default.TableChart,
                 BlockType.CODE to Icons.Default.DataObject,
                 BlockType.LINK to Icons.Default.Link,
                 BlockType.LATEX to Icons.Default.Calculate,

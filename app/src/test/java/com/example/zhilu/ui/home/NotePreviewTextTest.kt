@@ -18,6 +18,19 @@ class NotePreviewTextTest {
     }
 
     @Test
+    fun tablePreviewUsesHeaderRow() {
+        // 整段管道文本在列表里几乎不可读，摘要只取表头
+        val note = note(
+            Block(
+                type = BlockType.TABLE,
+                content = "| 项目 | 说明 |\n| --- | --- |\n| 惯性 | 合同不变 |",
+                sortOrder = 0
+            )
+        )
+        assertEquals("项目 · 说明", notePreviewText(note))
+    }
+
+    @Test
     fun fallsBackToBranchThenCode() {
         val note = note(
             Block(type = BlockType.BRANCH, content = "分支标题", sortOrder = 0),

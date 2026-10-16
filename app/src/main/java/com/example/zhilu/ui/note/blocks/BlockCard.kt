@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.TableChart
 import com.example.zhilu.ui.component.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -264,6 +265,7 @@ fun blockTypeLabel(type: BlockType): String = when (type) {
     BlockType.DIVIDER -> "分割线"
     BlockType.TODO -> "待办"
     BlockType.BRANCH -> "分支"
+    BlockType.TABLE -> "表格"
 }
 
 fun blockTypeIcon(type: BlockType): ImageVector? = when (type) {
@@ -275,6 +277,7 @@ fun blockTypeIcon(type: BlockType): ImageVector? = when (type) {
     BlockType.DIVIDER -> null
     BlockType.TODO -> null
     BlockType.BRANCH -> null
+    BlockType.TABLE -> Icons.Default.TableChart
 }
 
 fun shouldShowBlockActionMenu(

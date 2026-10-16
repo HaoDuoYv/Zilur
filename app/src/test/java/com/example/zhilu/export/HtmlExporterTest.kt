@@ -20,6 +20,34 @@ class HtmlExporterTest {
     private val exporter = HtmlExporter(context, mediaFileManager)
 
     @Test
+    fun exportNote_tableBlockBecomesRealTable() = runTest {
+        val table = "| 项目 | 说明 |\n| --- | --- |\n| 惯性定理 | 合同变换下不变 |"
+        val note = Note(
+            blocks = listOf(Block(type = BlockType.TABLE, content = table))
+        )
+
+        val html = exporter.exportNote(note).getOrThrow()
+
+        assertTrue("应输出真正的表格标签", html.contains("<table>"))
+        assertTrue(html.contains("<th>项目</th>"))
+        assertTrue(html.contains("<td>惯性定理</td>"))
+        assertTrue("表头样式要跟着走，否则导出文件里表格没有边界", html.contains("border-collapse"))
+    }
+
+    @Test
+    fun exportNote_unparsableTableFallsBackToPre() = runTest {
+        // 内容写坏了（漏了表头分隔行）不能整块消失
+        val note = Note(
+            blocks = listOf(Block(type = BlockType.TABLE, content = "| a | b |\n| 1 | 2 |"))
+        )
+
+        val html = exporter.exportNote(note).getOrThrow()
+
+        assertTrue(!html.contains("<table>"))
+        assertTrue(html.contains("| a | b |"))
+    }
+
+    @Test
     fun exportNote_containsTitleAndText() = runTest {
         val note = Note(
             title = "红黑树",

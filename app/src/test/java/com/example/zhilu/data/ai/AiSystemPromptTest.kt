@@ -22,6 +22,21 @@ class AiSystemPromptTest {
         assertTrue("【检索】应要求给出关键词而不是整句输入", prompt.contains("关键词"))
     }
 
+    /**
+     * 表格块（`BlockType.TABLE`）落地后，提示词里那条「需要表格时不要写进笔记块」
+     * 必须一起翻掉 —— 否则模型仍然会把表格写成逐行文本，新块类型永远没人用。
+     */
+    @Test
+    fun `表格一节要求用 table 块而不是逐行文本`() {
+        assertTrue("SYSTEM_PROMPT 缺少【表格】一节", prompt.contains("【表格】"))
+        assertTrue("应点明 type=table", prompt.contains("type=table"))
+        assertTrue(
+            "旧的反向规则必须删掉（否则与【表格】自相矛盾）",
+            !prompt.contains("不要写进笔记块")
+        )
+        assertTrue("块类型清单里要有 table", prompt.contains("text / table /"))
+    }
+
     @Test
     fun `引用与图片的标签词仍在 system prompt 里有解释`() {
         // 标签词本身写在 user 消息里（随轮次变化），解释必须留在稳定前缀中

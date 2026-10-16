@@ -1350,6 +1350,7 @@ class NoteViewModel @Inject constructor(
         BlockType.DIVIDER -> ""
         BlockType.TODO -> ""
         BlockType.BRANCH -> ""
+        BlockType.TABLE -> ""
     }
 
     private suspend fun scheduleTodoReminder(todoId: Long, noteId: Long, dueAt: Long) {
