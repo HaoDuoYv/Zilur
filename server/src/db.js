@@ -1,6 +1,5 @@
 'use strict';
 
-const path = require('node:path');
 const Database = require('better-sqlite3');
 const config = require('./config');
 
@@ -11,7 +10,7 @@ const config = require('./config');
  * 2 核 2G 的小机器上常驻内存可以忽略，备份服务器就是拷 ./data 目录。
  * 换 Postgres 时只需要替换本文件里的 SQL 与连接，路由层不用动。
  */
-const db = new Database(path.join(config.dataDir, 'app.db'));
+const db = new Database(config.dbFile);
 
 // WAL：读写不互相阻塞（App 上传备份时还能登录）
 db.pragma('journal_mode = WAL');

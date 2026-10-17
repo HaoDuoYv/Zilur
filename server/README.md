@@ -183,6 +183,30 @@ node scripts/smoke.js
 
 ## 六、构建常见问题
 
+### `SQLITE_READONLY: attempt to write a readonly database`
+
+不是代码问题，是**宿主机上 `./data` 的属主不对**。容器里以 `node`(uid 1000) 运行，
+而 compose 挂进去的 `./data` 通常属于 root。启动能过（目录已存在），第一次写库才炸。
+
+```bash
+# 先看清楚是谁的
+docker exec zhilu-cloud id              # uid=1000(node)
+ls -ld data data/app.db 2>/dev/null
+
+# 在宿主机上修（别进容器里改，bind mount 的属主以宿主机为准）
+sudo chown -R 1000:1000 ./data
+docker compose restart
+```
+
+新版本会在启动阶段就检查这些路径的可写性，直接把上面这段话打进日志，
+不用再从路由栈里猜。
+
+**仍失败**：`getenforce` 返回 `Enforcing` 就是 SELinux（OpenCloudOS / TencentOS 常见）：
+
+```bash
+sudo chcon -Rt svirt_sandbox_file_t ./data
+```
+
 ### `npm ci` 卡在 better-sqlite3：`Request timed out` + `Could not find any Python installation`
 
 这个依赖带原生二进制，装的时候分两条路：

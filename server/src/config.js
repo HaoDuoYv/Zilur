@@ -42,6 +42,7 @@ const config = {
   dataDir,
   avatarDir: path.join(dataDir, 'avatars'),
   backupDir: path.join(dataDir, 'backups'),
+  dbFile: path.join(dataDir, 'app.db'),
   jwtSecret: (process.env.JWT_SECRET || '').trim(),
   jwtTtlDays: toInt(process.env.JWT_TTL_DAYS, 30),
   corsOrigin: (process.env.CORS_ORIGIN || '').trim(),
@@ -69,6 +70,37 @@ if (config.jwtSecret.length < MIN_SECRET_LENGTH) {
 
 for (const dir of [config.dataDir, config.avatarDir, config.backupDir]) {
   fs.mkdirSync(dir, { recursive: true });
+}
+
+/**
+ * 数据路径必须能被容器内用户写入。
+ *
+ * 这是最坑的部署问题：容器里以 `node`(uid 1000) 运行，而宿主机挂进来的 `./data`
+ * 属主多半是 root。启动**能过**（目录已经存在），直到第一次写库才炸，而且错误是
+ * `SQLITE_READONLY`、栈埋在路由深处 —— 完全看不出是权限问题。不如在这里先说清楚。
+ */
+const writableTargets = [
+  config.dataDir,
+  config.avatarDir,
+  config.backupDir,
+  // 库文件已经存在的话要单独查：目录可写不代表这个 root 建出来的文件也可写
+  ...(fs.existsSync(config.dbFile) ? [config.dbFile] : []),
+];
+for (const target of writableTargets) {
+  try {
+    fs.accessSync(target, fs.constants.W_OK);
+  } catch (error) {
+    throw new Error(
+      `数据路径不可写：${target}\n` +
+        '  容器内以 node(uid 1000) 运行，宿主机挂进来的 ./data 多半属于 root。\n' +
+        '  在**宿主机**上修（别进容器里改）：\n' +
+        '    sudo chown -R 1000:1000 ./data\n' +
+        '    docker compose restart\n' +
+        '  若仍失败且 getenforce 返回 Enforcing，是 SELinux：\n' +
+        '    sudo chcon -Rt svirt_sandbox_file_t ./data\n' +
+        `  原始错误：${error.message}`
+    );
+  }
 }
 
 module.exports = config;
