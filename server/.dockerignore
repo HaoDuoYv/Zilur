@@ -1,0 +1,13 @@
+# 构建上下文里不该出现的东西：node_modules（体积大、且镜像里会自己装）、
+# data（运行数据，含 sqlite 与备份）、.env（含 JWT_SECRET 与邮箱授权码）。
+# 这里没被 COPY 进镜像，但都会先被打包发给 docker daemon —— 排除掉既快又少一份泄露面。
+node_modules
+data
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.dtk
+npm-debug.log*
