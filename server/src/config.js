@@ -1,0 +1,70 @@
+'use strict';
+
+const path = require('node:path');
+const fs = require('node:fs');
+
+// 本地 `npm start` 时从 server/.env 读；Docker 里由 compose 的 env_file 注入，
+// 此时没有 .env 文件 —— dotenv 找不到文件只会返回空，不会抛错。
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+function toBool(raw, fallback) {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(raw).trim().toLowerCase());
+}
+
+function toInt(raw, fallback) {
+  const value = Number.parseInt(String(raw ?? '').trim(), 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+const dataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, '..', 'data');
+
+const smtp = {
+  host: (process.env.SMTP_HOST || '').trim(),
+  port: toInt(process.env.SMTP_PORT, 465),
+  secure: toBool(process.env.SMTP_SECURE, true),
+  user: (process.env.SMTP_USER || '').trim(),
+  pass: (process.env.SMTP_PASS || '').trim(),
+  from: (process.env.MAIL_FROM || '').trim(),
+};
+
+// 三项齐全才算"配了邮件"。少一项就当没配 —— 免得运行到发信时才炸。
+const mailConfigured = Boolean(smtp.host && smtp.user && smtp.pass);
+
+const config = {
+  port: toInt(process.env.PORT, 8787),
+  dataDir,
+  avatarDir: path.join(dataDir, 'avatars'),
+  backupDir: path.join(dataDir, 'backups'),
+  jwtSecret: (process.env.JWT_SECRET || '').trim(),
+  jwtTtlDays: toInt(process.env.JWT_TTL_DAYS, 30),
+  corsOrigin: (process.env.CORS_ORIGIN || '').trim(),
+  trustProxy: toBool(process.env.TRUST_PROXY, false),
+  registrationEnabled: toBool(process.env.REGISTRATION_ENABLED, true),
+  smtp,
+  mailConfigured,
+  // 没配邮件时强制按 false 处理：否则注册会卡在一个永远发不出去的验证码上
+  requireEmailVerification: mailConfigured && toBool(process.env.REQUIRE_EMAIL_VERIFICATION, true),
+  maxAvatarBytes: toInt(process.env.MAX_AVATAR_MB, 2) * 1024 * 1024,
+  maxBackupBytes: toInt(process.env.MAX_BACKUP_MB, 128) * 1024 * 1024,
+  codeTtlMs: toInt(process.env.CODE_TTL_MINUTES, 10) * 60 * 1000,
+  codeCooldownMs: toInt(process.env.CODE_COOLDOWN_SECONDS, 60) * 1000,
+};
+
+const MIN_SECRET_LENGTH = 32;
+if (config.jwtSecret.length < MIN_SECRET_LENGTH) {
+  // 宁可起不来，也不要带着一个弱密钥把所有人的令牌暴露出去
+  throw new Error(
+    `JWT_SECRET 缺失或过短（需要至少 ${MIN_SECRET_LENGTH} 个字符）。\n` +
+      '  生成一个：openssl rand -hex 32\n' +
+      '  然后写进 server/.env 的 JWT_SECRET= 后面。'
+  );
+}
+
+for (const dir of [config.dataDir, config.avatarDir, config.backupDir]) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+module.exports = config;

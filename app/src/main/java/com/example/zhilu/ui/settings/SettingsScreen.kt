@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.SmartToy
+import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -41,6 +42,7 @@ import com.example.zhilu.domain.reminder.ReviewIntervals
 import com.example.zhilu.ui.component.AppProgressBar
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.AppTabScaffold
+import com.example.zhilu.domain.model.CloudSettings
 import com.example.zhilu.ui.navigation.Destination
 import com.example.zhilu.ui.navigation.LocalAppIntents
 import com.example.zhilu.ui.navigation.LocalAppSnackbar
@@ -203,6 +205,24 @@ fun SettingsScreen(
                 onExportMarkdown = { markdownExportLauncher.launch("zhilu-notes.md") }
             )
 
+            // 云端是**可选**的，所以单独一组、默认显示"未连接"：
+            // 不填地址的用户扫一眼就知道这东西跟自己无关，不会点进去不知所措。
+            SettingsGroup(title = "云端") {
+                SettingsRow(
+                    title = "云端服务",
+                    description = cloudSummary(state.cloudSettings),
+                    leadingIcon = Icons.Outlined.CloudQueue,
+                    onClick = { navController.navigate(Destination.Cloud.path) },
+                    trailing = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
+
             StorageSection(onOpenTrash = { navController.navigate(Destination.Trash.path) })
 
             SettingsGroup(title = "关于") {
@@ -231,4 +251,11 @@ private fun Context.hasNotificationPermission(): Boolean =
 private fun backupFileName(): String {
     val date = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
     return "zhilu-backup-$date.dtk"
+}
+
+/** 云端那一行的一句话摘要：没连接就明说"仅本地"，别让人以为已经同步了。 */
+private fun cloudSummary(settings: CloudSettings): String = when {
+    !settings.isConfigured -> "未连接 · 可选，不填地址则完全本地"
+    settings.isSignedIn -> "已登录：${settings.user?.username ?: settings.user?.email ?: "云端账号"}"
+    else -> "${settings.serverUrl} · 未登录"
 }

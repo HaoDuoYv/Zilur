@@ -185,12 +185,10 @@ fun AppShell(
                 }
             },
             onCloudRestore = {
-                // 占位入口：还没实现云端恢复，但**不做成灰的不可点** ——
-                // 点了没反应比明确说一句更让人困惑，而且顺手能把用户引到能用的路径上。
+                // 云端恢复 = 下载云端那份 .dtk + 走已有的「预览 → 确认」导入流程
+                // （不在这里判断登录态，交给 ViewModel 给出更准的引导文案）
                 showCreateSheet = false
-                shellScope.launch {
-                    snackbarHostState.showSnackbar("云端恢复尚未开放，可先用 .dtk 备份导出到本地")
-                }
+                createSheetViewModel.restoreFromCloud()
             },
             onImportDtk = {
                 dtkImportLauncher.launch(arrayOf("application/zip", "application/octet-stream"))

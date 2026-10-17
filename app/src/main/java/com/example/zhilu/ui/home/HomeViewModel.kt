@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
-import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.reminder.ReminderClassifier
@@ -13,8 +12,7 @@ import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.TagRepository
-import com.example.zhilu.export.DtkExporter
-import com.example.zhilu.export.collectReferencedMedia
+import com.example.zhilu.domain.usecase.ExportBackupUseCase
 import com.example.zhilu.ui.navigation.AppIntents
 import com.example.zhilu.ui.search.TagFilterItem
 import com.example.zhilu.ui.search.TagQueryParser
@@ -46,7 +44,7 @@ class HomeViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val mediaRepository: MediaRepository,
     private val reminderRepository: ReminderRepository,
-    private val mediaFileManager: MediaFileManager,
+    private val exportBackup: ExportBackupUseCase,
     private val appIntents: AppIntents
 ) : ViewModel() {
 
@@ -172,20 +170,17 @@ class HomeViewModel @Inject constructor(
                 val state = _uiState.value
                 val selected = state.notes.filter { it.id in state.selectedNoteIds }
                 if (selected.isEmpty()) error("还没有选中任何笔记")
-                val media = (mediaRepository.getAllMedia() as? RepositoryResult.Success)
-                    ?.data.orEmpty()
-                val exported = DtkExporter(context, mediaFileManager)
-                    .exportNotes(selected, collectReferencedMedia(selected, media))
-                    .getOrThrow()
+                // 打包走共享用例：与设置页导出、云端备份上传同一份逻辑
+                val backup = exportBackup.of(selected).getOrThrow()
                 try {
                     context.contentResolver.openOutputStream(uri)?.use { output ->
-                        exported.inputStream().use { it.copyTo(output) }
+                        backup.file.inputStream().use { it.copyTo(output) }
                     } ?: error("无法写入所选文件")
                 } finally {
                     // 产物在 cacheDir：不删的话每导出一次就留一份完整副本
-                    exported.delete()
+                    backup.file.delete()
                 }
-                "已导出 ${selected.size} 篇笔记"
+                "已导出 ${backup.noteCount} 篇笔记"
             }.fold(
                 onSuccess = { text ->
                     _uiState.update {

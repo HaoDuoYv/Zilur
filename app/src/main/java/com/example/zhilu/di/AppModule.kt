@@ -18,6 +18,9 @@ import com.example.zhilu.data.local.dao.TodoDao
 import com.example.zhilu.data.local.database.AppDatabase
 import com.example.zhilu.data.ai.AiAssistantRepositoryImpl
 import com.example.zhilu.data.ai.LlmApiClient
+import com.example.zhilu.data.cloud.CloudApiClient
+import com.example.zhilu.data.cloud.CloudRepositoryImpl
+import com.example.zhilu.data.datastore.CloudPreferences
 import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.data.local.database.Migration
@@ -38,6 +41,7 @@ import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.ReminderRepository
 import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
+import com.example.zhilu.domain.repository.CloudRepository
 import com.example.zhilu.domain.repository.TodoRepository
 import com.example.zhilu.reminder.ReminderScheduler
 import dagger.Module
@@ -180,4 +184,16 @@ object AppModule {
     @Provides
     @Singleton
     fun provideAiTaskHost(impl: AndroidAiTaskHost): AiTaskHost = impl
+
+    /**
+     * 可选云端服务。**没有地址也能被注入** —— 仓库内部按"未配置"优雅失败，
+     * 界面据此显示"还没连接云端"。本地功能不依赖它是否可用。
+     */
+    @Provides
+    @Singleton
+    fun provideCloudRepository(
+        preferences: CloudPreferences,
+        apiClient: CloudApiClient,
+        @ApplicationContext context: Context
+    ): CloudRepository = CloudRepositoryImpl(preferences, apiClient, context)
 }

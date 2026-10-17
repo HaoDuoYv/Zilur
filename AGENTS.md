@@ -77,6 +77,31 @@ Windows 用 `.\gradlew.bat`，其余平台 `./gradlew`。本仓库的实现计�
 - **标签必须按名字认领**（`ImportKnowledgeUseCase.resolveTags`）：备份里的 `tag.id` 是源设备主键，直接拿去插 `note_tags` 会挂到本机同 id 的无关标签、或留下指向不存在标签的悬空行。
 - 有卡片时 `blocks` 必须留空、只有扁平块时 `cards` 必须留空：`Note.contentBlocks` 的语义是"blocks 非空就只用 blocks"。
 
+## 云端服务（`server/` + `data/cloud/` + `ui/cloud/`）
+
+**这是可选能力**：`CloudSettings.EMPTY`（地址为空）= 完全本地，界面只显示"未连接"。
+任何时候都不要让云端故障影响到本地功能 —— 仓库层把所有网络失败转成 `RepositoryResult.Error`，
+不抛异常到界面。
+
+- **服务端**：`server/`，Node + Express + SQLite（better-sqlite3），一个容器 + 一个 `/data` 卷。
+  `docker compose up -d --build` 即可；2 核 2G 够用。数据目录就是全部状态（含 `app.db` / `avatars/` / `backups/`）。
+- **敏感信息只走 `.env`**：`JWT_SECRET`（必填，<32 字符直接拒绝启动）与 SMTP 授权码由部署者填。
+  仓库里只有 `server/.env.example`；根与 `server/.gitignore` 双双排除 `.env`、`server/data/`、`*.dtk`、密钥材料。
+- **地址由用户填**：`CloudApiClient.normalizeServerUrl` 会自动补 `http://` 并去掉末尾斜杠
+  （不补就是 `//api/health`，部分反代会 404）。换地址**必须清登录态** —— 服务器 A 的令牌在 B 上不存在。
+- **明文 HTTP 是刻意允许的**（`res/xml/network_security_config.xml`）：自建服务器 / 局域网 IP /
+  本机 Ollama 都无法预先枚举域名，白名单不成立。公网部署请按 `server/README.md` 上 HTTPS。
+- **导入只有两个入口，但只有一个预览对话框**：本地 `.dtk` 与「云端恢复」都走
+  `CreateSheetViewModel.parseDtk` → `ImportKnowledgeUseCase`。「云端恢复」= 下载到缓存 + 复用这条链路，
+  不要另写一套导入。
+- **令牌存在独立的 DataStore 文件**（`cloud_settings`），与 `user_preferences` 分开：它是凭据不是偏好，
+  出问题可以整个文件删掉当"重置云端"。
+- 服务端的安全边界（bcrypt / 统一错误文案防枚举 / 验证码哈希 + 冷却 + 尝试上限 / 头像按魔数校验 +
+  `nosniff` / 备份先落临时名再改名）与**已知未做**（JWT 无法吊销、SQLite 单机）都写在
+  `server/README.md` 的「安全边界」一节，改服务端前先读它。
+- 服务端没有单测，回归靠 `node scripts/smoke.js http://127.0.0.1:8787`（注册→登录→资料→头像→
+  备份上传下载逐字节比对→删除）。**改接口先跑它**。
+
 ## UI 状态与一次性提示
 
 - **一次性提示（snackbar）要"先消费、再弹"，而且 `showSnackbar` 必须派发到屏幕作用域**：

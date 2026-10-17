@@ -1,0 +1,53 @@
+# 知录云端服务 · 单容器部署（2 核 2G 的小机器够用）
+#
+#   cp .env.example .env && vi .env      # 填 JWT_SECRET 与 SMTP 授权码
+#   docker compose up -d --build
+#   curl http://127.0.0.1:8787/api/health
+#
+# 升级：git pull && docker compose up -d --build
+# 备份：直接拷 ./data 目录（里面是 app.db + avatars/ + backups/）
+
+services:
+  zhilu-cloud:
+    build: .
+    image: zhilu-cloud:latest
+    container_name: zhilu-cloud
+    restart: unless-stopped
+
+    # .env 同时承担两件事：compose 的变量插值（PORT）与应用运行时配置
+    env_file:
+      - .env
+    environment:
+      # 容器内的固定挂载点，与 Dockerfile 的 VOLUME 对齐
+      DATA_DIR: /data
+
+    ports:
+      # 只监听回环的话写 "127.0.0.1:${PORT:-8787}:8787"，
+      # 让宿主机上的 Nginx/Caddy 反代并终止 TLS（推荐，见 README）
+      - "${PORT:-8787}:8787"
+
+    volumes:
+      # 一个卷装下数据库、头像、备份 —— 备份服务器就是拷这个目录
+      - ./data:/data
+
+    # 2C2G 机器上留出余量给系统与反向代理；Node + SQLite 实测常驻 60–120 MB
+    mem_limit: 512m
+    cpus: 1.0
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      # 不限制的话，json-file 日志能把小硬盘写满
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

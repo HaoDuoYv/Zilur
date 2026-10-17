@@ -17,6 +17,7 @@ import com.example.zhilu.ui.home.HomeScreen
 import com.example.zhilu.ui.note.NoteEditScreen
 import com.example.zhilu.ui.review.ReviewCenterScreen
 import com.example.zhilu.ui.settings.AppearanceScreen
+import com.example.zhilu.ui.cloud.CloudScreen
 import com.example.zhilu.ui.settings.AiConfigScreen
 import com.example.zhilu.ui.settings.ReviewIntervalScreen
 import com.example.zhilu.ui.settings.SettingsScreen
@@ -125,6 +126,15 @@ fun AppNavHost(
             popExitTransition = { backExit(motion) }
         ) {
             ReviewIntervalScreen(navController = navController)
+        }
+        composable(
+            route = Destination.Cloud.path,
+            enterTransition = { forwardEnter(motion) },
+            exitTransition = { forwardExit(motion) },
+            popEnterTransition = { backEnter(motion) },
+            popExitTransition = { backExit(motion) }
+        ) {
+            CloudScreen(navController = navController)
         }
         composable(
             route = Destination.NoteEdit.path,

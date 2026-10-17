@@ -12,3 +12,28 @@ local.properties
 *.iml
 captures/
 app/build/
+
+# ── 敏感文件：一律不入库 ──────────────────────────────────────
+# 环境变量（server/.gitignore 里也有一份，这里是兜底：无论将来放哪个目录都挡住）
+.env
+.env.*
+*.env
+!.env.example
+
+# 云端服务端的运行期数据：数据库 / 头像 / 备份
+server/data/
+server/node_modules/
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 备份包与签名材料：.dtk 里是完整笔记与图片
+*.dtk
+*.jks
+*.keystore
+*.p12
+*.pepk
+secrets/

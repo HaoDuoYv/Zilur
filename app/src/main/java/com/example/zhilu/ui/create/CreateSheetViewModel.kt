@@ -5,13 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
 import com.example.zhilu.domain.model.Note
+import com.example.zhilu.domain.repository.CloudRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.usecase.ImportKnowledgeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -26,6 +29,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class CreateSheetViewModel @Inject constructor(
     private val noteRepository: NoteRepository,
+    private val cloudRepository: CloudRepository,
     private val importKnowledgeUseCase: ImportKnowledgeUseCase
 ) : ViewModel() {
 
@@ -56,6 +60,43 @@ class CreateSheetViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 「云端恢复」：把云端那份 `.dtk` 下到缓存，然后走**和本地导入完全一样**的
+     * 「预览 → 确认」流程 —— 不再写第二套导入路径，也就不会出现"云端恢复没有预览、
+     * 直接覆盖数据库"这种事。
+     *
+     * 地址没填 / 没登录 / 没备份，都由仓库层返回一句可读的提示。
+     */
+    fun restoreFromCloud() {
+        viewModelScope.launch {
+            // 先把"没连上"的两种情况单独讲清楚：只说"还没有填写服务地址"，
+            // 用户不知道要去哪填
+            val settings = cloudRepository.settings.first()
+            if (!settings.isConfigured) {
+                _uiState.update {
+                    it.copy(message = "还没有连接云端：去「我的 → 云端服务」填服务地址并登录")
+                }
+                return@launch
+            }
+            if (!settings.isSignedIn) {
+                _uiState.update { it.copy(message = "云端还没登录：去「我的 → 云端服务」登录") }
+                return@launch
+            }
+
+            _uiState.update { it.copy(isWorking = true) }
+            when (val result = cloudRepository.downloadBackup()) {
+                is RepositoryResult.Success -> {
+                    _uiState.update { it.copy(isWorking = false) }
+                    pendingDtkTempFile = result.data
+                    parseDtk(Uri.fromFile(result.data))
+                }
+
+                is RepositoryResult.Error ->
+                    _uiState.update { it.copy(isWorking = false, message = result.message) }
+            }
+        }
+    }
+
     /** 选完 .dtk 先解析出预览，让用户确认后再落库（与设置页口径一致）。 */
     fun parseDtk(uri: Uri) {
         viewModelScope.launch {
@@ -66,6 +107,9 @@ class CreateSheetViewModel @Inject constructor(
                     pendingDtkUri = uri
                 }
                 .onFailure { throwable ->
+                    // 解析失败时云端下载的临时件就没有用了，顺手清掉
+                    pendingDtkTempFile?.delete()
+                    pendingDtkTempFile = null
                     _uiState.update {
                         it.copy(isWorking = false, message = "无法解析文件：${throwable.message}")
                     }
@@ -89,17 +133,29 @@ class CreateSheetViewModel @Inject constructor(
                         it.copy(isWorking = false, message = "导入失败：${throwable.message}")
                     }
                 }
+            cleanupTempFile()
         }
     }
 
     fun dismissDtkPreview() {
         pendingDtkUri = null
         _uiState.update { it.copy(dtkPreview = null) }
+        cleanupTempFile()
     }
 
     fun consumeMessage() {
         _uiState.update { it.copy(message = null) }
     }
 
+    /**
+     * 云端下载的临时件：导入或取消后必须删掉 —— 它是一份完整的笔记备份
+     * （含图片），留在 cache 里既占空间也不该长期存在。
+     */
+    private fun cleanupTempFile() {
+        pendingDtkTempFile?.delete()
+        pendingDtkTempFile = null
+    }
+
     private var pendingDtkUri: Uri? = null
+    private var pendingDtkTempFile: File? = null
 }

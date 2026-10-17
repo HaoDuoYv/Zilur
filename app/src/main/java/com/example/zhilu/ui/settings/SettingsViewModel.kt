@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zhilu.common.RepositoryResult
-import com.example.zhilu.data.local.file.MediaFileManager
 import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.ThemePalette
@@ -13,13 +12,13 @@ import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.reminder.ReviewIntervals
+import com.example.zhilu.domain.repository.CloudRepository
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
-import com.example.zhilu.export.DtkExporter
+import com.example.zhilu.domain.usecase.ExportBackupUseCase
 import com.example.zhilu.export.MarkdownExporter
-import com.example.zhilu.export.collectReferencedMedia
 import com.example.zhilu.reminder.ReminderScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -41,7 +40,8 @@ class SettingsViewModel @Inject constructor(
     private val tagRepository: TagRepository,
     private val mediaRepository: MediaRepository,
     private val todoRepository: TodoRepository,
-    private val mediaFileManager: MediaFileManager,
+    private val exportBackup: ExportBackupUseCase,
+    private val cloudRepository: CloudRepository,
     private val userPreferences: UserPreferences,
     private val reminderScheduler: ReminderScheduler
 ) : ViewModel() {
@@ -88,6 +88,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             userPreferences.aiSettings.collect { settings ->
                 _uiState.update { it.copy(aiSettings = settings) }
+            }
+        }
+        // 云端只读一行摘要（"未连接 / 已登录 xxx"），不在这里发任何网络请求 ——
+        // 真正的连接状态与备份信息在 `ui/cloud/CloudScreen` 里
+        viewModelScope.launch {
+            cloudRepository.settings.collect { settings ->
+                _uiState.update { it.copy(cloudSettings = settings) }
             }
         }
     }
@@ -204,31 +211,24 @@ class SettingsViewModel @Inject constructor(
     /**
      * 导出全量备份为 `.dtk`（zip：`note.json` + `media/`）。
      *
-     * 与单篇分享共用 `DtkExporter` —— 两条路走同一份打包逻辑，图片引用才会
-     * 只有一种编码方式（按 mediaId join）。
+     * 打包本身走 [ExportBackupUseCase] —— 与首页选中项导出、云端备份上传、单篇分享
+     * 共用同一条路径，图片引用只有一种编码方式（按 mediaId join）。
      */
     fun exportDtkToUri(uri: Uri) {
         viewModelScope.launch {
             _uiState.update { it.copy(isWorking = true) }
             runCatching {
-                val notes = loadNotes()
-                if (notes.isEmpty()) error("知识库还是空的，没有可备份的内容")
-                val media = loadMedia()
-                // 只打包真正被引用的媒体 —— 全库媒体直接入包会让备份里塞进孤儿图
-                val referenced = collectReferencedMedia(notes, media)
-                // 与 NoteViewModel 的分享路径一致：导出器就地构造（它是无状态的）
-                val exported = DtkExporter(context, mediaFileManager)
-                    .exportNotes(notes, referenced)
-                    .getOrThrow()
+                val backup = exportBackup.all().getOrThrow()
                 try {
                     context.contentResolver.openOutputStream(uri)?.use { output ->
-                        exported.inputStream().use { it.copyTo(output) }
+                        backup.file.inputStream().use { it.copyTo(output) }
                     } ?: error("无法写入所选文件")
                 } finally {
                     // 产物在 cacheDir：不删的话每次导出都在里面留一份完整备份
-                    exported.delete()
+                    backup.file.delete()
                 }
-                "备份已导出（${notes.size} 篇笔记${if (media.isEmpty()) "" else "，含图片"}）"
+                "备份已导出（${backup.noteCount} 篇笔记" +
+                    if (backup.mediaCount == 0) "）" else "，含 ${backup.mediaCount} 张图片）"
             }.fold(
                 onSuccess = { message ->
                     _uiState.update { it.copy(isWorking = false, exportMessage = message) }

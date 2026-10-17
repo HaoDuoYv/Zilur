@@ -4,6 +4,7 @@ import com.example.zhilu.domain.model.AiSettings
 import com.example.zhilu.data.datastore.AccentColor
 import com.example.zhilu.data.datastore.ThemeMode
 import com.example.zhilu.data.datastore.ThemePalette
+import com.example.zhilu.domain.model.CloudSettings
 import com.example.zhilu.domain.reminder.ReviewIntervals
 
 data class SettingsUiState(
@@ -25,6 +26,8 @@ data class SettingsUiState(
     /** 自定义复习间隔（天），见 `ReviewIntervals`。 */
     val reviewIntervals: List<Long> = ReviewIntervals.DEFAULT,
     val aiSettings: AiSettings = AiSettings.EMPTY,
+    /** 云端配置。默认 [CloudSettings.EMPTY] = 未连接，这一行在设置里显示"未连接"。 */
+    val cloudSettings: CloudSettings = CloudSettings.EMPTY,
     val aiTestInProgress: Boolean = false,
     val aiTestResult: String? = null,
     val exportMessage: String? = null,

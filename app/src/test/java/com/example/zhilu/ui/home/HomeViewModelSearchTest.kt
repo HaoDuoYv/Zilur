@@ -444,7 +444,7 @@ class HomeViewModelSearchTest {
         tagRepository = tagRepository,
         mediaRepository = SearchTestMediaRepository(),
         reminderRepository = SearchTestReminderRepository(),
-        mediaFileManager = mockk(relaxed = true),
+        exportBackup = mockk(relaxed = true),
         appIntents = appIntents
     )
 }

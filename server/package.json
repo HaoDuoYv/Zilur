@@ -1,0 +1,25 @@
+{
+  "name": "zhilu-cloud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "知录的可选云端服务：邮箱账号、用户资料、手动云端备份",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "smoke": "node scripts/smoke.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.5.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "nodemailer": "^6.9.15"
+  }
+}

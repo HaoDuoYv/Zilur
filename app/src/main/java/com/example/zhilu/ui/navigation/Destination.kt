@@ -68,6 +68,14 @@ sealed class Destination(val path: String) {
      */
     data object ReviewInterval : Destination("review_interval")
 
+    /**
+     * 云端服务（可选）。
+     *
+     * 独立成页：服务地址、账号三态（登录 / 注册 / 找回密码）、用户中心、云端备份
+     * 四组内容，塞进设置长列表既放不下也找不到。入口在「我的 → 云端服务」。
+     */
+    data object Cloud : Destination("cloud")
+
     data object NoteEdit : Destination("note/{noteId}") {
         const val ARG_NOTE_ID = "noteId"
 

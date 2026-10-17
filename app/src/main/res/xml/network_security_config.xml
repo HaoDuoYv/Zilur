@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  明文 HTTP 策略。
+
+  为什么整体允许 cleartext：这个 App 有两处「端点由用户自己填」的能力 ——
+  云端服务地址（自己部署的服务器，绝大多数是局域网 http://IP:端口）与
+  AI 服务端点（本机 Ollama / 内网网关同样是 http）。域名无法预先枚举，
+  白名单式的 network-security-config 在这里不成立。
+
+  风险面控制：
+  · App 不加载任何网页内容（无 WebView），解析的只有自家 API 的 JSON；
+  · 推荐做法与文档都在 server/README.md 里写明「公网部署请上 HTTPS」；
+  · 服务端返回的错误文案会直接展示，因此不解析 HTML、不执行脚本。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

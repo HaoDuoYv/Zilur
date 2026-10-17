@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-10-17
+
+- Added an **optional** cloud service (account + manual backup). Leaving the server
+  address empty keeps the app fully local — nothing leaves the device.
+  - `server/`: lightweight Node + Express + SQLite backend, one container + one data
+    volume, deployable on a 2C/2G box (`Dockerfile`, `docker-compose.yml`).
+  - Accounts: email register / login / password reset via email verification codes.
+    SMTP credentials (including the provider "authorization code") are supplied by the
+    operator through `server/.env` — only `.env.example` is committed.
+  - User center: change username, upload / replace / remove avatar (avatar format is
+    validated by magic bytes, files are served with `nosniff`).
+  - Cloud backup: upload / download / delete a single `.dtk` per account (manual, no
+    auto-sync). "Cloud restore" in the ＋ sheet reuses the same preview-and-confirm
+    flow as local `.dtk` import.
+  - App side: user-configurable server address (auto `http://`, trailing slash
+    normalized), per-request JWT, token stored in its own DataStore file.
+  - `.gitignore` excludes `.env`, `server/data/`, `*.dtk`, and signing material.
+
 ## 2026-09-30
 
 - Redesigned the UI/UX layer (P0–P5) without touching ViewModel / Domain / Data / Room schema:
