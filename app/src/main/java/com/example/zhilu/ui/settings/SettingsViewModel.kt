@@ -12,9 +12,11 @@ import com.example.zhilu.data.datastore.UserPreferences
 import com.example.zhilu.domain.model.Note
 import com.example.zhilu.domain.model.Tag
 import com.example.zhilu.domain.reminder.ReviewIntervals
+import com.example.zhilu.domain.reminder.ReviewQueueClassifier
 import com.example.zhilu.domain.repository.CloudRepository
 import com.example.zhilu.domain.repository.MediaRepository
 import com.example.zhilu.domain.repository.NoteRepository
+import com.example.zhilu.domain.repository.ReviewRepository
 import com.example.zhilu.domain.repository.TagRepository
 import com.example.zhilu.domain.repository.TodoRepository
 import com.example.zhilu.domain.usecase.ExportBackupUseCase
@@ -42,16 +44,21 @@ class SettingsViewModel @Inject constructor(
     private val todoRepository: TodoRepository,
     private val exportBackup: ExportBackupUseCase,
     private val cloudRepository: CloudRepository,
+    private val reviewRepository: ReviewRepository,
     private val userPreferences: UserPreferences,
     private val reminderScheduler: ReminderScheduler
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+    /** 复习分区口径（今天 0 点）与复习中心共用，直接实例化——它没有任何依赖。 */
+    private val queueClassifier = ReviewQueueClassifier()
+
     init {
         refreshStats()
         observeStats()
         observePreferences()
+        observeReviewPending()
     }
 
     private fun observePreferences() {
@@ -152,12 +159,6 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            when (val result = mediaRepository.getTotalSize()) {
-                is RepositoryResult.Success -> _uiState.update { it.copy(totalMediaSize = result.data) }
-                is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
-            }
-        }
-        viewModelScope.launch {
             val activity = runCatching { loadActivity() }.getOrNull() ?: return@launch
             _uiState.update {
                 it.copy(recordedDays = activity.totalDays, streakDays = activity.streak)
@@ -207,6 +208,33 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
+
+    /**
+     * 「我的」复习中心那一行右侧的「待处理 N」角标。
+     *
+     * 口径与复习中心完全一致：`overdue + today`（都按今天 0 点分界）。
+     * 用同一条 [ReviewQueueClassifier] 而不是在这里另写一份判定 —— 两处各算各的
+     * 迟早会在跨零点时给出对不上的数字。
+     */
+    private fun observeReviewPending() {
+        viewModelScope.launch {
+            reviewRepository.observePlans().collect { result ->
+                when (result) {
+                    is RepositoryResult.Success -> {
+                        val queue = queueClassifier.classify(result.data, startOfToday())
+                        _uiState.update {
+                            it.copy(reviewPendingCount = queue.overdue.size + queue.today.size)
+                        }
+                    }
+                    is RepositoryResult.Error -> _uiState.update { it.copy(error = result.message) }
+                }
+            }
+        }
+    }
+
+    /** 今天 0 点：复习是"天"粒度，分区以它为界（见 `ReviewQueueClassifier`）。 */
+    private fun startOfToday(): Long =
+        LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
     /**
      * 导出全量备份为 `.dtk`（zip：`note.json` + `media/`）。

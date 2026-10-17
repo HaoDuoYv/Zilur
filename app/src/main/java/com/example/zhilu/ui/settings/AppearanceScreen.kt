@@ -84,16 +84,16 @@ fun appearanceSummary(palette: ThemePalette, themeMode: ThemeMode): String {
 }
 
 /**
- * AI 配置入口那一行的说明：**当前用哪个 AI** —— 这是进去之前最想知道的事。
+ * AI 配置入口那一行的**行尾摘要**：**当前用哪个 AI** —— 这是进去之前最想知道的事。
  *
- * 三种状态各给一句，不留空：
- * - 没有服务 → 引导去添加；
- * - 有服务但都不可用（停用 / 没填全）→ 明确说"没有可用的"，否则用户会以为只是没选；
- * - 正常 → 「当前使用：X」+ 一共有几个。
+ * 现在这一行是「标题 + 行尾值」而不是「标题 + 第二行描述」（见 `SettingsRowValue`），
+ * 所以只给短值，长句留给进去之后的页面讲：
+ * - 没有服务 → 「未接入」；
+ * - 有服务但都不可用（停用 / 没填全）→ 「无可用的」，否则用户会以为只是没选；
+ * - 正常 → 当前服务的显示名。
  */
 fun aiConfigSummary(settings: AiSettings): String {
-    if (settings.services.isEmpty()) return "还没有接入 AI"
-    val active = settings.resolveActive()
-        ?: return "${settings.services.size} 个服务，但没有可用的（检查是否启用或填全）"
-    return "当前使用：${active.displayName} · 共 ${settings.services.size} 个"
+    if (settings.services.isEmpty()) return "未接入"
+    val active = settings.resolveActive() ?: return "无可用的"
+    return active.displayName
 }

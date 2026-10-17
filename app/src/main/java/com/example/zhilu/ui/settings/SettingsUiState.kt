@@ -11,7 +11,6 @@ data class SettingsUiState(
     val noteCount: Int = 0,
     val tagCount: Int = 0,
     val mediaCount: Int = 0,
-    val totalMediaSize: Long = 0L,
     /** 「我的」身份卡：共记录过多少天 / 连续多少天。 */
     val recordedDays: Int = 0,
     val streakDays: Int = 0,
@@ -25,6 +24,8 @@ data class SettingsUiState(
     val remindersEnabled: Boolean = true,
     /** 自定义复习间隔（天），见 `ReviewIntervals`。 */
     val reviewIntervals: List<Long> = ReviewIntervals.DEFAULT,
+    /** 「我的」复习中心角标：已逾期 + 今天该复习的计划数（口径见 `ReviewQueueClassifier`）。 */
+    val reviewPendingCount: Int = 0,
     val aiSettings: AiSettings = AiSettings.EMPTY,
     /** 云端配置。默认 [CloudSettings.EMPTY] = 未连接，这一行在设置里显示"未连接"。 */
     val cloudSettings: CloudSettings = CloudSettings.EMPTY,

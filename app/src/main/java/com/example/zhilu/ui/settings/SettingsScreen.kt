@@ -10,35 +10,37 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Palette
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.CloudQueue
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.navigation.NavHostController
-import com.example.zhilu.domain.reminder.ReviewIntervals
 import com.example.zhilu.ui.component.AppProgressBar
 import com.example.zhilu.ui.component.AppTopBar
 import com.example.zhilu.ui.navigation.AppTabScaffold
@@ -49,6 +51,7 @@ import com.example.zhilu.ui.navigation.LocalAppSnackbar
 import com.example.zhilu.ui.navigation.navigateToReview
 import com.example.zhilu.ui.review.ReviewTab
 import com.example.zhilu.ui.theme.Spacing
+import com.example.zhilu.ui.theme.ZhiLuType
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
@@ -118,23 +121,29 @@ fun SettingsScreen(
                 AppProgressBar()
             }
 
-            // 顺序对齐设计原型：身份 → 提醒 → 外观 → AI → 数据 → 存储 → 关于。
+            // 顺序：身份（Hero）→ 学习与提醒 → 个性化 → 更多 → 页脚。
             // 「导入」不在这里了 —— 它属于"往知识库里加东西"，已经搬到**底栏中央 ＋**
             // 弹出的「新建 / 导入」弹层（全局唯一入口）。设置页只留"导出"与"存储管理"。
             ProfileCard(
                 noteCount = state.noteCount,
                 tagCount = state.tagCount,
+                mediaCount = state.mediaCount,
                 recordedDays = state.recordedDays,
                 streakDays = state.streakDays,
-                // 登录了就显示账号（点卡片进云端页），未登录保持"我的知识库"
+                // 登录了就显示账号（点卡片进云端页），未登录保持"我的知识库"且不可点
                 account = state.cloudSettings.user?.takeIf { state.cloudSettings.isSignedIn },
                 onAccountClick = { navController.navigate(Destination.Cloud.path) }
             )
 
+            // 复习中心、复习间隔、提醒总开关同组 —— 它们本来就是一件事；
+            // 通知权限仅在未授权时多占一行提示。
             ReminderSection(
                 notificationPermissionGranted = state.notificationPermissionGranted,
                 remindersEnabled = state.remindersEnabled,
+                reviewIntervals = state.reviewIntervals,
+                reviewPendingCount = state.reviewPendingCount,
                 onOpenReminders = { navController.navigateToReview(intents, ReviewTab.Reminders) },
+                onOpenReviewInterval = { navController.navigate(Destination.ReviewInterval.path) },
                 onOpenSystemNotificationSettings = {
                     context.startActivity(
                         Intent(SystemSettings.ACTION_APP_NOTIFICATION_SETTINGS)
@@ -144,98 +153,82 @@ fun SettingsScreen(
                 onToggleReminders = viewModel::setRemindersEnabled
             )
 
-            // 「复习」不再只是提醒的附庸：自定义阶梯独立成页（预设 + 校验 + 预览），
-            // 这里只留一行入口，行尾写出当前阶梯。
-            SettingsGroup(title = "复习") {
-                SettingsRow(
-                    title = "复习间隔",
-                    description = ReviewIntervals.summary(state.reviewIntervals),
-                    leadingIcon = Icons.Outlined.Schedule,
-                    onClick = { navController.navigate(Destination.ReviewInterval.path) },
-                    trailing = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                )
-            }
-
-            // 外观不再是内联的三组控件，而是一行**独立入口**：进去之后有配色缩略卡
-            // 和一句话说明，选起来比在长列表里翻开关清楚得多。行尾直接写出当前外观，
-            // 不进去也知道现在是什么。
-            SettingsGroup(title = "外观") {
+            // 外观与 AI 都是"让这个应用更像我的"，合并成一组；行尾直接写出当前值，
+            // 不进去也知道现在是什么（所以不再需要第二行描述）。
+            SettingsGroup(title = "个性化") {
                 SettingsRow(
                     title = "配色与主题",
-                    description = appearanceSummary(state.themePalette, state.themeMode),
                     leadingIcon = Icons.Outlined.Palette,
                     onClick = { navController.navigate(Destination.Appearance.path) },
                     trailing = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.Xs)
+                        ) {
+                            SettingsRowValue(appearanceSummary(state.themePalette, state.themeMode))
+                            SettingsChevron()
+                        }
                     }
                 )
-            }
-
-            // AI 配置与外观一样，走**独立入口**：多供应商之后它有服务列表 + 表单 +
-            // 默认与回退三组，塞在这里既放不下也找不到。行尾直接写出当前服务名。
-            SettingsGroup(title = "AI 助手") {
                 SettingsRow(
                     title = "AI 配置",
-                    description = aiConfigSummary(state.aiSettings),
                     leadingIcon = Icons.Outlined.SmartToy,
                     onClick = { navController.navigate(Destination.AiConfig.path) },
                     trailing = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.Xs)
+                        ) {
+                            SettingsRowValue(aiConfigSummary(state.aiSettings))
+                            SettingsChevron()
+                        }
                     }
                 )
             }
 
-            DataSection(
-                noteCount = state.noteCount,
-                tagCount = state.tagCount,
-                mediaCount = state.mediaCount,
-                totalMediaSize = state.totalMediaSize,
-                onExportBackup = { backupExportLauncher.launch(backupFileName()) },
-                onExportMarkdown = { markdownExportLauncher.launch("zhilu-notes.md") }
-            )
-
-            // 云端是**可选**的，所以单独一组、默认显示"未连接"：
-            // 不填地址的用户扫一眼就知道这东西跟自己无关，不会点进去不知所措。
-            SettingsGroup(title = "云端") {
+            // 低频项收进「更多」：导出最常用，排在最前两行。
+            SettingsGroup(title = "更多") {
+                SettingsRow(
+                    title = "导出备份",
+                    description = "导出全部笔记（含图片）为 .dtk 备份文件",
+                    leadingIcon = Icons.Outlined.Download,
+                    onClick = { backupExportLauncher.launch(backupFileName()) },
+                    trailing = { SettingsChevron() }
+                )
+                SettingsRow(
+                    title = "导出 Markdown",
+                    description = "用于在其他编辑器继续写作",
+                    leadingIcon = Icons.Outlined.Description,
+                    onClick = { markdownExportLauncher.launch("zhilu-notes.md") },
+                    trailing = { SettingsChevron() }
+                )
+                // 云端是**可选**的：不填地址的用户扫一眼就知道这东西跟自己无关。
                 SettingsRow(
                     title = "云端服务",
                     description = cloudSummary(state.cloudSettings),
                     leadingIcon = Icons.Outlined.CloudQueue,
                     onClick = { navController.navigate(Destination.Cloud.path) },
-                    trailing = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    trailing = { SettingsChevron() }
                 )
-            }
-
-            StorageSection(onOpenTrash = { navController.navigate(Destination.Trash.path) })
-
-            SettingsGroup(title = "关于") {
                 SettingsRow(
-                    title = "版本",
-                    description = appVersionLabel(context),
-                    leadingIcon = Icons.Outlined.Info,
-                    trailing = {}
+                    title = "回收站",
+                    description = "恢复或永久删除已移除的笔记",
+                    leadingIcon = Icons.Outlined.Delete,
+                    onClick = { navController.navigate(Destination.Trash.path) },
+                    trailing = { SettingsChevron() }
                 )
             }
+
+            // 「关于」不再占一张卡：版本号降级成页脚一行小字。
+            Text(
+                text = "知录 · ${appVersionLabel(context)}",
+                style = ZhiLuType.meta,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = Spacing.Xl)
+            )
         }
     }
 }
@@ -259,11 +252,11 @@ private fun backupFileName(): String {
 /**
  * 云端那一行的摘要。
  *
- * 「谁登录了」由顶部身份卡负责，这一行只说**连接本身**（地址 / 是否登录），
- * 免得同一句"已登录：xxx"在屏幕上出现两次。
+ * 「谁登录了」由顶部身份卡负责，这一行只说**连接本身**，且要够短 ——
+ * 它是行内第二行描述，不该把「更多」组里的行撑高。
  */
 private fun cloudSummary(settings: CloudSettings): String = when {
-    !settings.isConfigured -> "未连接 · 可选，不填地址则完全本地"
+    !settings.isConfigured -> "未连接"
     settings.isSignedIn -> settings.serverUrl
-    else -> "${settings.serverUrl} · 未登录"
+    else -> "未登录"
 }
