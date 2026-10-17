@@ -125,7 +125,10 @@ fun SettingsScreen(
                 noteCount = state.noteCount,
                 tagCount = state.tagCount,
                 recordedDays = state.recordedDays,
-                streakDays = state.streakDays
+                streakDays = state.streakDays,
+                // 登录了就显示账号（点卡片进云端页），未登录保持"我的知识库"
+                account = state.cloudSettings.user?.takeIf { state.cloudSettings.isSignedIn },
+                onAccountClick = { navController.navigate(Destination.Cloud.path) }
             )
 
             ReminderSection(
@@ -253,9 +256,14 @@ private fun backupFileName(): String {
     return "zhilu-backup-$date.dtk"
 }
 
-/** 云端那一行的一句话摘要：没连接就明说"仅本地"，别让人以为已经同步了。 */
+/**
+ * 云端那一行的摘要。
+ *
+ * 「谁登录了」由顶部身份卡负责，这一行只说**连接本身**（地址 / 是否登录），
+ * 免得同一句"已登录：xxx"在屏幕上出现两次。
+ */
 private fun cloudSummary(settings: CloudSettings): String = when {
     !settings.isConfigured -> "未连接 · 可选，不填地址则完全本地"
-    settings.isSignedIn -> "已登录：${settings.user?.username ?: settings.user?.email ?: "云端账号"}"
+    settings.isSignedIn -> settings.serverUrl
     else -> "${settings.serverUrl} · 未登录"
 }
