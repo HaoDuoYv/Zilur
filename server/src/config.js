@@ -28,6 +28,10 @@ const smtp = {
   user: (process.env.SMTP_USER || '').trim(),
   pass: (process.env.SMTP_PASS || '').trim(),
   from: (process.env.MAIL_FROM || '').trim(),
+  // 只改发件人**显示名**（默认应用名）。地址必须等于认证账号，改了会被 SMTP 拒。
+  fromName: (process.env.MAIL_FROM_NAME || '').trim(),
+  // 留空 = 不设 Reply-To。系统邮件靠 Auto-Submitted 头抑制自动回复，不需要回复地址。
+  replyTo: (process.env.MAIL_REPLY_TO || '').trim(),
 };
 
 // 三项齐全才算"配了邮件"。少一项就当没配 —— 免得运行到发信时才炸。

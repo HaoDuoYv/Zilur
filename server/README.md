@@ -40,6 +40,24 @@ openssl rand -hex 32          # 把输出粘到 .env 的 JWT_SECRET=
 > 授权码获取：QQ 邮箱 → 设置 → 账号 → 开启「IMAP/SMTP 服务」→ 生成授权码。
 > 163 邮箱同理。**这个授权码只写进 `server/.env`，`.env` 已被 `.gitignore` 排除。**
 
+**邮件长什么样**（不用改就能用）：
+
+| 项 | 值 |
+|---|---|
+| 发件人显示名 | `知录`（`MAIL_FROM_NAME`，可改） |
+| 发件人地址 | `MAIL_FROM`，留空用 `SMTP_USER` |
+| 标题 | `【知录】注册验证码` / `【知录】重置密码验证码` |
+| 正文 | `text/plain` + `text/html` 两份（`multipart/alternative`） |
+
+> ⚠️ **`MAIL_FROM` 的地址必须等于 `SMTP_USER`**。QQ / 163 / Gmail 都要求信封发件人
+> 与认证账号一致，改了会被直接拒发（501）。想换"看起来是谁发的"只改 `MAIL_FROM_NAME`
+> —— 那是显示名，随便填都不影响投递。
+
+邮件是系统自动发的、**不需要回复**：报文里带 `Auto-Submitted: auto-generated` 与
+`X-Auto-Response-Suppress: All`，让对方的自动回复/外出助理不要再回一封。
+真要给用户一个回复去处才配 `MAIL_REPLY_TO`（留空就是不设 `Reply-To`）。
+验证码也**不写进标题** —— 标题会被邮件客户端的通知栏直接显示出来。
+
 **不想配邮件也行**：把 `SMTP_*` 全部留空。此时注册不要求验证码、找回密码不可用
 （接口会返回"未配置邮件服务"），其余功能照常。自己一个人用时这样最省事。
 
