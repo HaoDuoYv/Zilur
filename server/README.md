@@ -107,6 +107,39 @@ tar czf zhilu-cloud-$(date +%F).tar.gz data/
 里面是：`app.db`（SQLite，含用户表）、`avatars/`、`backups/`。
 恢复时把这个目录放回去再 `docker compose up -d` 即可。
 
+### 升级
+
+```bash
+git status                       # 先看有没有改过仓库里的文件（改过的话 git pull 会冲突）
+git pull
+docker compose up -d --build     # 重建镜像并换掉容器
+```
+
+`.env` 与 `data/` 都不在版本库里，**`git pull` 不会动它们** —— 账号、头像、
+云端备份原样保留，不需要迁移数据库。
+
+升级完确认一下跑的确实是新代码（以邮件模板为例）：
+
+```bash
+docker exec zhilu-cloud grep -c "Auto-Submitted" src/mail.js   # 输出非 0 = 新代码
+curl http://127.0.0.1:8787/api/health
+```
+
+只改了 `.env`、没改代码的话不必重建，`docker compose restart` 就够。
+
+**回滚**：
+
+```bash
+git log --oneline -5              # 挑一个旧 SHA
+git checkout <旧SHA>
+docker compose up -d --build
+```
+
+老镜像会变成 dangling，攒多了清理：`docker image prune`。
+
+> `docker compose up -d --build` 期间服务会短暂中断（几十秒）。
+> 想更稳就先 `docker compose build` 再 `up -d`。
+
 ---
 
 ## 四、接口一览
