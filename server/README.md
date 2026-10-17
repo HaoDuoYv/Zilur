@@ -130,7 +130,33 @@ node scripts/smoke.js
 
 ---
 
-## 六、安全边界（部署者需要知道的）
+## 六、构建常见问题
+
+### `npm ci` 卡在 better-sqlite3：`Request timed out` + `Could not find any Python installation`
+
+这个依赖带原生二进制，装的时候分两条路：
+
+1. `prebuild-install` 从 **GitHub Releases** 下现成的 `.node`；
+2. 下不到就回退 `node-gyp` 源码编译 —— slim 镜像里没有 Python/make/g++，直接失败。
+
+国内云主机（含腾讯云）访问 GitHub 经常超时，于是必走第 2 条，然后必挂。
+Dockerfile 已经默认把下载源换到 npmmirror（内容与 GitHub 产物一致），一般不用管。
+如果你在境外部署，覆盖回官方源：
+
+```bash
+docker build \
+  --build-arg NPM_REGISTRY=https://registry.npmjs.org \
+  --build-arg SQLITE3_PREBUILD_MIRROR=https://github.com/WiseLibs/better-sqlite3/releases/download \
+  -t zhilu-cloud:1.0.0 .
+```
+
+镜像源换不动、又确实连不上外网的极端情况：Dockerfile 里的 apt 兜底会装上
+`python3 make g++` 让源码编译跑通（装完依赖后 purge，不进最终镜像）。
+apt 本身失败也不会阻断构建。
+
+---
+
+## 七、安全边界（部署者需要知道的）
 
 已经做了：
 
